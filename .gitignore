@@ -1,0 +1,30 @@
+# toolchains y SDKs de terceros (licencia propietaria, enormes)
+tools/android/
+tools/ciq/
+captures/gb-src/
+captures/gadgetbridge-0.93.0.apk
+.venv/
+node_modules/
+# claves y certificados de firma (NUNCA al repo)
+*.keystore
+*.tmp
+watchapp/developer.der
+# builds
+android/build/
+watchapp/build/
+# datos personales de campo
+captures/
+*.log
+# basura de herramientas y sesiones
+.playwright-mcp/
+.zcode/
+.agents/
+output/
+__pycache__/
+.DS_Store
+Thumbs.db
+watchapp/dev4096.pem
+watchapp/developer.key
+keytest.jsh
+mobile/aw-session1-shots.json
+mobile/shots.json

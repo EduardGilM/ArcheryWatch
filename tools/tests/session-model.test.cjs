@@ -1,0 +1,12 @@
+const assert=require('node:assert/strict'), T=require('../../mobile/session-model.js');
+let s=T.create({sid:'s'},1), shot={kind:'shot',sid:'s',eid:1,t:1000,set:1,score:80,peak:4000,instab:100,dt:50};
+s=T.apply(s,shot); assert.equal(T.apply(s,shot).shots.length,1);
+s=T.apply(s,{kind:'remove',eid:2,t:1000}); s=T.apply(s,{...shot,eid:3}); assert.equal(s.shots.length,0);
+for(let i=0;i<3;i++)s=T.apply(s,{...shot,eid:4+i,t:10000+i*40000});
+s=T.apply(s,{kind:'remove',eid:7,t:50000}); assert.equal(s.shots[0].set_id,s.shots[1].set_id);
+T.close(s,1);T.close(s,1);assert.equal(s.ends.length,1);T.reopen(s,1);assert.equal(s.ends.length,0);
+T.split(s,90000);assert.notEqual(s.shots[0].set_id,s.shots[1].set_id);T.merge(s,90000);assert.equal(s.shots[0].set_id,s.shots[1].set_id);
+s=T.apply(s,{...shot,manual:true,eid:8,t:100000});assert.equal(s.shots.at(-1).aim_score,null);
+assert.equal(T.summary(s.shots).score,80);assert.notEqual(T.key(s),T.key({...s,metric:1}));
+s=T.apply(s,{kind:'end',eid:9});s=T.apply(s,{...shot,eid:10,t:110000});assert.equal(s.live,false);
+console.log('Session model: replay, removal, stable sets, close/reopen, split/merge, manual metrics, versions PASS');

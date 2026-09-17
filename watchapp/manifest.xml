@@ -1,0 +1,18 @@
+<iq:manifest xmlns:iq="http://www.garmin.com/xml/connectiq" version="1">
+    <iq:application entry="ArcheryApp" id="A2C49E17B03A4F1E8D5C6B7A90E1F2D3" launcherIcon="@Drawables.LauncherIcon" minSdkVersion="3.3.0" name="@Strings.AppName" type="watch-app">
+        <iq:products>
+            <iq:product id="fr165"/>
+            <iq:product id="fr165m"/>
+        </iq:products>
+        <iq:permissions>
+            <iq:uses-permission id="Sensor"/>
+            <iq:uses-permission id="Fit"/>
+            <iq:uses-permission id="SensorLogging"/>
+            <iq:uses-permission id="Communications"/>
+            <iq:uses-permission id="SensorHistory"/>
+        </iq:permissions>
+        <iq:languages>
+            <iq:language>eng</iq:language>
+        </iq:languages>
+    </iq:application>
+</iq:manifest>

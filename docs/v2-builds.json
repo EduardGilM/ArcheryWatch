@@ -1,0 +1,9 @@
+{
+  "version": "2.0",
+  "versionCode": 37,
+  "sha256": {
+    "android/build/ArcheryWatch.apk": "33e9951aa3c4c6c352e8992ab7f8aec0e6e9cef07922cd3858f00c94e43649e0",
+    "watchapp/build/AW-fr165.prg": "2653855f348b7cb67519cd2fe7c1c8b141e2cffca2a89866f7c321bd8c632bda",
+    "watchapp/build/AW-fr165m.prg": "99c9c06b1f887e7f069b693f301f0be17cb85d57816c5f459ba27e9174b51d3c"
+  }
+}
