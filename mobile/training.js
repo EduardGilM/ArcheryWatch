@@ -1,20 +1,30 @@
-// Extensiones de entrenamiento; el movil es visor: todos los controles viven en el menu del reloj.
+// Equipo y calibracion del reloj desde el movil.
 const $ = id => document.getElementById(id), escapeText = s => String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 document.head.insertAdjacentHTML('beforeend',`<style>
-.training{border-top:1px solid var(--line);padding:14px 0;line-height:1.6;font-size:12px;color:var(--dim)}
-.training select{background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:8px;font:inherit;max-width:100%}
-.training label{display:block;margin:8px 0}.training b{color:var(--txt)}
-.picker{margin-top:10px}
-.pickRow{display:flex;justify-content:space-between;align-items:center;width:100%;background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:12px;padding:13px 14px;font:inherit;font-size:14px;cursor:pointer;min-height:48px}
-.pickRow b{color:var(--acc);font-weight:600}
-.sheet{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+.training{display:grid;gap:10px;font-size:13px;color:var(--txt-2);line-height:1.5}
+.training.card{padding:14px}
+.training label{display:flex;align-items:center;justify-content:space-between;gap:10px;color:var(--txt);font-size:14px;font-weight:600}
+.training b{color:var(--txt)}
+#trainingPanel{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px 14px 4px}
+#trainingStatus{font-size:15px;font-weight:600;color:var(--txt);margin-bottom:4px}
+.picker+.picker{border-top:1px solid var(--line)}
+.pickRow{display:flex;justify-content:space-between;align-items:center;width:100%;background:none;border:none;color:var(--txt-2);padding:12px 0;font-size:14px;min-height:48px}
+.pickRow b{color:var(--txt);font-weight:500;display:flex;align-items:center;gap:6px}
+.pickRow b::after{content:'';width:12px;height:12px;background:var(--txt-3);-webkit-mask:var(--i-caret) center/contain no-repeat;mask:var(--i-caret) center/contain no-repeat;transform:rotate(90deg)}
+.sheet{display:flex;flex-direction:column;gap:6px;padding:0 0 12px}
 .sheet[hidden]{display:none}
-.sheet button{display:flex;justify-content:space-between;background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:12px;padding:13px 14px;font:inherit;font-size:14px;cursor:pointer;min-height:48px;text-align:left}
-.sheet button.on{border-color:var(--acc);color:var(--acc);font-weight:700}
-.addItem{display:flex;gap:6px;margin-top:2px}
-.addItem input{flex:1;background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:12px;padding:11px;font:inherit;min-height:44px}
-.addItem button{background:#3c2c1c;color:var(--acc);border:1px solid #5a4028;border-radius:12px;padding:11px 16px;font:inherit;font-weight:700;cursor:pointer;min-height:44px}
-#trainingStatus{font-size:15px;color:var(--txt)}#notice{position:fixed;bottom:78px;left:14px;right:14px;z-index:20;padding:12px;background:#302619;color:#ffdcad;border-radius:12px;font-size:12px}
+.sheet button{display:flex;justify-content:space-between;align-items:center;background:var(--surface-2);color:var(--txt);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:14px;min-height:46px;text-align:left}
+.sheet button span{color:var(--txt-3);font-size:12.5px}
+.sheet button.on{border-color:rgba(255,122,26,.4);background:var(--acc-soft);color:var(--acc);font-weight:600}
+#bowList,#arrowList{display:flex;flex-direction:column;gap:6px}
+.gearRow{display:flex;gap:6px}.gearRow>[data-n]{flex:1;min-width:0}.sheet .deleteGear{flex:none;width:46px;justify-content:center;color:var(--danger)}.deleteGear svg{width:18px;height:18px}
+.addItem{display:flex;gap:6px}
+.addItem input{flex:1;min-width:0;background:var(--surface-2);color:var(--txt);border:1px solid var(--line-2);border-radius:12px;padding:10px 12px;min-height:44px}
+.addItem input::placeholder{color:var(--txt-3)}
+.addItem button{background:var(--acc-soft);color:var(--acc);border:1px solid rgba(255,122,26,.3);border-radius:12px;padding:10px 16px;font-weight:600;min-height:44px}
+#shotContext{font-size:12.5px;color:var(--txt-2)}
+#comparison:empty,#setState:empty,#volume:empty{display:none}
+#notice{position:fixed;bottom:84px;left:16px;right:16px;z-index:20;padding:12px 14px;background:var(--surface-3);border:1px solid var(--line-2);color:var(--txt);border-radius:12px;font-size:13px;box-shadow:0 12px 30px rgba(0,0,0,.4)}
 </style>`);
 $('vSession').insertAdjacentHTML('afterbegin',`<section class="training" id="trainingPanel"><div id="trainingStatus">Prepara tu entrenamiento</div>
 <div class="picker" id="modePicker">
@@ -33,29 +43,58 @@ $('vSession').insertAdjacentHTML('afterbegin',`<section class="training" id="tra
 <button class="pickRow" id="arrowRow"><span>Flechas</span><b id="arrowVal">–</b></button>
 <div class="sheet" id="arrowSheet" hidden><div id="arrowList"></div>
 <div class="addItem"><input id="arrowName" placeholder="Nombre de las flechas" maxlength="24"><button id="arrowAdd">Añadir</button></div></div>
-</div></section>`);
-$('vSet').insertAdjacentHTML('beforeend',`<section class="training"><div id="setState"></div></section>`);
-$('vShot').insertAdjacentHTML('beforeend',`<section class="training"><div id="shotContext"></div><label>Comparar con <select id="compareShot" onchange="render()"><option value="">Ninguna</option></select></label><div id="comparison"></div></section>`);
-$('vProgress').insertAdjacentHTML('afterbegin',`<section class="training"><label>Equipo y métrica <select id="progressProfile" onchange="renderProgress()"></select></label><div id="volume"></div></section>`);
+</div><button class="btnSecondary" id="calibrationMode" onclick="sendCmd('calibrate',0)">Iniciar calibración</button></section>`);
+$('vSet').querySelector('.deleteAction').insertAdjacentHTML('beforebegin',`<section class="training"><div id="setState"></div></section>`);
+$('vShot').querySelector('.deleteAction').insertAdjacentHTML('beforebegin',`<section class="training card"><div id="shotContext"></div><label>Comparar con <select id="compareShot" onchange="render()"><option value="">Ninguna</option></select></label><div id="comparison"></div></section>`);
+$('vProgress').insertAdjacentHTML('afterbegin',`<section class="training card"><label>Equipo y métrica <select id="progressProfile" onchange="renderProgress()"></select></label><div id="volume"></div></section>`);
 document.body.insertAdjacentHTML('beforeend','<div id="notice" role="status" hidden></div>');
 const gear={get:()=>{try{const g=JSON.parse(localStorage.getItem('awGear'));return {bows:Array.isArray(g?.bows)?g.bows:[],arrows:Array.isArray(g?.arrows)?g.arrows:[]};}catch(e){return {bows:[],arrows:[]};}},
   save:g=>localStorage.setItem('awGear',JSON.stringify(g))};
 function closeSheets(except){['modeSheet','bowSheet','arrowSheet'].forEach(id=>{$(id).hidden=id!==except;});}
 ['modeRow','bowRow','arrowRow'].forEach(id=>{$(id).onclick=()=>{const sh=$(id.replace('Row','Sheet'));closeSheets(sh.hidden?sh.id:null);};});
-function sendCmd(action,value){const s=displayedSession();if(s?.live&&s.watchId&&window.Native?.command){Native.command(JSON.stringify({sid:s.watchId,action,value}));}}
+function sendCmd(action,value){const s=displayedSession();if(s?.live&&s.watchId&&window.Native?.command){const error=Native.command(JSON.stringify({sid:s.watchId,action,value}));if(error)notice(error);}}
+let calibrationConfirming = false, calibrationShotKey = '';
+function validCalibrationShot(s) { return !!s && !s.manual && Number.isFinite(s.peak_mg) && s.peak_mg > 150 && s.peak_mg <= 100000; }
+function calibrationState() {
+  try { const s = JSON.parse(localStorage.getItem('awCalibration')); return s && typeof s === 'object' ? s : null; } catch { return null; }
+}
+function renderCalibration(s) {
+  const valid = validCalibrationShot(s), session = displayedSession(), select = $('calibrationProfile');
+  $('calibrationPanel').hidden = !valid;
+  if (!valid) return;
+  $('calibrationInfo').textContent = `${s.candidate?'Candidato sin puntuar. ':''}Pico ${Math.round(s.peak_mg)} mG. Elige solo una suelta real como referencia.`;
+  const bows = [...new Set(gear.get().bows)];
+  if (!bows.length) bows.push('Recurvo', 'Compuesto');
+  const keep = select.value;
+  select.innerHTML = bows.map(b => `<option value="${escapeText(b)}">${escapeText(b)}</option>`).join('');
+  const key = JSON.stringify([session?.id, s.t_ms]);
+  if (key !== calibrationShotKey) {
+    select.value = [s?.bow, session?.bow, s?.profile, session?.profile].find(b => bows.includes(b)) || bows[0];
+    calibrationShotKey = key;
+  } else if (bows.includes(keep)) select.value = keep;
+}
 function saveSession(s){const L=store.list();const i=L.findIndex(x=>x.id===s.id);if(i>=0)L[i]=s;else L.push(s);store.save(L);if(curSess?.id===s.id)curSess=s;}
 $('modeSheet').onclick=e=>{const b=e.target.closest('[data-v]');if(!b)return;const s=displayedSession();if(!s||historyMode)return;
   s.mode=b.dataset.v;s.target=b.dataset.v==='Indoor'?3:b.dataset.v==='Outdoor'?6:0;saveSession(s);sendCmd('mode',s.mode);closeSheets(null);render();};
 function gearSheet(listId,sheetId,field,cmd){
-  $(sheetId).onclick=e=>{const b=e.target.closest('[data-n]');if(!b)return;const s=displayedSession();if(!s||historyMode)return;
+  $(sheetId).onclick=e=>{const remove=e.target.closest('[data-delete-bow]');if(remove){deleteBow(remove.dataset.deleteBow);return;}const b=e.target.closest('[data-n]');if(!b)return;const s=displayedSession();if(!s||historyMode)return;
     s[field]=b.dataset.n;saveSession(s);if(cmd)sendCmd(cmd,s[field]);closeSheets(null);render();};
+}
+function deleteBow(name){
+  const g=gear.get();if(!g.bows.includes(name))return;
+  const s=displayedSession(), error=window.Native?.command?.(JSON.stringify({sid:s?.watchId||'',action:'deleteProfile',value:name}));
+  if(error){notice('No se pudo eliminar el preset: '+error);return;}
+  g.bows=g.bows.filter(n=>n!==name);gear.save(g);
+  if(s?.live&&!historyMode&&(s.bow===name||s.profile===name)){s.bow=null;s.profile='Recurvo';saveSession(s);}
+  if(calibrationState()?.profile===name)localStorage.removeItem('awCalibration');
+  render();notice(error===undefined?'Preset eliminado del móvil':'Preset eliminado; borrado del reloj pendiente de sincronización');
 }
 gearSheet('bowList','bowSheet','bow','profile');
 gearSheet('arrowList','arrowSheet','arrows',null);
 function addGear(inputId,btnId,listName,field){
   $(btnId).onclick=()=>{const n=$(inputId).value.trim();if(!n)return;
     const g=gear.get();if(!g[listName].includes(n)){g[listName].push(n);gear.save(g);}
-    const s=displayedSession();if(s&&!historyMode){s[field]=n;saveSession(s);}
+    const s=displayedSession();if(s&&!historyMode){s[field]=n;saveSession(s);if(field==='bow')sendCmd('profile',n);}
     $(inputId).value='';render();};
 }
 addGear('bowName','bowAdd','bows','bow');
@@ -66,6 +105,13 @@ function displayedSession() { return store.list().find(s=>s.id===(historyMode?hi
 window.liveEvent = e => {
   if (!e || typeof e.sid!=='string' || !Number.isFinite(e.eid) || typeof e.kind!=='string') throw Error('Evento inválido');
   if (e.kind==='shot' && (!Number.isFinite(e.t)||(!e.manual&&!['score','peak','instab'].every(k=>Number.isFinite(e[k]))))) throw Error('Tiro inválido');
+  if (e.kind === 'calibration' && typeof e.requestId === 'string') {
+    const pending = calibrationState();
+    if (pending?.requestId === e.requestId && typeof e.applied === 'boolean') {
+      localStorage.setItem('awCalibration', JSON.stringify({...pending, status: e.applied ? 'applied' : 'error', result: e.result}));
+      notice(e.result || (e.applied ? 'Calibración aplicada' : 'Calibración no aplicada'));
+    }
+  }
   const L=store.list();let i=L.findIndex(s=>s.watchId===e.sid);
   if(i<0) { const epoch=Number(e.sid.split('-')[0])*1000;L.push(Training.create(e,Number.isFinite(epoch)&&epoch>1e12?epoch:Math.max(Date.now(),...L.map(s=>s.id+1))));i=L.length-1; }
   if(e.eid<=(L[i].lastEvent??-1))return;
@@ -99,31 +145,33 @@ removeSelection=function(kind,id=historyMode?histId:curSess?.id) {
 const originalRender=render;
 render=function() {
   originalRender();const s=displayedSession(), shot=data?.shots[cur];
-  const ordinal=s?sets(s.shots).findIndex(g=>s.shots[g[0]].set_id===s.currentSet):-1;
-  const setNumber=ordinal>=0?ordinal+1:(s?sets(s.shots).length+1:1);
+  const groups=s?sets(s.shots).filter(g=>!s.shots[g[0]].candidate):[], ordinal=groups.findIndex(g=>s.shots[g[0]].set_id===s.currentSet);
+  const setNumber=ordinal>=0?ordinal+1:groups.length+1;
   $('trainingStatus').textContent=historyMode?'Sesión guardada':s?`${s.mode?s.mode+' · ':''}${s.paused?'Pausa':s.resting?'Descanso':'Set '+setNumber} · ${s.shots.filter(x=>x.set_id===(s.currentSet??1)).length}${s.target?'/'+s.target:''} flechas`:'Prepara tu entrenamiento';
-  if(!historyMode && s?.calibrating)$('trainingStatus').textContent=`Calibrando · ${s.calibrationCount||0}/3 flechas`;
+  if(!historyMode && s?.calibrating)$('trainingStatus').textContent=`Calibración · ${s.calibrationCount||0} candidatos · elige una flecha en Tiro`;
+  $('calibrationMode').hidden=historyMode||!s?.live||!s.watchId||!window.Native?.command;
+  $('calibrationMode').textContent=s?.calibrating?'Salir de calibración':'Iniciar calibración';
   ['modePicker','bowPicker','arrowPicker'].forEach(id=>$(id).hidden=historyMode);
   $('modeVal').textContent=s?.mode||'–';
-  $('bowVal').textContent=s?.bow||'sin definir';
+  $('bowVal').textContent=s?.bow||s?.profile||'sin definir';
   $('arrowVal').textContent=s?.arrows||'sin definir';
   $('modeSheet').querySelectorAll('[data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===(s?.mode||'')));
   const g=gear.get();
-  $('bowList').innerHTML=g.bows.map(n=>`<button data-n="${escapeText(n)}"${n===s?.bow?' class="on"':''}>${escapeText(n)}<span>‹</span></button>`).join('')||'';
+  $('bowList').innerHTML=g.bows.map(n=>`<div class="gearRow"><button data-n="${escapeText(n)}"${n===(s?.bow||s?.profile)?' class="on"':''}>${escapeText(n)}<span>‹</span></button><button class="deleteGear" data-delete-bow="${escapeText(n)}" aria-label="Eliminar preset ${escapeText(n)}">${TRASH}</button></div>`).join('');
   $('arrowList').innerHTML=g.arrows.map(n=>`<button data-n="${escapeText(n)}"${n===s?.arrows?' class="on"':''}>${escapeText(n)}<span>‹</span></button>`).join('')||'';
   if(shot) {
     $('setState').textContent=(s?.ends||[]).some(e=>e.id===shot.set_id)?'Set cerrado':'Set abierto';
     const group=sets(data.shots).find(g=>g.includes(cur)), stats=Training.summary(group.map(i=>data.shots[i]));
     const eq=[...new Set([shot.profile,s?.profile,s?.bow,s?.arrows].filter(Boolean))].join(' · ');
-    $('shotContext').textContent=`${shot.manual?'Flecha manual':eq||'Sin equipo'} · apunte ${aimTime(shot)==null?'–':(aimTime(shot)/1000).toFixed(1)+' s'} · radio ${aimRadius(shot)==null?'–':aimRadius(shot).toFixed(1)+aimUnit(shot)} · pulso ${shot.hr_bpm??'–'} ppm · ${shot.rmssd!=null?'RMSSD '+shot.rmssd.toFixed(0)+' ms':'RMSSD –'} · ritmo ${stats.rhythm==null?'–':stats.rhythm.toFixed(1)+' s'}`;
+    $('shotContext').textContent=`${shot.candidate?'Candidato de calibración · confirma que fue una flecha':shot.manual?'Flecha manual':eq||'Sin equipo'} · apunte ${aimTime(shot)==null?'–':(aimTime(shot)/1000).toFixed(1)+' s'} · radio ${aimRadius(shot)==null?'–':aimRadius(shot).toFixed(1)+aimUnit(shot)} · pulso ${shot.hr_bpm??'–'} ppm · ${shot.rmssd!=null?'RMSSD '+shot.rmssd.toFixed(0)+' ms':'RMSSD –'} · ritmo ${stats.rhythm==null?'–':stats.rhythm.toFixed(1)+' s'}`;
     const select=$('compareShot'), selected=select.value;
     select.innerHTML='<option value="">Ninguna</option>'+group.filter(i=>i!==cur).map(i=>`<option value="${i}">Flecha ${group.indexOf(i)+1}</option>`).join('');select.value=selected;
     $('comparison').textContent='';
-    if(view==='Shot'&&select.value!=='') {
-      const other=data.shots[+select.value], c=$('aim'), x=c.getContext('2d'), {pts,P}=proj(other);
-      x.strokeStyle='#ff8220';x.setLineDash([4,4]);x.beginPath();pts.forEach((p,i)=>i?x.lineTo(...P(p)):x.moveTo(...P(p)));x.stroke();x.setLineDash([]);
+    if(view==='Shot'&&anim==null&&select.value!=='') {
+      const other=data.shots[+select.value], c=$('aim'), x=c.getContext('2d'), {pts,P}=proj(other,shot);
+      x.strokeStyle=C.ref;x.lineWidth=1.5;x.setLineDash([4,4]);x.beginPath();pts.forEach((p,i)=>i?x.lineTo(...P(p)):x.moveTo(...P(p)));x.stroke();x.setLineDash([]);
       const delta=Number.isFinite(shot.aim_score)&&Number.isFinite(other.aim_score)?shot.aim_score-other.aim_score:null;
-      $('comparison').textContent=`Referencia naranja · ${delta==null?'sin comparación de estabilidad':(delta>0?'+':'')+delta+' de estabilidad'} · misma escala`;
+      $('comparison').textContent=`Referencia en azul · ${delta==null?'sin comparación de estabilidad':(delta>0?'+':'')+delta+' de estabilidad'} · misma escala`;
     }
   }
   ['sAvg','sSd'].forEach(id=>{if($(''+id).textContent==='NaN')$(id).textContent='–';});
@@ -134,7 +182,7 @@ renderProgress=function() {
   const L=store.list(), keys=[...new Set(L.flatMap(s=>s.shots.map(a=>Training.key({profile:a.profile||s.profile,metric:a.metric||s.metric}))))], select=$('progressProfile'), old=select.value;
   select.innerHTML=keys.map(k=>`<option value="${escapeText(k)}">${escapeText(PROFILE_LABELS[k]||k)}</option>`).join('');if(keys.includes(old))select.value=old;
   const filtered=L.map(s=>({...s,shots:s.shots.filter(a=>Training.key({profile:a.profile||s.profile,metric:a.metric||s.metric})===select.value)}));
-  const week=filtered.filter(s=>s.id>=Date.now()-7*864e5).reduce((n,s)=>n+s.shots.length,0), total=filtered.reduce((n,s)=>n+s.shots.length,0);
+  const week=filtered.filter(s=>s.id>=Date.now()-7*864e5).reduce((n,s)=>n+s.shots.filter(a=>!a.candidate).length,0), total=filtered.reduce((n,s)=>n+s.shots.filter(a=>!a.candidate).length,0);
   $('volume').textContent=`${week} flechas en 7 días · ${total} en este perfil`;
   const list=store.list;try {store.list=()=>filtered.map(s=>({...s,shots:s.shots.filter(a=>Number.isFinite(a.aim_score))}));originalProgress();}finally{store.list=list;}
 };

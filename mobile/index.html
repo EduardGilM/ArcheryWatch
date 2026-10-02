@@ -3,158 +3,267 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<meta name="theme-color" content="#0e0e12">
+<meta name="theme-color" content="#0c0d10">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
 <title>ArcheryWatch</title>
 <style>
-  :root { --bg:#0e0e12; --panel:#17171d; --panel2:#1f1f27; --line:#282833; --txt:#f2f2f5; --dim:#8b8b96; --acc:#ff8220; }
+[hidden] { display:none !important; }
+  /* Tokens. Radios: tarjetas 16, controles 12, chips en pastilla. Un solo acento (naranja de marca). */
+  @font-face { font-family:'Geist'; src:url('fonts/Geist-Variable.woff2') format('woff2'); font-weight:100 900; font-display:swap; }
+  @font-face { font-family:'Geist Mono'; src:url('fonts/GeistMono-Variable.woff2') format('woff2'); font-weight:100 900; font-display:swap; }
+  :root {
+    --bg:#0c0d10; --surface:#15171b; --surface-2:#1c1f24; --surface-3:#25282e;
+    --line:#22252b; --line-2:#30343b;
+    --txt:#eceef1; --txt-2:#a0a4ad; --txt-3:#6f747d;
+    --acc:#ff7a1a; --acc-ink:#1b0f05; --acc-soft:rgba(255,122,26,.12);
+    --danger:#ef5a5a; --live:#3ecf8e;
+    --font:'Geist',system-ui,-apple-system,sans-serif; --mono:'Geist Mono',ui-monospace,monospace;
+    --panel:var(--surface); --panel2:var(--surface-2); --dim:var(--txt-2);
+    --i-play:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256' fill='currentColor'%3E%3Cpath d='M232.4,114.49,88.32,26.35a16,16,0,0,0-16.2-.3A15.86,15.86,0,0,0,64,39.87V216.13A15.94,15.94,0,0,0,80,232a16.07,16.07,0,0,0,8.36-2.35L232.4,141.51a15.81,15.81,0,0,0,0-27ZM80,215.94V40l143.83,88Z'/%3E%3C/svg%3E");
+    --i-stop:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256' fill='currentColor'%3E%3Cpath d='M200,40H56A16,16,0,0,0,40,56V200a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V56A16,16,0,0,0,200,40Zm0,160H56V56H200V200Z'/%3E%3C/svg%3E");
+    --i-info:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256' fill='currentColor'%3E%3Cpath d='M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm16-40a8,8,0,0,1-8,8,16,16,0,0,1-16-16V128a8,8,0,0,1,0-16,16,16,0,0,1,16,16v40A8,8,0,0,1,144,176ZM112,84a12,12,0,1,1,12,12A12,12,0,0,1,112,84Z'/%3E%3C/svg%3E");
+    --i-back:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256' fill='currentColor'%3E%3Cpath d='M232,144a64.07,64.07,0,0,1-64,64H80a8,8,0,0,1,0-16h88a48,48,0,0,0,0-96H51.31l34.35,34.34a8,8,0,0,1-11.32,11.32l-48-48a8,8,0,0,1,0-11.32l48-48A8,8,0,0,1,85.66,45.66L51.31,80H168A64.07,64.07,0,0,1,232,144Z'/%3E%3C/svg%3E");
+    --i-caret:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256' fill='currentColor'%3E%3Cpath d='M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z'/%3E%3C/svg%3E");
+  }
   * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
   html, body { height:100%; }
-  body { background:var(--bg); color:var(--txt); font-family:system-ui,-apple-system,sans-serif;
+  body { background:var(--bg); color:var(--txt); font-family:var(--font); font-size:14px; line-height:1.45;
          height:100dvh; display:flex; flex-direction:column; overflow:hidden; user-select:none;
-         font-variant-numeric:tabular-nums; }
-  header { display:flex; align-items:center; gap:10px; padding:14px 14px 6px; }
-  header .btn { width:34px; height:34px; border-radius:17px; background:var(--panel); border:1px solid var(--line);
-                color:var(--txt); font-size:18px; line-height:1; cursor:pointer; }
-  header h1 { font-size:17px; font-weight:600; flex:1; text-align:center; letter-spacing:.2px; }
-  header h1 small { display:block; font-size:10px; color:var(--dim); font-weight:400; margin-top:2px; }
-  main { flex:1; display:flex; flex-direction:column; gap:10px; padding:4px 14px 10px; overflow:auto; }
-  .card { background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:12px; }
-  .aimwrap { display:flex; justify-content:center; position:relative; }
-  #aim, #aimSet { width:min(80vw,330px); height:min(80vw,330px); }
-  #play { background:var(--panel2); border:1px solid var(--line); border-radius:12px; padding:10px;
-          color:var(--acc); font-size:13px; font-weight:600; letter-spacing:.5px; cursor:pointer; }
-  .metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
-  .metric { background:var(--panel2); border:1px solid var(--line); border-radius:12px; text-align:center; padding:9px 2px; }
-  .metric b { display:block; font-size:17px; font-weight:700; }
-  .metric span { font-size:9px; color:var(--dim); letter-spacing:1.2px; }
-  #trace { width:100%; height:140px; }
-  #tLegend { display:flex; gap:10px; flex-wrap:wrap; font-size:10px; color:var(--dim); margin-top:6px; }
-  #tLegend i { display:inline-block; width:8px; height:8px; border-radius:4px; margin-right:4px; }
-  #tip { background:#251d12; border:1px solid #3e2f1a; border-radius:12px;
-         padding:10px 12px; font-size:12.5px; color:#ffd9a6; }
-  .hero { display:flex; align-items:center; gap:16px; }
-  .hero .lbl { font-size:10px; color:var(--dim); letter-spacing:1.5px; margin-bottom:6px; }
-  .hero b { font-size:46px; font-weight:800; line-height:1; }
-  .hero .r { margin-left:auto; text-align:right; font-size:12px; color:var(--dim); line-height:1.8; }
-  .hero .r b { font-size:13px; color:var(--txt); font-weight:600; }
-  #trend { width:100%; height:150px; }
-  .setline { display:flex; gap:10px; align-items:center; padding:9px 2px; border-bottom:1px solid var(--line); font-size:14px; }
-  .setline:last-child { border-bottom:none; }
-  .setline b { font-size:14px; }
-  .setline .r { margin-left:auto; color:var(--dim); font-size:12px; }
-  .chip { min-width:34px; text-align:center; border-radius:8px; padding:2px 7px; font-weight:700; font-size:12.5px; color:#000; }
-  .arrowline { display:flex; gap:10px; align-items:center; padding:9px 2px; border-bottom:1px solid var(--line); font-size:14px; }
-  .arrowline:last-child { border-bottom:none; }
-  .arrowline .r { margin-left:auto; color:var(--dim); font-size:12px; }
-  .setbar { display:flex; gap:8px; padding:0 14px 8px; overflow-x:auto; }
-  .setbar button { background:none; color:var(--dim); border:none; font-size:12px; padding:4px 8px; cursor:pointer; }
-  .setbar button.sel { color:var(--acc); font-weight:700; border-bottom:2px solid var(--acc); }
-  #legend { display:flex; flex-wrap:wrap; gap:8px; font-size:11px; color:var(--dim); padding:2px 2px 0; }
-  #legend i { display:inline-block; width:8px; height:8px; border-radius:4px; margin-right:4px; }
-  #live { display:none; position:fixed; top:54px; right:14px; background:var(--acc); color:#000; font-size:11px;
-          font-weight:700; border-radius:14px; padding:4px 10px; z-index:9; box-shadow:0 2px 10px #0008; }
-  nav { display:flex; gap:6px; border-top:1px solid var(--line); background:#121218; padding:8px 10px 12px; }
-  nav button { flex:1; background:none; border:1px solid transparent; border-radius:12px; color:var(--dim);
-               font-size:12px; letter-spacing:1px; padding:8px 0; cursor:pointer; }
-  nav button.sel { background:var(--panel2); border-color:var(--line); color:var(--acc); font-weight:700; }
-  #askModal:not([hidden]) { display:flex; position:fixed; inset:0; background:#000c; z-index:40; align-items:center; justify-content:center; padding:22px; }
-  #askModal .ask { background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:22px; max-width:360px; width:100%; }
-  #askMsg { font-size:15px; line-height:1.5; color:var(--txt); margin:0 0 18px; }
-  .askBtns { display:flex; gap:10px; }
-  #askNo { flex:1; background:var(--panel2); border:1px solid var(--line); color:var(--dim); border-radius:12px; padding:13px; font:inherit; font-size:14px; cursor:pointer; }
-  #askYes { flex:1; background:#3c2c1c; border:1px solid #5a4028; color:var(--acc); border-radius:12px; padding:13px; font:inherit; font-size:14px; font-weight:700; cursor:pointer; }
-  main { min-height:0; }
-  header, nav { flex-shrink:0; }
-  nav { padding-bottom:max(12px,env(safe-area-inset-bottom)); }
-  nav button { min-width:0; font-size:10px; letter-spacing:.4px; min-height:42px; }
-  nav svg { width:21px; height:21px; vertical-align:middle; }
-  #progress { width:100%; height:120px; }
-  .empty { padding:20px 8px; text-align:center; color:var(--dim); font-size:13px; line-height:1.6; }
-  .emptyState { display:none; }
-  main[data-empty="true"] > :not(.emptyState) { display:none; }
-  main[data-empty="true"] > .emptyState { display:block; }
-  #tip:empty { display:none; }
-  .deleteAction { background:none; color:var(--dim); border:1px solid var(--line); border-radius:12px; padding:11px; font:inherit; font-size:12px; cursor:pointer; }
-  .deleteAction:hover { color:#ef5350; border-color:#ef535066; }
-  .deleteSession { flex-shrink:0; width:36px; height:36px; padding:8px; }
-  .deleteSession svg { width:18px; height:18px; }
+         -webkit-font-smoothing:antialiased; font-feature-settings:'tnum' 1; }
+  button, select, input { font:inherit; color:inherit; }
+  button { cursor:pointer; transition:transform .12s ease, background-color .15s ease, color .15s ease, border-color .15s ease; }
+  button:active:not(:disabled) { transform:scale(.98); }
   button:disabled { opacity:.35; cursor:default; }
-  #live { position:static; align-self:center; margin:0 0 8px; box-shadow:none; }
-  #returnCurrent { display:none; align-self:center; background:var(--panel2); border:1px solid var(--line); border-radius:12px; color:var(--acc); padding:9px 16px; margin-bottom:8px; }
-  @media(max-width:380px) { #vShot .metrics { grid-template-columns:repeat(2,1fr); } .metric span { letter-spacing:.5px; } }
+  :focus-visible { outline:2px solid var(--acc); outline-offset:2px; }
+  .ico { width:20px; height:20px; flex-shrink:0; }
+  [class*="mask-"]::before, .mask::before { content:""; width:16px; height:16px; flex-shrink:0; background:currentColor;
+    -webkit-mask:var(--icon) center/contain no-repeat; mask:var(--icon) center/contain no-repeat; }
+
+  /* Cabecera */
+  header { display:flex; align-items:center; gap:12px; padding:16px 16px 10px; flex-shrink:0; }
+  header h1 { flex:1; min-width:0; font-size:22px; font-weight:600; letter-spacing:-.02em; line-height:1.15; }
+  header h1 span { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  header h1 small { display:block; font-size:12.5px; color:var(--txt-2); font-weight:400; letter-spacing:0; margin-top:3px; }
+  header h1 small:empty { display:none; }
+  .stepper { display:flex; gap:6px; }
+  header .btn { width:38px; height:38px; border-radius:12px; background:var(--surface); border:1px solid var(--line);
+                color:var(--txt); display:grid; place-items:center; }
+  header .btn .ico { width:18px; height:18px; }
+  #live { display:none; align-self:flex-start; margin:0 16px 10px; padding:4px 10px 4px 8px; border-radius:999px;
+          background:rgba(62,207,142,.1); color:var(--live); font-size:12px; font-weight:500; }
+  #live::before { content:""; display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--live);
+                  margin-right:7px; vertical-align:1px; }
+  @media (prefers-reduced-motion:no-preference) { #live::before { animation:pulse 2s ease-in-out infinite; } }
+  @keyframes pulse { 50% { opacity:.35; } }
+  #returnCurrent { display:none; align-self:flex-start; margin:0 16px 10px; background:var(--surface-2); border:1px solid var(--line-2);
+                   border-radius:12px; color:var(--txt); font-size:13px; font-weight:500; padding:8px 12px; }
+  #returnCurrent { --icon:var(--i-back); }
+  #returnCurrent::before { content:""; display:inline-block; width:14px; height:14px; margin-right:7px; vertical-align:-2px; background:var(--acc);
+    -webkit-mask:var(--icon) center/contain no-repeat; mask:var(--icon) center/contain no-repeat; }
+
+  /* Contenido */
+  main { flex:1; min-height:0; display:flex; flex-direction:column; gap:12px; padding:2px 16px 20px; overflow:auto; }
+  main > * { flex-shrink:0; }
+  .card { background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:14px; }
+  .cardTitle { display:flex; align-items:baseline; justify-content:space-between; gap:8px; font-size:14px; font-weight:600; margin-bottom:10px; }
+  .cardTitle small { font-size:12px; font-weight:400; color:var(--txt-3); }
+  .aimwrap { display:flex; justify-content:center; position:relative; }
+  #aim, #aimSet { width:min(82vw,330px); height:min(82vw,330px); }
+  .caption { text-align:center; font-size:11.5px; color:var(--txt-3); margin-top:8px; }
+
+  /* Botones */
+  .btnPrimary, #play { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; min-height:46px;
+    background:var(--acc); color:var(--acc-ink); border:none; border-radius:12px; font-size:14.5px; font-weight:600; }
+  #play { --icon:var(--i-play); }
+  #play.playing { --icon:var(--i-stop); background:var(--surface-2); color:var(--txt); border:1px solid var(--line-2); }
+  #play::before { content:""; width:15px; height:15px; background:currentColor; -webkit-mask:var(--icon) center/contain no-repeat; mask:var(--icon) center/contain no-repeat; }
+  .btnSecondary, #calib { display:flex; align-items:center; justify-content:center; width:100%; min-height:44px; background:var(--acc-soft);
+    color:var(--acc); border:1px solid rgba(255,122,26,.28); border-radius:12px; font-size:14px; font-weight:600; }
+  .deleteAction { background:none; color:var(--txt-3); border:1px solid var(--line); border-radius:12px; padding:12px; font-size:13px; font-weight:500; }
+  .deleteAction:active { color:var(--danger); border-color:rgba(239,90,90,.4); }
+  .deleteSession { flex-shrink:0; width:36px; height:36px; padding:0; display:grid; place-items:center; border-color:transparent; }
+  .deleteSession svg { width:18px; height:18px; }
+
+  /* Métricas */
+  .metrics { display:grid; grid-template-columns:1fr 1fr; background:var(--surface); border:1px solid var(--line); border-radius:16px; overflow:hidden; }
+  .metric { display:flex; flex-direction:column-reverse; justify-content:flex-end; gap:4px; padding:13px 14px 14px; min-width:0; }
+  .metric:nth-child(odd) { border-right:1px solid var(--line); }
+  .metric:nth-child(-n+2) { border-bottom:1px solid var(--line); }
+  .metric span { font-size:12px; color:var(--txt-2); }
+  .metric b { font-family:var(--mono); font-size:22px; font-weight:500; letter-spacing:-.02em; line-height:1.1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .metric b small { font-family:var(--font); font-size:13px; font-weight:400; color:var(--txt-2); margin-left:3px; letter-spacing:0; }
+
+  /* Calibración */
+  #calibrationPanel[hidden] { display:none; }
+  #calibrationPanel { display:grid; gap:10px; }
+  #calibrationPanel label { font-size:14px; font-weight:600; display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  #calibrationProfile, .training select { appearance:none; -webkit-appearance:none; background:var(--surface-2) var(--i-caret) no-repeat; background-image:none;
+    border:1px solid var(--line-2); border-radius:12px; padding:9px 34px 9px 12px; font-size:13.5px; color:var(--txt); min-height:40px;
+    background-image:linear-gradient(45deg,transparent 50%,var(--txt-2) 50%),linear-gradient(135deg,var(--txt-2) 50%,transparent 50%);
+    background-position:calc(100% - 17px) 50%,calc(100% - 12px) 50%; background-size:5px 5px,5px 5px; background-repeat:no-repeat; }
+
+
+  /* Traza */
+  #trace { width:100%; height:150px; display:block; }
+  #tLegend, #legend, #legend2 { display:flex; gap:6px 14px; flex-wrap:wrap; font-size:12px; color:var(--txt-2); margin-top:10px; }
+  #tLegend span, #legend span, #legend2 span { display:inline-flex; align-items:center; gap:6px; }
+  #tLegend i, #legend i, #legend2 i { display:inline-block; width:8px; height:8px; border-radius:50%; }
+  #tLegend .hr { margin-left:auto; color:var(--txt); font-family:var(--mono); font-size:12px; }
+  #tLegend .hr svg { width:13px; height:13px; color:var(--danger); }
+  #tip { display:flex; gap:10px; align-items:flex-start; background:var(--surface); border:1px solid var(--line); border-radius:12px;
+         padding:11px 12px; font-size:13px; color:var(--txt-2); --icon:var(--i-info); }
+  #tip::before { content:""; width:16px; height:16px; margin-top:1px; flex-shrink:0; background:var(--txt-3); -webkit-mask:var(--icon) center/contain no-repeat; mask:var(--icon) center/contain no-repeat; }
+  #tip:empty { display:none; }
+
+  /* Listas */
+  .list { padding:4px 14px; }
+  .setline, .arrowline { display:flex; gap:12px; align-items:center; min-height:52px; padding:8px 0; border-bottom:1px solid var(--line); font-size:14.5px; }
+  .setline:last-child, .arrowline:last-child { border-bottom:none; }
+  .setline b, .arrowline b { font-weight:600; }
+  .setline .r, .arrowline .r { margin-left:auto; color:var(--txt-3); font-size:12.5px; white-space:nowrap; display:flex; align-items:center; gap:4px; }
+  .setline[data-jump] .r::after, .setline[data-sess] .r::after, .arrowline .r::after { content:""; width:13px; height:13px; background:var(--txt-3);
+    -webkit-mask:var(--i-caret) center/contain no-repeat; mask:var(--i-caret) center/contain no-repeat; }
+  .rowMain { display:flex; flex-direction:column; min-width:0; flex:1; }
+  .rowMain b { font-size:14.5px; }
+  .rowMain .m { font-size:12px; color:var(--txt-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .setline[data-sess] .r { margin-left:0; }
+  .chip { --c:var(--txt-2); min-width:38px; text-align:center; border-radius:999px; padding:3px 9px; font-family:var(--mono); font-weight:600; font-size:12.5px;
+          color:var(--c); background:color-mix(in srgb, var(--c) 15%, transparent); }
+  .dotChip { width:26px; height:26px; min-width:26px; padding:0; display:grid; place-items:center; border-radius:50%; font-size:11px; font-family:var(--font); }
+  .arrowline b { font-family:var(--mono); font-size:16px; font-weight:500; }
+
+  /* Set */
+  .setbar { display:flex; gap:6px; padding:0 0 2px; overflow-x:auto; flex-shrink:0; }
+  .setbar:empty { display:none; }
+  .setbar button { background:var(--surface); color:var(--txt-2); border:1px solid var(--line); border-radius:999px; font-size:13px; padding:7px 14px; white-space:nowrap; }
+  .setbar button.sel { background:var(--acc-soft); color:var(--acc); border-color:rgba(255,122,26,.3); font-weight:600; }
+
+  /* Sesión */
+  .hero { display:flex; align-items:center; gap:16px; }
+  #trend { width:100%; height:150px; display:block; }
+  #progress { width:100%; height:140px; display:block; }
+  #progSum { font-size:13px; color:var(--txt-2); margin-bottom:10px; }
+  #progSum b { font-family:var(--mono); color:var(--txt); font-weight:500; }
+
+  /* Navegación */
+  nav { display:flex; flex-shrink:0; border-top:1px solid var(--line); background:var(--surface); padding:6px 6px max(8px,env(safe-area-inset-bottom)); }
+  nav button { flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; gap:3px; background:none; border:none;
+               color:var(--txt-3); font-size:11px; font-weight:500; padding:6px 0 4px; min-height:52px; }
+  nav button svg { width:22px; height:22px; }
+  nav button.sel { color:var(--acc); }
+
+  /* Estados */
+  .empty { padding:36px 12px; text-align:center; color:var(--txt-2); font-size:13.5px; line-height:1.6; }
+  .empty svg { display:block; width:34px; height:34px; margin:0 auto 12px; color:var(--txt-3); }
+  .empty b { display:block; color:var(--txt); font-size:15px; font-weight:600; margin-bottom:4px; }
+  .emptyState { display:none; }
+  main[data-empty="true"] > :not(.emptyState) { display:none !important; }
+  main[data-empty="true"] > .emptyState { display:block; }
+
+  /* Diálogo */
+  #askModal:not([hidden]) { display:flex; position:fixed; inset:0; background:rgba(6,7,9,.72); z-index:40; align-items:flex-end; justify-content:center; padding:16px; }
+  #askModal .ask { background:var(--surface); border:1px solid var(--line-2); border-radius:20px; padding:20px; max-width:420px; width:100%;
+                   box-shadow:0 24px 60px rgba(0,0,0,.5); }
+  #askMsg { font-size:14.5px; line-height:1.55; color:var(--txt); margin:0 0 18px; }
+  .askBtns { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  #askNo { background:var(--surface-2); border:1px solid var(--line-2); color:var(--txt); border-radius:12px; min-height:46px; font-size:14px; font-weight:500; }
+  #askYes { background:var(--acc); border:none; color:var(--acc-ink); border-radius:12px; min-height:46px; font-size:14px; font-weight:600; }
 </style>
 </head>
 <body>
 <header>
-  <button class="btn" id="prev" aria-label="Flecha anterior">&#8249;</button>
   <h1><span id="title">Sesión</span><small id="subtitle"></small></h1>
-  <button class="btn" id="next" aria-label="Flecha siguiente">&#8250;</button>
+  <div class="stepper">
+    <button class="btn" id="prev" aria-label="Flecha anterior"><svg class="ico" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M165.66,202.34a8,8,0,0,1-11.32,11.32l-80-80a8,8,0,0,1,0-11.32l80-80a8,8,0,0,1,11.32,11.32L91.31,128Z"/></svg></button>
+    <button class="btn" id="next" aria-label="Flecha siguiente"><svg class="ico" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z"/></svg></button>
+  </div>
 </header>
-<span id="live">● EN VIVO</span>
-<button id="returnCurrent" onclick="backToCurrent()">Volver a sesión actual</button>
+<span id="live">En vivo</span>
+<button id="returnCurrent" onclick="backToCurrent()">Volver a la sesión actual</button>
 <main id="vShot">
-  <div class="empty emptyState">Esperando flechas del reloj</div>
-  <div class="card"><div class="aimwrap"><canvas id="aim"></canvas></div><div style="text-align:center;font-size:10px;color:var(--dim);margin-top:6px">Movimiento relativo · escala común del set</div></div>
+  <div class="empty emptyState"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M232,120h-8.34A96.14,96.14,0,0,0,136,32.34V24a8,8,0,0,0-16,0v8.34A96.14,96.14,0,0,0,32.34,120H24a8,8,0,0,0,0,16h8.34A96.14,96.14,0,0,0,120,223.66V232a8,8,0,0,0,16,0v-8.34A96.14,96.14,0,0,0,223.66,136H232a8,8,0,0,0,0-16Zm-96,87.6V200a8,8,0,0,0-16,0v7.6A80.15,80.15,0,0,1,48.4,136H56a8,8,0,0,0,0-16H48.4A80.15,80.15,0,0,1,120,48.4V56a8,8,0,0,0,16,0V48.4A80.15,80.15,0,0,1,207.6,120H200a8,8,0,0,0,0,16h7.6A80.15,80.15,0,0,1,136,207.6ZM128,88a40,40,0,1,0,40,40A40,40,0,0,0,128,88Zm0,64a24,24,0,1,1,24-24A24,24,0,0,1,128,152Z"/></svg><b>Esperando flechas</b>Abre ArcheryWatch en el reloj y tira: cada flecha aparecerá aquí.</div>
+  <div class="card"><div class="aimwrap"><canvas id="aim"></canvas></div><div class="caption" id="aimCaption">Movimiento relativo, escala común del set</div></div>
   <button id="play">Reproducir</button>
   <div class="metrics">
-    <div class="metric"><b id="mScore">–</b><span>ESTABILIDAD</span></div>
-    <div class="metric"><b id="mPeak">–</b><span>TIEMPO TIRO</span></div>
-    <div class="metric"><b id="mSettle">–</b><span>ESTABILIZACIÓN</span></div>
-    <div class="metric"><b id="mInstab">–</b><span>RADIO APUNTE</span></div>
+    <div class="metric"><b id="mScore">–</b><span>Estabilidad</span></div>
+    <div class="metric"><b id="mPeak">–</b><span>Tiempo de tiro</span></div>
+    <div class="metric"><b id="mSettle">–</b><span>Estabilización</span></div>
+    <div class="metric"><b id="mInstab">–</b><span>Radio de apunte</span></div>
   </div>
   <div class="card">
+    <div class="cardTitle">Señal del tiro<small>escala log</small></div>
     <canvas id="trace"></canvas>
     <div id="tLegend"></div>
   </div>
-  <div id="tip">Sin errores destacables</div>
+  <div id="tip"></div>
+  <section id="calibrationPanel" class="card" hidden>
+    <p id="calibrationInfo" class="muted"></p>
+    <label for="calibrationProfile">Arco
+      <select id="calibrationProfile" onchange="renderCalibration(data.shots[cur])"></select></label>
+    <button id="calib" onclick="calibrateFromShot()">Calibrar con esta flecha</button>
+  </section>
   <button class="deleteAction" onclick="removeSelection('shot')">Eliminar flecha</button>
 </main>
 <main id="vSession" style="display:none">
   <div class="metrics">
-    <div class="metric"><b id="sTotal">–</b><span>FLECHAS</span></div>
-    <div class="metric"><b id="sSets">–</b><span>SETS</span></div>
-    <div class="metric"><b id="sAvg">–</b><span>ESTABILIDAD</span></div>
-    <div class="metric"><b id="sSd">–</b><span>RADIO MEDIO</span></div>
+    <div class="metric"><b id="sTotal">–</b><span>Flechas</span></div>
+    <div class="metric"><b id="sSets">–</b><span>Sets</span></div>
+    <div class="metric"><b id="sAvg">–</b><span>Estabilidad media</span></div>
+    <div class="metric"><b id="sSd">–</b><span>Radio medio</span></div>
   </div>
-  <div class="card"><canvas id="trend"></canvas></div>
-  <div class="card" id="setList"></div>
+  <div class="card"><div class="cardTitle"><span id="trendTitle">Estabilidad por flecha</span><small id="trendHelp">toca una barra</small></div><canvas id="trend"></canvas></div>
+  <div class="card list" id="setList"></div>
   <button class="deleteAction" id="deleteCurrent" onclick="removeSelection('session')">Eliminar sesión</button>
 </main>
 <main id="vProgress" style="display:none">
   <div class="card">
-    <div class="lbl" style="font-size:10px;color:var(--dim);letter-spacing:1.5px;margin-bottom:8px">PROGRESO</div>
-    <div id="progSum" style="font-size:12px;color:var(--dim);margin-bottom:8px"></div>
+    <div class="cardTitle">Evolución</div>
+    <div id="progSum"></div>
     <canvas id="progress"></canvas>
-    <div id="legend2" style="display:flex;gap:12px;font-size:10px;color:var(--dim);margin-top:6px"></div>
+    <div id="legend2"></div>
   </div>
   <div class="empty" id="progressEmpty"></div>
 </main>
 <main id="vHistory" style="display:none">
-  <div class="card" id="histList"></div>
+  <div class="card list" id="histList"></div>
 </main>
 <main id="vSet" style="display:none">
-  <div class="empty emptyState">Esperando flechas del reloj</div>
+  <div class="empty emptyState"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M172,76a44,44,0,1,0-44,44A44.05,44.05,0,0,0,172,76Zm-44,28a28,28,0,1,1,28-28A28,28,0,0,1,128,104Zm60,24a44,44,0,1,0,44,44A44.05,44.05,0,0,0,188,128Zm0,72a28,28,0,1,1,28-28A28,28,0,0,1,188,200ZM68,128a44,44,0,1,0,44,44A44.05,44.05,0,0,0,68,128Zm0,72a28,28,0,1,1,28-28A28,28,0,0,1,68,200Z"/></svg><b>Sin sets todavía</b>Los sets se forman solos con las flechas del reloj.</div>
   <div class="setbar" id="setbar"></div>
-  <div class="card aimwrap"><canvas id="aimSet"></canvas></div>
-  <div class="card"><div id="legend"></div></div>
-  <div class="card" id="arrowList"></div>
+  <div class="card"><div class="aimwrap"><canvas id="aimSet"></canvas></div><div id="legend"></div></div>
+  <div class="card list" id="setArrows"></div>
   <button class="deleteAction" onclick="removeSelection('set')">Eliminar set</button>
 </main>
 <nav>
-  <button id="nSession">SESIÓN</button>
-  <button id="nShot" class="sel">TIRO</button>
-  <button id="nProgress" aria-label="Progreso" title="Progreso"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 10 12 3l9 7v10H15v-6H9v6H3Z" stroke-linejoin="round"/></svg></button>
-  <button id="nSet">SET</button>
-  <button id="nHistory">HISTORIAL</button>
+  <button id="nSession"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M80,64a8,8,0,0,1,8-8H216a8,8,0,0,1,0,16H88A8,8,0,0,1,80,64Zm136,56H88a8,8,0,0,0,0,16H216a8,8,0,0,0,0-16Zm0,64H88a8,8,0,0,0,0,16H216a8,8,0,0,0,0-16ZM44,52A12,12,0,1,0,56,64,12,12,0,0,0,44,52Zm0,64a12,12,0,1,0,12,12A12,12,0,0,0,44,116Zm0,64a12,12,0,1,0,12,12A12,12,0,0,0,44,180Z"/></svg>Sesión</button>
+  <button id="nShot" class="sel"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M232,120h-8.34A96.14,96.14,0,0,0,136,32.34V24a8,8,0,0,0-16,0v8.34A96.14,96.14,0,0,0,32.34,120H24a8,8,0,0,0,0,16h8.34A96.14,96.14,0,0,0,120,223.66V232a8,8,0,0,0,16,0v-8.34A96.14,96.14,0,0,0,223.66,136H232a8,8,0,0,0,0-16Zm-96,87.6V200a8,8,0,0,0-16,0v7.6A80.15,80.15,0,0,1,48.4,136H56a8,8,0,0,0,0-16H48.4A80.15,80.15,0,0,1,120,48.4V56a8,8,0,0,0,16,0V48.4A80.15,80.15,0,0,1,207.6,120H200a8,8,0,0,0,0,16h7.6A80.15,80.15,0,0,1,136,207.6ZM128,88a40,40,0,1,0,40,40A40,40,0,0,0,128,88Zm0,64a24,24,0,1,1,24-24A24,24,0,0,1,128,152Z"/></svg>Tiro</button>
+  <button id="nProgress"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M232,208a8,8,0,0,1-8,8H32a8,8,0,0,1-8-8V48a8,8,0,0,1,16,0V156.69l50.34-50.35a8,8,0,0,1,11.32,0L128,132.69,180.69,80H160a8,8,0,0,1,0-16h40a8,8,0,0,1,8,8v40a8,8,0,0,1-16,0V91.31l-58.34,58.35a8,8,0,0,1-11.32,0L96,123.31l-56,56V200H224A8,8,0,0,1,232,208Z"/></svg>Progreso</button>
+  <button id="nSet"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M172,76a44,44,0,1,0-44,44A44.05,44.05,0,0,0,172,76Zm-44,28a28,28,0,1,1,28-28A28,28,0,0,1,128,104Zm60,24a44,44,0,1,0,44,44A44.05,44.05,0,0,0,188,128Zm0,72a28,28,0,1,1,28-28A28,28,0,0,1,188,200ZM68,128a44,44,0,1,0,44,44A44.05,44.05,0,0,0,68,128Zm0,72a28,28,0,1,1,28-28A28,28,0,0,1,68,200Z"/></svg>Set</button>
+  <button id="nHistory"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M136,80v43.47l36.12,21.67a8,8,0,0,1-8.24,13.72l-40-24A8,8,0,0,1,120,128V80a8,8,0,0,1,16,0Zm-8-48A95.44,95.44,0,0,0,60.08,60.15C52.81,67.51,46.350,74.59,40,82V64a8,8,0,0,0-16,0v40a8,8,0,0,0,8,8H72a8,8,0,0,0,0-16H49c7.15-8.420,14.27-16.35,22.39-24.57a80,80,0,1,1,1.66,114.75,8,8,0,1,0-11,11.64A96,96,0,1,0,128,32Z"/></svg>Historial</button>
 </nav>
 <div id="askModal" hidden role="dialog" aria-modal="true"><div class="ask"><p id="askMsg"></p>
 <div class="askBtns"><button id="askNo">Cancelar</button><button id="askYes">Confirmar</button></div></div></div>
 <script src="session-model.js"></script>
 <script>
-const GAP_MS = 60000, ACOLORS = ['#4fc3f7', '#ff8220', '#ab47bc', '#66bb6a', '#ffd54f', '#ef5350'];
+const GAP_MS = 60000, ACOLORS = ['#5ab0f0', '#ff7a1a', '#b58cf0', '#3ecf8e', '#e8c14e', '#ef5a5a'];
+const C = {txt:'#eceef1', txt2:'#a0a4ad', txt3:'#6f747d', grid:'rgba(255,255,255,.06)', acc:'#ff7a1a', prev:'#5d6571', aim:'#e6e8eb', rel:'#ef5a5a', ref:'#5ab0f0'};
+const FONT = "'Geist', system-ui, sans-serif", MONO = "'Geist Mono', ui-monospace, monospace";
+const HEART = '<svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M178,40c-20.65,0-38.73,8.88-50,23.89C116.73,48.88,98.65,40,78,40a62.07,62.07,0,0,0-62,62c0,70,103.790,126.66,108.21,129a8,8,0,0,0,7.58,0C136.21,228.66,240,172,240,102A62.07,62.07,0,0,0,178,40Z"/></svg>';
+const TRASH = '<svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z"/></svg>';
+function setMetric(id, value, unit = '') {
+  const el = document.getElementById(id); el.textContent = value;
+  if (unit && value !== '–') { const u = document.createElement('small'); u.textContent = unit.trim(); el.appendChild(u); }
+}
 let data = null, cur = 0, view = 'Shot', anim = null, live = false, trendBars = [], historyMode = false, histId = 0;
+window.onerror = (m, s, l) => {  // superficie de errores JS: sin esto un fallo es invisible en la WebView
+  let d = document.getElementById('jserr');
+  if (!d) { d = document.createElement('div'); d.id = 'jserr';
+    d.style.cssText = 'position:fixed;bottom:70px;left:14px;right:14px;background:#b71c1c;color:#fff;font-size:11px;padding:8px 10px;border-radius:8px;z-index:99';
+    (document.body || document.documentElement).appendChild(d); }
+  d.textContent = 'JS: ' + m + ' @' + (l || '?');
+  return false;
+};
 
 // archivo de sesiones (localStorage); la viva caduca a los 10 min sin tiros
 const store = {
@@ -206,7 +315,7 @@ window.liveStatus = s => {
     b.textContent = s;
   } else {
     b.style.display = live && !historyMode ? 'block' : 'none';
-    b.textContent = '● EN VIVO' + (data?.shots.length ? ' · ' + data.shots.length : '');
+    b.textContent = 'En vivo' + (data?.shots.length ? ' · ' + data.shots.length : '');
   }
 };
 // El buffer nativo se consume una vez: conservar las sesiones anteriores.
@@ -222,7 +331,7 @@ window.liveStart = (sid = '') => {
   live = true;
   const b = document.getElementById('live');
   b.style.display = 'block';
-  b.textContent = '● EN VIVO';
+  b.textContent = 'En vivo';
   if (document.visibilityState === 'visible') show('Session'); else render();
 };
 // el reloj cierra la actividad -> archivar y dejar de estar en vivo
@@ -247,6 +356,9 @@ window.liveShot = ev => {
     peak_mg: Math.round(ev.peak), instab_mg: Math.round(ev.instab),
     settle_ms: ev.settle == null || ev.settle < 0 ? null : Math.round(ev.settle), hr_bpm: ev.hr > 0 ? ev.hr : null,
     aim_score: Math.max(0, Math.min(100, Math.round(ev.score))), tilt_x: Array.isArray(ev.tx) ? ev.tx : [], tilt_y: Array.isArray(ev.ty) ? ev.ty : [],
+    yaw_c: Array.isArray(ev.yw2) ? ev.yw2 : [], pitch_deg: Array.isArray(ev.pt) ? ev.pt : [],
+    pos_x: Array.isArray(ev.qx) ? ev.qx : [], pos_y: Array.isArray(ev.qy) ? ev.qy : [], pos_z: Array.isArray(ev.qz) ? ev.qz : [],
+    posp_x: Array.isArray(ev.qx2) ? ev.qx2 : [], posp_y: Array.isArray(ev.qy2) ? ev.qy2 : [], posp_z: Array.isArray(ev.qz2) ? ev.qz2 : [],
     traj_x: Array.isArray(ev.px) ? ev.px : [], traj_y: Array.isArray(ev.py) ? ev.py : [],
     window: Array.isArray(ev.mp) && Array.isArray(ev.mq) ? {
       pre: ev.mp.map((_, i) => -(ev.mp.length - i) * (ev.dt || 50)), mag_pre: ev.mp,
@@ -262,7 +374,7 @@ window.liveShot = ev => {
   if (followLatest) cur = sess.shots.length - 1;
   const b = document.getElementById('live');
   b.style.display = 'block';
-  b.textContent = '● EN VIVO · ' + data.shots.length;
+  b.textContent = 'En vivo · ' + data.shots.length;
   render();
 };
 
@@ -278,14 +390,15 @@ const sets = shots => {
   shots.forEach((s, i) => { if (i && s.set_id !== shots[i - 1].set_id) out.push([]); out[out.length - 1].push(i); });
   return out;
 };
-const grade = v => !Number.isFinite(v) ? ['#8b8b96','–'] : v >= 90 ? ['#4caf50', 'A'] : v >= 75 ? ['#8bc34a', 'B'] : v >= 60 ? ['#fdd835', 'C'] : v >= 45 ? ['#fb8c00', 'D'] : ['#e53935', 'E'];
+const setLabel = (S,i) => S[i].every(j=>data.shots[j].candidate) ? 'Calibración' : 'Set '+S.slice(0,i+1).filter(g=>g.some(j=>!data.shots[j].candidate)).length;
+const grade = v => !Number.isFinite(v) ? ['#a0a4ad','–'] : v >= 90 ? ['#3ecf8e', 'A'] : v >= 75 ? ['#a3d16a', 'B'] : v >= 60 ? ['#e8c14e', 'C'] : v >= 45 ? ['#f0934a', 'D'] : ['#ef5a5a', 'E'];
 const avg = a => { a=a.filter(Number.isFinite); return a.length ? a.reduce((x,y)=>x+y,0)/a.length : NaN; };
 const sd = a => { const m = avg(a); return Math.sqrt(avg(a.map(x => (x - m) ** 2))); };
 // radio de apuntado: con brujula en GRADOS reales (yaw + inclinacion); sin ella, estimacion MOA
 const aimRadius = s => {
   if (s.manual || !s.tilt_x?.length || !s.tilt_y?.length) return null;
   if (hasCompass(s)) {
-    const sy = sd(s.yaw_deg), sv = sd(s.tilt_y) / 17.45;
+    const sy = sd(yawOf(s)), sv = s.pitch_deg?.length ? sd(s.pitch_deg) : sd(s.tilt_y) / 17.45;
     return Math.sqrt(sy * sy + sv * sv);
   }
   const sx = sd(s.tilt_x), sy = sd(s.tilt_y);
@@ -335,6 +448,7 @@ async function boot() {
   addEventListener('touchcancel', () => tx0 = null, { passive: true });
   if (location.protocol.startsWith('http') && location.hostname!=='127.0.0.1' && 'serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
   show('Session');
+  document.fonts?.ready.then(() => { aimDrawnKey = ''; render(); });
 }
 function step(d) { const n = data?.shots.length || 0; if (!n) return; cur = (cur + d + n) % n; render(); }
 function show(v) {
@@ -349,7 +463,7 @@ function show(v) {
 }
 
 function render() {
-  stopPlayback();
+  if (anim != null && (view !== 'Shot' || playbackKey !== shotViewKey())) stopPlayback();
   ['Shot', 'Set'].forEach(v => document.getElementById('v' + v).dataset.empty = !data?.shots.length);
   document.getElementById('trend').parentElement.style.display = data?.shots.length ? '' : 'none';
   document.getElementById('deleteCurrent').hidden = !data?.shots.length;
@@ -368,11 +482,11 @@ function render() {
     return;
   }
   if (!data || !data.shots.length) {
-    document.getElementById('title').textContent = view === 'Shot' ? '—' : (view === 'Set' ? 'Set' : 'Sesión');
-    document.getElementById('subtitle').textContent = 'esperando flechas…';
+    document.getElementById('title').textContent = view === 'Shot' ? 'Tiro' : (view === 'Set' ? 'Set' : 'Sesión');
+    document.getElementById('subtitle').textContent = 'Esperando flechas';
     ['sTotal', 'sSets', 'sAvg', 'sSd'].forEach(id => document.getElementById(id).textContent = '–');
     document.getElementById('sAvg').style.color = '';
-    ['setList', 'arrowList', 'legend', 'tip', 'tLegend'].forEach(id => document.getElementById(id).textContent = '');
+    ['setList', 'setArrows', 'legend', 'tip', 'tLegend'].forEach(id => document.getElementById(id).textContent = '');
     ['mScore', 'mPeak', 'mSettle', 'mInstab'].forEach(id => document.getElementById(id).textContent = '–');
     document.getElementById('mScore').parentElement.style.color = '';
     document.getElementById('mScore').parentElement.style.borderColor = '';
@@ -389,11 +503,11 @@ function render() {
     document.getElementById('title').textContent = 'Sesión';
     document.getElementById('subtitle').textContent = historyMode ? fmtDate(histId) : '';
   } else if (view === 'Set') {
-    document.getElementById('title').textContent = `Set ${si + 1}`;
+    document.getElementById('title').textContent = setLabel(S,si);
     document.getElementById('subtitle').textContent = '';
   } else {
-    document.getElementById('title').textContent = `Flecha ${S[si].indexOf(cur) + 1} · set ${si + 1}`;
-    document.getElementById('subtitle').textContent = '';
+    document.getElementById('title').textContent = `${data.shots[cur].candidate?'Candidato':'Flecha'} ${S[si].indexOf(cur) + 1}`;
+    document.getElementById('subtitle').textContent = setLabel(S,si) + (historyMode ? ` · ${fmtDate(histId)}` : '');
   }
   if (view === 'Session') renderSession(S);
   else if (view === 'Set') renderSet(S, si);
@@ -402,18 +516,18 @@ function render() {
 
 function renderSession(S) {
   const sc = data.shots.map(s => s.aim_score).filter(Number.isFinite), a = Math.round(avg(sc));
-  document.getElementById('sTotal').textContent = data.shots.length;
-  document.getElementById('sSets').textContent = S.length;
+  document.getElementById('sTotal').textContent = data.shots.filter(s=>!s.candidate).length;
+  document.getElementById('sSets').textContent = S.filter(g=>g.some(j=>!data.shots[j].candidate)).length;
   const tAvg = document.getElementById('sAvg');
-  tAvg.textContent = a;
+  setMetric('sAvg', Number.isFinite(a) ? a : '–', '/100');
   tAvg.style.color = grade(a)[0];
   const ars = data.shots.map(aimRadius).filter(Number.isFinite);
-  document.getElementById('sSd').textContent = ars.length ? (avg(ars)).toFixed(1) + aimUnit(data.shots[0]) : '–';
+  setMetric('sSd', ars.length ? avg(ars).toFixed(1) : '–', aimUnit(data.shots[0]));
   document.getElementById('setList').innerHTML = S.map((g, i) => {
     const sa = Math.round(avg(g.map(j => data.shots[j].aim_score)));
-    return `<div class="setline" data-jump="${g[0]}"><b>Set ${i + 1}</b>` +
-      `<span class="chip" style="background:${grade(sa)[0]}">${Number.isFinite(sa)?sa:'–'}</span>` +
-      `<span class="r">${g.length} flecha${g.length > 1 ? 's' : ''} ›</span></div>`;
+    return `<div class="setline" data-jump="${g[0]}"><b>${setLabel(S,i)}</b>` +
+      `<span class="chip" style="--c:${grade(sa)[0]}">${Number.isFinite(sa)?sa:'–'}</span>` +
+      `<span class="r">${g.length} ${data.shots[g[0]].candidate?'candidatos':'flecha'+(g.length>1?'s':'')}</span></div>`;
   }).join('');
   document.getElementById('setList').onclick = e => {
     const j = e.target.closest('[data-jump]')?.dataset.jump;
@@ -425,26 +539,53 @@ function renderSession(S) {
 function renderShot(S, si) {
   const s = data.shots[cur], [gc, gl] = grade(s.aim_score);
   const mS = document.getElementById('mScore');
-  document.getElementById('play').disabled = !proj(s).pts.length;
-  mS.textContent = Number.isFinite(s.aim_score) ? s.aim_score + '/100' : 'Manual';
-  mS.parentElement.style.color = gc;
-  mS.parentElement.style.borderColor = gc + '55';
+  renderCalibration(s);
+  document.getElementById('play').disabled = proj(s).pts.filter(p => p[2] <= 0).length < 2;
+  setMetric('mScore', s.candidate ? '–' : Number.isFinite(s.aim_score) ? s.aim_score : 'Manual', Number.isFinite(s.aim_score) ? '/100' : '');
+  mS.style.color = gc;
   const at = s.draw_ms != null ? s.draw_ms + 1200 : aimTime(s), ar = aimRadius(s);
-  document.getElementById('mPeak').textContent = at == null ? '–' : (at / 1000).toFixed(1) + ' s';
-  document.getElementById('mInstab').textContent = ar == null ? '–' : ar.toFixed(1) + aimUnit(s);
-  document.getElementById('mSettle').textContent = s.settle_ms == null ? '–' : s.settle_ms + ' ms';
+  setMetric('mPeak', at == null ? '–' : (at / 1000).toFixed(1), 's');
+  setMetric('mInstab', ar == null ? '–' : ar.toFixed(1), aimUnit(s));
+  setMetric('mSettle', s.settle_ms == null ? '–' : s.settle_ms, 'ms');
   document.getElementById('tLegend').innerHTML =
-    `<span><i style="background:#78909c"></i>previo</span>` +
-    `<span><i style="background:#eeeeee"></i>apunte estable</span>` +
-    `<span><i style="background:#e53935"></i>suelta</span>` +
-    `<span><i style="background:#ff8220"></i>follow-through</span>` +
-    (s.hr_bpm ? `<span style="margin-left:auto">❤ ${s.hr_bpm} ppm</span>` : '');
-  document.getElementById('tip').textContent = tips(s).join('  ·  ') || 'Estabilidad orientativa · no mide el impacto';
+    `<span><i style="background:${C.prev}"></i>Previo</span>` +
+    `<span><i style="background:${C.aim}"></i>Apunte</span>` +
+    `<span><i style="background:${C.rel}"></i>Suelta</span>` +
+    `<span><i style="background:${C.acc}"></i>Follow-through</span>` +
+    (s.hr_bpm ? `<span class="hr">${HEART}${s.hr_bpm} ppm</span>` : '');
+  document.getElementById('tip').textContent = tips(s).join('. ') || 'Estabilidad orientativa: no mide el impacto en la diana.';
   drawAim(s); drawTrace(s);
+}
+
+async function calibrateFromShot() {
+  const s = data?.shots?.[cur], session = displayedSession();
+  if (!validCalibrationShot(s) || calibrationConfirming) return;
+  if (!window.Native?.command) { notice('Para enviar la calibración usa la app Android.'); return; }
+  const peak = Math.round(s.peak_mg), threshold = Math.max(90, Math.round(peak * 0.35));
+  const profile = document.getElementById('calibrationProfile').value;
+  if (!profile) return;
+  const value = {peak, profile, requestId: Date.now() + '-' + Math.random().toString(36).slice(2)};
+  if([3,4].includes(s.pose?.length)&&s.pose.every(Number.isFinite))value.pose=[...s.pose];
+  const sid = session?.watchId || '';
+  calibrationConfirming = true;
+  try {
+    if (!await askConfirm(`¿Usar esta flecha como referencia para ${profile}? Umbral: ${threshold} mG (pico ${peak} mG).`)) return;
+    const pending = {...value, threshold, status: 'pending'};
+    localStorage.setItem('awCalibration', JSON.stringify(pending));
+    const error = Native.command(JSON.stringify({sid, action: 'calibrateShot', value: peak, profile, requestId: value.requestId, ...(value.pose?{pose:value.pose}:{})}));
+    if (error) {
+      localStorage.setItem('awCalibration', JSON.stringify({...pending, status: 'error', result: String(error)}));
+      notice('Calibración no enviada: ' + error);
+    } else notice(`Umbral de ${threshold} mG enviado al reloj para ${profile}.`);
+  } catch (e) {
+    localStorage.removeItem('awCalibration');
+    notice('No se pudo preparar la calibración: ' + e.message);
+  } finally { calibrationConfirming = false; }
 }
 
 function tips(s) {
   const t = [];
+  if (!(s.tilt_x?.length || s.pos_x?.length || s.traj_x?.length)) t.push('Sin traza de muñeca en este tiro');
   if (s.instab_mg > 250) t.push(`Temblor en apunte (${(s.instab_mg / 1000).toFixed(2)} g)`);
   if (s.settle_ms != null && s.settle_ms > 400) t.push(`Estabilización lenta (${s.settle_ms} ms)`);
   if (s.peak_mg > 5000) t.push(`Impulso de suelta alto (${Number.isFinite(s.peak_mg)?(s.peak_mg / 1000).toFixed(1)+' g':'–'})`);
@@ -464,19 +605,19 @@ function drawProgress(sessions) {
   const YS = v => base - (v / 100) * (base - top);
   const YT = v => base - (v / tMax) * (base - top) * .85;
   // temblor (azul)
-  x.strokeStyle = '#4fc3f7'; x.lineWidth = 1.5; x.beginPath();
+  x.strokeStyle = C.ref; x.lineWidth = 1.5; x.beginPath();
   trem.forEach((v, i) => i ? x.lineTo(X(i), YT(v)) : x.moveTo(X(i), YT(v)));
   x.stroke();
-  trem.forEach((v, i) => { x.beginPath(); x.arc(X(i), YT(v), 2.5, 0, 7); x.fillStyle = '#4fc3f7'; x.fill(); });
+  trem.forEach((v, i) => { x.beginPath(); x.arc(X(i), YT(v), 2.5, 0, 7); x.fillStyle = C.ref; x.fill(); });
   // puntería (naranja)
-  x.strokeStyle = '#ff8220'; x.lineWidth = 2; x.beginPath();
+  x.strokeStyle = C.acc; x.lineWidth = 2; x.beginPath();
   scores.forEach((v, i) => i ? x.lineTo(X(i), YS(v)) : x.moveTo(X(i), YS(v)));
   x.stroke();
   scores.forEach((v, i) => { x.beginPath(); x.arc(X(i), YS(v), 3, 0, 7); x.fillStyle = grade(v)[0]; x.fill(); });
-  x.fillStyle = '#77777f'; x.font = '8.5px system-ui';
-  x.fillText(fmtDate(sessions[0].id).slice(0, -6), 8, h - 4);
+  x.fillStyle = C.txt3; x.font = '10px ' + FONT;
+  x.fillText(fmtDate(sessions[0].id).slice(0, -7), 8, h - 4);
   x.textAlign = 'right';
-  x.fillText(fmtDate(sessions[n - 1].id).slice(0, -6), w - 8, h - 4);
+  x.fillText(fmtDate(sessions[n - 1].id).slice(0, -7), w - 8, h - 4);
   x.textAlign = 'left';
 }
 
@@ -490,11 +631,10 @@ function renderProgress() {
     const scores = sessions.map(s => Math.round(avg(s.shots.map(a => a.aim_score))));
     const d = scores.length > 1 ? scores[scores.length - 1] - scores[scores.length - 2] : 0;
     document.getElementById('progSum').innerHTML =
-      `media global <b style="color:var(--txt)">${Math.round(avg(scores))}</b>` +
-      (sessions.length > 1 ? ` · última <b style="color:var(--txt)">${scores[scores.length - 1]}</b> ${d > 0 ? '▲' + d : d < 0 ? '▼' + (-d) : '—'}` : '');
+      `Media global <b>${Math.round(avg(scores))}</b>` +
+      (sessions.length > 1 ? `, última <b>${scores[scores.length - 1]}</b> ${d > 0 ? '▲' + d : d < 0 ? '▼' + (-d) : 'sin cambio'}` : '');
     document.getElementById('legend2').innerHTML =
-      '<span><i style="display:inline-block;width:8px;height:8px;border-radius:4px;background:#ff8220;margin-right:4px"></i>estabilidad</span>' +
-      '<span><i style="display:inline-block;width:8px;height:8px;border-radius:4px;background:#4fc3f7;margin-right:4px"></i>temblor</span>';
+      `<span><i style="background:${C.acc}"></i>Estabilidad</span><span><i style="background:${C.ref}"></i>Temblor</span>`;
     if (sessions.length > 1) drawProgress(sessions);
   }
 }
@@ -502,13 +642,12 @@ function renderHistory() {
   const L = store.list().filter(s => s.shots.length).sort((a, b) => b.id - a.id);
   document.getElementById('histList').innerHTML = L.length ? L.map(s => {
     const a = Math.round(avg(s.shots.map(x => x.aim_score)));
-    const meta = [s.mode, s.bow, s.arrows].filter(Boolean).join(' · ');
-    return `<div class="setline" data-sess="${s.id}"><b>${fmtDate(s.id)}</b>` +
-      (meta ? `<span class="m" style="color:var(--dim);font-size:11px">${meta}</span>` : '') +
-      `<span class="chip" style="background:${grade(a)[0]}">${Number.isFinite(a)?a:'–'}</span>` +
-      `<span class="r">${s.shots.length} flecha${s.shots.length > 1 ? 's' : ''} ›</span>` +
-      `<button class="deleteAction deleteSession" data-delete="${s.id}" aria-label="Eliminar sesión del ${fmtDate(s.id)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 10v8m4-8v8"/></svg></button></div>`;
-  }).join('') : '<div class="empty">Sin sesiones guardadas todavía.<br>Tira con el reloj y aparecerán aquí.</div>';
+    const meta = [s.mode, s.bow, s.arrows].filter(Boolean).map(escapeText).join(' · ');
+    return `<div class="setline" data-sess="${s.id}"><div class="rowMain"><b>${fmtDate(s.id)}</b>` +
+      `<span class="m">${[`${s.shots.length} flecha${s.shots.length > 1 ? 's' : ''}`, meta].filter(Boolean).join(' · ')}</span></div>` +
+      `<span class="chip" style="--c:${grade(a)[0]}">${Number.isFinite(a)?a:'–'}</span><span class="r"></span>` +
+      `<button class="deleteAction deleteSession" data-delete="${s.id}" aria-label="Eliminar sesión del ${fmtDate(s.id)}">${TRASH}</button></div>`;
+  }).join('') : '<div class="empty"><b>Sin sesiones guardadas</b>Tira con el reloj y aparecerán aquí.</div>';
   document.getElementById('histList').onclick = e => {
     const remove = e.target.closest('[data-delete]');
     if (remove) { removeSelection('session', +remove.dataset.delete); return; }
@@ -551,7 +690,7 @@ async function removeSelection(kind, id = historyMode ? histId : curSess?.id) {
   }
   if (live && !historyMode) {
     const b = document.getElementById('live');
-    b.textContent = '● EN VIVO' + (data.shots.length ? ' · ' + data.shots.length : '');
+    b.textContent = 'En vivo' + (data.shots.length ? ' · ' + data.shots.length : '');
   }
   render();
 }
@@ -562,7 +701,7 @@ function backToCurrent() {
     data = { shots: f.shots }; live = true; curSess = f;
     const b = document.getElementById('live');
     b.style.display = 'block';
-    b.textContent = '● EN VIVO · ' + f.shots.length;
+    b.textContent = 'En vivo · ' + f.shots.length;
   } else {
     data = { shots: [] }; live = false; curSess = null;
     document.getElementById('live').style.display = 'none';
@@ -573,24 +712,24 @@ function backToCurrent() {
 function fmtDate(ms) {
   const d = new Date(ms), now = new Date();
   const hh = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
-  if (d.toDateString() === now.toDateString()) return 'hoy ' + hh;
-  if (d.toDateString() === new Date(now - 864e5).toDateString()) return 'ayer ' + hh;
-  return d.getDate() + ' ' + ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][d.getMonth()] + ' ' + hh;
+  if (d.toDateString() === now.toDateString()) return 'Hoy, ' + hh;
+  if (d.toDateString() === new Date(now - 864e5).toDateString()) return 'Ayer, ' + hh;
+  return d.getDate() + ' ' + ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][d.getMonth()] + ', ' + hh;
 }
 
 function renderSet(S, si) {
   const bar = document.getElementById('setbar');
-  bar.innerHTML = S.length > 1 ? S.map((g, i) => `<button class="${i === si ? 'sel' : ''}" data-set="${i}">SET ${i + 1} · ${g.length}</button>`).join('') : '';
+  bar.innerHTML = S.length > 1 ? S.map((g, i) => `<button class="${i === si ? 'sel' : ''}" data-set="${i}">${setLabel(S,i)}</button>`).join('') : '';
   bar.onclick = e => { const i = e.target.dataset?.set; if (i) { cur = S[+i][0]; render(); } };
   const g = S[si];
   document.getElementById('legend').innerHTML = g.map((j, k) =>
-    `<span><i style="background:${ACOLORS[k % 6]}"></i>F${k + 1} · ${data.shots[j].aim_score}</span>`).join('');
-  document.getElementById('arrowList').innerHTML = g.map((j, k) => {
+    `<span><i style="background:${ACOLORS[k % 6]}"></i>Flecha ${k + 1}</span>`).join('');
+  document.getElementById('setArrows').innerHTML = g.map((j, k) => {
     const s = data.shots[j];
-    return `<div class="arrowline" data-jump="${j}"><span class="chip" style="background:${ACOLORS[k % 6]}">F${k + 1}</span>` +
-      `<b>${s.aim_score ?? 'M'}</b><span class="r">${Number.isFinite(s.peak_mg)?(s.peak_mg / 1000).toFixed(1)+' g':'–'} · ${s.settle_ms ?? '–'} ms</span></div>`;
+    return `<div class="arrowline" data-jump="${j}"><span class="chip dotChip" style="--c:${ACOLORS[k % 6]}">${k + 1}</span>` +
+      `<b style="color:${grade(s.aim_score)[0]}">${s.candidate?'Cal':s.aim_score ?? 'M'}</b><span class="r">${Number.isFinite(s.peak_mg)?(s.peak_mg / 1000).toFixed(1)+' g':'–'} · ${s.settle_ms ?? '–'} ms</span></div>`;
   }).join('');
-  document.getElementById('arrowList').onclick = e => {
+  document.getElementById('setArrows').onclick = e => {
     const j = e.target.closest('[data-jump]')?.dataset.jump;
     if (j) { cur = +j; show('Shot'); }
   };
@@ -613,126 +752,221 @@ function canvasFit(c, h) {
 }
 function ringBase(x, sz) {
   const cx = sz / 2, cy = sz / 2;
-  [['#e53935', 1], ['#fb8c00', .82], ['#fdd835', .62], ['#7cb342', .38], ['#2e7d32', .16]]
-    .forEach(([col, r]) => { x.beginPath(); x.arc(cx, cy, sz * .47 * r, 0, 7); x.fillStyle = col + '55'; x.fill(); x.strokeStyle = col; x.lineWidth = 1.5; x.stroke(); });
+  const R = sz * .47;
+  x.beginPath(); x.arc(cx, cy, R, 0, 7); x.fillStyle = '#111317'; x.fill();
+  [[.38, 'rgba(62,207,142,.07)'], [.16, 'rgba(62,207,142,.14)']].forEach(([r, f]) => { x.beginPath(); x.arc(cx, cy, R * r, 0, 7); x.fillStyle = f; x.fill(); });
+  x.lineWidth = 1;
+  [1, .82, .62, .38, .16].forEach((r, i) => { x.beginPath(); x.arc(cx, cy, R * r, 0, 7); x.strokeStyle = i >= 3 ? 'rgba(62,207,142,.35)' : 'rgba(255,255,255,.09)'; x.stroke(); });
+  x.strokeStyle = 'rgba(255,255,255,.05)'; x.beginPath(); x.moveTo(cx - R, cy); x.lineTo(cx + R, cy); x.moveTo(cx, cy - R); x.lineTo(cx, cy + R); x.stroke();
   return [cx, cy];
 }
-const hasCompass = s => { const y=s.yaw_deg||[]; return y.length>2 && (Math.max(...y)-Math.min(...y))>0.5; };
+const yawOf = s => s.yaw_c?.length ? s.yaw_c : (s.yaw_deg || []);  // yw2 = azimut compensado por inclinacion; yw = atan2 crudo
+const hasCompass = s => { const y=yawOf(s); return y.length>2 && (Math.max(...y)-Math.min(...y))>0.5; };
 const fixYaw = yw0 => {  // tramos congelados (lotes de brujula cortos): rellenar con el siguiente valor que varie
   const yw = yw0.slice(); let j = 0;
   while (j < yw.length) { let k = j; while (k + 1 < yw.length && yw[k + 1] === yw[j]) k++;
     if (k - j > 4) { const nv = yw[k + 1] ?? yw[j]; for (let q = j; q <= k; q++) yw[q] = nv; } j = k + 1; }
   return yw;
 };
-function proj(s) {
+function proj(s, reference=s) {
   // ancla: media del reposo final (la fase de apunte). Con brujula, el eje horizontal es
   // yaw REAL en grados; el vertical, inclinacion convertida a grados. Sin brujula, mG relativos.
   const bx=s.tilt_x||[], by=s.tilt_y||[], n=bx.length, comp=hasCompass(s);
+  const pd=s.pitch_deg||[], useP=pd.length===n;
   const hn=Math.max(1,Math.floor(n/5)); let hx=0,hy=0;
   for(let i=Math.max(0,n-hn);i<n;i++){hx+=(bx[i]||0);hy+=(by[i]||0);} hx/=hn;hy/=hn;
-  const yw0=s.yaw_deg||[]; let hyaw=0;
+  let hpd=0; if(useP){for(let i=Math.max(0,n-hn);i<n;i++){hpd+=pd[i]||0;} hpd/=hn;}
+  const yw0=yawOf(s); let hyaw=0;
   if(comp){
     const yw=fixYaw(yw0);
     for(let i=Math.max(0,yw.length-hn);i<yw.length;i++){hyaw+=yw[i]||0;} hyaw/=hn;
     var yawOK=yw;
   }
   const VK=1/17.45;  // mG de inclinacion -> grados (aprox angulo pequeno en plano 1g)
-  const before=bx.map((x,i)=>[comp?(((yawOK?.[i]??hyaw)-hyaw+540)%360)-180:(x-hx),(by[i]-hy)*VK,s.trace_t?.[i]??(i-n)*(s.dt||50)]);
-  const after=(s.traj_x||[]).map((x,i)=>[comp?0:(x-hx),((s.traj_y?.[i]??0)-hy)*VK,s.post_t?.[i]??i*(s.dt||50)]);
+  const qx=s.pos_x||[], qy=s.pos_y||[], usePos=!s.candidate && qx.length===n && qy.length===n && (qx.some(v=>v!==qx[0])||qy.some(v=>v!==qy[0]));
+  let hqx=0,hqy=0; if(usePos){for(let i=Math.max(0,n-hn);i<n;i++){hqx+=qx[i]||0;hqy+=qy[i]||0;} hqx/=hn;hqy/=hn;}
+  const before=usePos
+    ? qx.map((v,i)=>[v-hqx,(qy[i]||0)-hqy,s.trace_t?.[i]??(i-n)*(s.dt||50)])
+    : bx.map((x,i)=>[comp?(((yawOK?.[i]??hyaw)-hyaw+540)%360)-180:(x-hx),useP?pd[i]-hpd:(by[i]-hy)*VK,s.trace_t?.[i]??(i-n)*(s.dt||50)]);
+  const after=usePos
+    ? (s.posp_x||[]).map((v,i)=>[v-hqx,(s.posp_y?.[i]??0)-hqy,s.post_t?.[i]??i*(s.dt||50)])
+    : (s.traj_x||[]).map((x,i)=>[comp?0:(x-hx),((s.traj_y?.[i]??0)-hy)*VK,s.post_t?.[i]??i*(s.dt||50)]);
   const pts=[...before,...after].filter(p=>p.every(Number.isFinite));
-  const group=sets(data.shots).find(g=>g.includes(cur)) || [cur];
-  const esc = comp
+  const group=reference.candidate?[reference]:(sets(data.shots).find(g=>g.includes(cur)) || [cur]).map(i=>data.shots[i]);
+  const esc = usePos
+    ? Math.max(10, ...group.flatMap(g => { const gx = g.pos_x || [], gy = g.pos_y || [], gn = Math.min(gx.length, gy.length), ahn = Math.max(1, Math.floor(gn / 5));
+        const mx = avg(gx.slice(-ahn)) || 0, my = avg(gy.slice(-ahn)) || 0;
+        return [...gx.map(v => Math.abs(v - mx)), ...gy.map(v => Math.abs(v - my))].filter(Number.isFinite); }))
+    : comp
     ? (() => {  // percentil 90 de las desviaciones ancladas al reposo: un barrido de apertura no aplasta el apunte
-        const vals = group.flatMap(i => { const g = data.shots[i], yy = fixYaw(g.yaw_deg || []), tt = (g.tilt_y || []).map(v => v / 17.45);
+        const vals = group.flatMap(g => { const yy = fixYaw(yawOf(g)), tt = g.pitch_deg?.length ? g.pitch_deg : (g.tilt_y || []).map(v => v / 17.45);
           const hn = Math.max(1, Math.floor(Math.min(yy.length, tt.length) / 5));
           const my = yy.length ? avg(yy.slice(-hn)) : 0, mt = tt.length ? avg(tt.slice(-hn)) : 0;
           return [...yy.map(v => Math.abs((((v - my) + 540) % 360) - 180)), ...tt.map(v => Math.abs(v - mt))].filter(Number.isFinite); });
         vals.sort((a, b) => a - b);
         return Math.max(1, (vals[Math.floor(vals.length * 0.9)] || 1) * 1.3); })()
-    : Math.max(150, ...group.flatMap(i=>[...(data.shots[i].tilt_x||[]),...(data.shots[i].tilt_y||[]),...(data.shots[i].traj_x||[])].filter(Number.isFinite).map(Math.abs)));
+    : Math.max(150, ...group.flatMap(g=>[...(g.tilt_x||[]),...(g.tilt_y||[]),...(g.traj_x||[])].filter(Number.isFinite).map(Math.abs)));
   const sz = document.getElementById('aim').clientWidth || 300;
   const cl = v => Math.max(-1, Math.min(1, v / esc));  // nada fuera del canvas: salto de brujula -> borde
-  return { pts, P: p => [sz / 2 + cl(p[0]) * sz * .45, sz / 2 + cl(p[1]) * sz * .45] };
+  return { pts, position:usePos, P: p => [sz / 2 + cl(p[0]) * sz * .45, sz / 2 + cl(p[1]) * sz * .45] };
 }
-function aimPath(x,pts,P,hold) {
+const aimColor=(t,hold,release)=>t>=release?C.acc:t>=-hold?C.aim:C.prev;
+const releasePoint=(pts,t)=>pts.reduce((a,b)=>Math.abs(b[2]-t)<Math.abs(a[2]-t)?b:a);
+function releasePath(pts,t) {
+  const i=pts.findIndex(p=>p[2]>=t);
+  // Mantener el ultimo apunte hasta el instante registrado; el impulso posterior no es una posicion de apunte.
+  return i<=0?pts:[...pts.slice(0,i),[pts[i-1][0],pts[i-1][1],t],...pts.slice(i)];
+}
+function releaseMark(x,p,sz) {
+  const X=Math.max(8,Math.min(sz-128,p[0]-60)),Y=p[1]<52?p[1]+22:p[1]-42;
+  x.save();x.strokeStyle=C.rel;x.lineWidth=1.5;
+  x.beginPath();x.moveTo(...p);x.lineTo(X+60,Y+12);x.stroke();
+  x.beginPath();x.arc(...p,11,0,7);x.fillStyle='#111317';x.fill();x.stroke();
+  x.beginPath();x.arc(...p,5,0,7);x.fillStyle=C.rel;x.fill();
+  rr(x,X,Y,120,24,7);x.fillStyle='#15171b';x.fill();x.stroke();
+  x.fillStyle=C.rel;x.font='600 12px '+FONT;x.textAlign='center';x.fillText('Suelta estimada',X+60,Y+16);x.restore();
+}
+function aimPath(x,pts,P,hold,release=0) {
   x.lineWidth=2; x.lineCap='round'; x.lineJoin='round';
-  const col=t=>t>150?'#ff8220':t>=-Math.min(1000,hold)?'#ef5350':t>=-hold?'#eeeeee':'#78909c';
+  const col=t=>aimColor(t,hold,release);
   let run = null;  // fases secuenciales en el tiempo: un beginPath/stroke por run de color (no 64 trazos)
   const flush = () => { if (run) { x.strokeStyle = run.c; x.stroke(); run = null; } };
   for(let i=1;i<pts.length;i++) {
     const a0=P(pts[i-1]), a1=P(pts[i]);
+    const c=col(pts[i-1][2]);
     const prev=i>1?P(pts[i-2]):a0;
-    const m0=i>1?[(prev[0]+a0[0])/2,(prev[1]+a0[1])/2]:a0;
-    const m1=[(a0[0]+a1[0])/2,(a0[1]+a1[1])/2];
-    const c=col(pts[i][2]);
+    const m0=i>1&&col(pts[i-2][2])===c?[(prev[0]+a0[0])/2,(prev[1]+a0[1])/2]:a0;
+    const m1=i===pts.length-1||col(pts[i][2])!==c?a1:[(a0[0]+a1[0])/2,(a0[1]+a1[1])/2];
+    if(run&&run.c!==c)flush();
     if (!run) { x.beginPath(); x.moveTo(m0[0],m0[1]); run = { c }; }
     x.quadraticCurveTo(a0[0],a0[1],m1[0],m1[1]);
-    if (run.c !== c) flush();
   }
   flush();
 }
 function lineWidth1(x) { x.lineWidth = 1; }
 function cross(x, sz) {
-  x.strokeStyle = '#fff';
+  x.strokeStyle = C.txt; x.lineWidth = 1.5;
   x.beginPath();
   x.moveTo(sz / 2 - 6, sz / 2); x.lineTo(sz / 2 + 6, sz / 2);
   x.moveTo(sz / 2, sz / 2 - 6); x.lineTo(sz / 2, sz / 2 + 6);
   x.stroke();
 }
-let aimDrawnKey = '', c0 = 0;
+let aimDrawnKey = '', c0 = 0, playbackKey = '';
+function shotViewKey() {
+  return JSON.stringify([historyMode ? histId : curSess?.id, cur, data?.shots.length, data?.shots[cur], document.getElementById('aim').clientWidth, devicePixelRatio]);
+}
 function drawAim(s) {
   if (anim != null) return;  // durante la reproduccion el canvas es del animador: repintar aqui produce parpadeo
   const cw = document.getElementById('aim').width;
-  const key = cur + '/' + data.shots.length + '/' + (data.shots[cur]?.t_ms || 0);
+  const key = shotViewKey();
   if (key === aimDrawnKey && c0 === cw) return;  // misma flecha: no repintar (cero parpadeo con eventos de pulso/estado)
   aimDrawnKey = key; c0 = cw;
   const c = document.getElementById('aim');
   const [x, sz] = canvasFit(c, null);
   ringBase(x, sz);
-  const { pts, P } = proj(s);
-  const pre = pts.filter(p => p[2] <= 0);  // la trayectoria termina en la suelta
-  if (!pre.length) return;
-  aimPath(x,pre,P,aimTime(s)||0);
-  const release=pre[pre.length-1];
-  x.beginPath();x.arc(...P(release),4,0,7);x.fillStyle='#ef5350';x.fill();
+  const { pts:raw, P, position } = proj(s), releaseAt=0, pts=releasePath(raw,releaseAt);
+  document.getElementById('aimCaption').textContent=(position?'Desplazamiento estimado':'Orientación de la muñeca')+(s.candidate?' · escala individual':' · escala común del set')+'. Punto rojo: suelta estimada. Naranja: follow-through.';
+  if (!pts.length) return;
+  aimPath(x,pts,P,aimTime(s)||0,releaseAt);
   cross(x, sz);
+  releaseMark(x,P(releasePoint(pts,releaseAt)),sz);
 }
 function stopPlayback() {
-  if (anim != null) cancelAnimationFrame(anim);
-  anim = null;
+  if (anim != null) { cancelAnimationFrame(anim); aimDrawnKey = ''; }
+  anim = null; playbackKey = '';
   document.getElementById('play').textContent = 'Reproducir';
+  document.getElementById('play').classList.remove('playing');
 }
 function play() {
   if (anim != null) { stopPlayback(); aimDrawnKey = ''; if (data?.shots[cur]) drawAim(data.shots[cur]); return; }
   if (!data?.shots[cur]) return;
   const s = data.shots[cur], c = document.getElementById('aim');
-  const [x, sz] = canvasFit(c, null);
+  const sz = c.clientWidth || 320;
   const { pts, P } = proj(s);
-  if (!pts.length) return;
+  const releaseAt=0, path=releasePath(pts,releaseAt);
+  if (path.length < 2) {
+    document.getElementById('tip').textContent =
+      `Sin traza previa: pts=${pts.length} tilt=${s.tilt_x?.length || 0} pos=${s.pos_x?.length || 0} t=${s.trace_t?.length || 0}`;
+    return;
+  }
   const btn = document.getElementById('play');
-  btn.textContent = 'Detener';
-  const pre = pts.filter(p => p[2] <= 0);
-  if (pre.length < 2) return;
-  const real = Math.max(50, pre[pre.length-1][2]-pre[0][2]);
+  const real = Math.max(50, path[path.length-1][2]-path[0][2]);
   const t0 = performance.now(), dur = Math.min(10000, Math.max(4000, (real <= 8000 ? real : real / 4) * 1.35));  // un 35% mas lento que tiempo real
+  const pause=700, rev=dur-pause;  // pausa visual en la suelta; el resto mantiene velocidad constante por longitud de arco
   const dpr = devicePixelRatio || 1, rl = document.createElement('canvas');  // anillos cacheados: 1 blit por frame
   rl.width = sz * dpr; rl.height = sz * dpr;
   const rx = rl.getContext('2d'); rx.setTransform(dpr, 0, 0, dpr, 0, 0); ringBase(rx, sz);
   const blit = () => { x.drawImage(rl, 0, 0, sz, sz); };
+  const GR = 16, gl = document.createElement('canvas');  // halo de la punta precalculado (shadowBlur va mal en movil)
+  gl.width = gl.height = GR * 2 * dpr;
+  const gx = gl.getContext('2d'); gx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const gg = gx.createRadialGradient(GR, GR, 0, GR, GR, GR);
+  gg.addColorStop(0, 'rgba(255,255,255,.85)'); gg.addColorStop(.45, 'rgba(255,255,255,.18)'); gg.addColorStop(1, 'rgba(255,255,255,0)');
+  gx.fillStyle = gg; gx.fillRect(0, 0, GR * 2, GR * 2);
+  const hold = aimTime(s) || 0;
+  const col = t => aimColor(t,hold,releaseAt);
+  // la curva suavizada se aplana UNA vez: la estela solo crece sobre geometria fija, nada se recalcula ni se dobla
+  const ax = path.map(p => P(p)), SUB = 12, segN = path.length - 1;
+  const fx = [], fy = [], fc = [];
+  const releaseIndex=path.indexOf(releasePoint(path,releaseAt));let releaseVertex=0;
+  for (let i = 1; i <= segN; i++) {
+    const a0 = ax[i - 1], a1 = ax[i], pr = i > 1 ? ax[i - 2] : a0;
+    const color=col(path[i-1][2]);
+    const m0 = i > 1 && col(path[i-2][2])===color ? [(pr[0] + a0[0]) / 2, (pr[1] + a0[1]) / 2] : a0;
+    const m1 = i === segN || col(path[i][2])!==color ? a1 : [(a0[0] + a1[0]) / 2, (a0[1] + a1[1]) / 2];
+    for (let j = i === 1 ? 0 : 1; j <= SUB; j++) {
+      const t = j / SUB, u = 1 - t;
+      fx.push(u * u * m0[0] + 2 * u * t * a0[0] + t * t * m1[0]);
+      fy.push(u * u * m0[1] + 2 * u * t * a0[1] + t * t * m1[1]);
+      fc.push(color);
+    }
+    if(i===releaseIndex)releaseVertex=fx.length-1;
+  }
+  const tl = document.createElement('canvas');  // estela horneada: cada vertice se pinta 1 vez; el frame solo hace blit
+  tl.width = sz * dpr; tl.height = sz * dpr;
+  const tx2 = tl.getContext('2d'); tx2.setTransform(dpr, 0, 0, dpr, 0, 0);
+  tx2.lineWidth = 2; tx2.lineCap = 'round'; tx2.lineJoin = 'round';
+  const cum = [0];  // longitud de arco acumulada: la bolita avanza a px/s constante, no por tiempo de muestra
+  for (let i = 1; i < fx.length; i++) cum.push(cum[i - 1] + Math.hypot(fx[i] - fx[i - 1], fy[i] - fy[i - 1]));
+  const totalLen = cum[cum.length - 1];
+  if (!Number.isFinite(totalLen) || totalLen < 1) { document.getElementById('tip').textContent = 'Sin movimiento visible en la trayectoria guardada a esta escala'; return; }
+  const [x] = canvasFit(c, null);
+  btn.textContent = 'Detener'; btn.classList.add('playing'); playbackKey = shotViewKey();
+  let baked = 0;
+  const bakeTo = gi => {  // funde los vertices nuevos (baked+1..gi) en la estela persistente
+    while (baked < gi) {
+      baked++;
+      tx2.strokeStyle = fc[baked];
+      tx2.beginPath(); tx2.moveTo(fx[baked - 1], fy[baked - 1]); tx2.lineTo(fx[baked], fy[baked]); tx2.stroke();
+    }
+  };
+  const rp = P(releasePoint(path,releaseAt));  // mismo ultimo apunte que la marca estatica
+  const releaseDistance=cum[releaseVertex], pauseAt=rev*releaseDistance/totalLen;
   const frame = now => {
-    const k = Math.min((now - t0) / dur, 1), end=pre[0][2]+k*real;
-    let m=pre.findIndex(p=>p[2]>end);m=m<0?pre.length-1:Math.max(0,m-1);
-    const nx=pre[Math.min(m+1,pre.length-1)], fr=nx[2]>pre[m][2]?Math.min(1,Math.max(0,(end-pre[m][2])/(nx[2]-pre[m][2]))):0;
+    const w=now-t0, pausing=w>=pauseAt&&w<pauseAt+pause;
+    const sEnd=pausing?releaseDistance:Math.min((w-Math.max(0,Math.min(pause,w-pauseAt)))/rev,1)*totalLen;
+    let lo = 0, hi = cum.length - 1;  // busqueda binaria: primer vertice que alcanza sEnd
+    while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (cum[mid] <= sEnd) lo = mid; else hi = mid - 1; }
+    const gi = Math.min(pausing?releaseVertex:lo, fx.length - 2), sl = cum[gi + 1] - cum[gi];
+    const rem = sl > 0 ? Math.min(1, (sEnd - cum[gi]) / sl) : 0;
+    bakeTo(gi);
+    const tp = [fx[gi] + (fx[gi + 1] - fx[gi]) * rem, fy[gi] + (fy[gi + 1] - fy[gi]) * rem];
     x.clearRect(0, 0, sz, sz);
-    blit();
-    // la punta interpolada forma parte del camino: el trazo curvo crece a fps, no a saltos de muestra
-    const tip = m < pre.length-1
-      ? [pre[m][0]+(nx[0]-pre[m][0])*fr, pre[m][1]+(nx[1]-pre[m][1])*fr, end]
-      : pre[pre.length-1];
-    aimPath(x,[...pre.slice(0,m+1), tip],P,aimTime(s)||0);
-    const tp = P(tip);
-    if (m > 0) { x.beginPath(); x.arc(tp[0], tp[1], 5, 0, 7); x.fillStyle = '#fff'; x.fill(); }
-    if (k < 1) anim = requestAnimationFrame(frame); else { anim = null; aimDrawnKey = ''; btn.textContent = 'Reproducir'; cross(x, sz); }
+    x.globalAlpha = Math.min(1, w / 350); blit(); x.globalAlpha = 1;  // la diana entra suave
+    x.drawImage(tl, 0, 0, sz, sz);
+    if (w < dur) {  // creciendo: conector vivo hasta la bolita + halo
+      if (sEnd > 0 && !pausing) {
+        x.strokeStyle = fc[Math.min(gi + 1, fc.length - 1)]; x.lineWidth = 2; x.lineCap = 'round';
+        x.beginPath(); x.moveTo(fx[gi], fy[gi]); x.lineTo(tp[0], tp[1]); x.stroke();
+        x.drawImage(gl, tp[0] - GR, tp[1] - GR, GR * 2, GR * 2);
+        x.beginPath(); x.arc(tp[0], tp[1], 3, 0, 7); x.fillStyle = '#fff'; x.fill();
+      }
+      if(sEnd>=releaseDistance){cross(x,sz);releaseMark(x,rp,sz);}
+      anim = requestAnimationFrame(frame);
+    } else {
+      anim = null; aimDrawnKey = ''; btn.textContent = 'Reproducir'; btn.classList.remove('playing');
+      drawAim(s);  // termina exactamente en el estado estatico
+    }
   };
   anim = requestAnimationFrame(frame);
 }
@@ -742,12 +976,12 @@ function drawTrace(s) {
   const t = s.window ? [...s.window.pre, ...s.window.post] : [];
   const m = s.window ? [...s.window.mag_pre, ...s.window.mag_post] : [];
   if (!t.length) {
-    x.fillStyle = '#666'; x.font = '11px system-ui'; x.textAlign = 'center';
-    x.fillText('Sin señal completa en este tiro', w / 2, 70);
+    x.fillStyle = C.txt3; x.font = '12px ' + FONT; x.textAlign = 'center';
+    x.fillText('Sin señal completa en este tiro', w / 2, 75);
     x.textAlign = 'left';
     return;
   }
-  const h = 140, preLen = s.window.pre.length;
+  const h = 150, preLen = s.window.pre.length;
   const g0 = avg(m.slice(0, preLen));
   const dev = m.map(v => Math.abs(v - g0));
   // fase 1 (colocación/apertura) = tramo inestable inicial del pre; fase 2 = apuntado estable final
@@ -759,15 +993,15 @@ function drawTrace(s) {
   for (let j = 0; j < s.window.post.length && s.window.post[j]<=400; j++) {
     if (dev[preLen + j] > peak * 0.15) spikeEnd = j + 1;
   }
-  const PH = ['#78909c', '#4caf50', '#e53935', '#ff8220'];
+  const PH = [C.prev, C.aim, C.rel, C.acc];
   const phaseOf = idx => idx < preLen ? (idx < holdStart ? 0 : 1) : ((idx - preLen) < spikeEnd ? 2 : 3);
   const t0v = t[0], t1 = t[t.length - 1], mx = Math.max(...m, 1500);
   const L = v => Math.log10(1 + Math.max(0, v)), mxL = L(mx);  // escala log: el pico de suelta no aplasta el apunte
   const X = v => (v - t0v) / (t1 - t0v) * (w - 12) + 6, Y = v => h - 20 - (L(v) / mxL) * (h - 36);
   // rejilla 1g/2g/4g
-  x.strokeStyle = '#ffffff14'; x.beginPath();
+  x.strokeStyle = C.grid; x.lineWidth = 1; x.beginPath();
   [1000, 2000, 4000].forEach(g => { x.moveTo(4, Y(g)); x.lineTo(w - 4, Y(g)); }); x.stroke();
-  x.fillStyle = '#666'; x.font = '9px system-ui'; x.fillText('1g', 6, Y(1000) - 3);
+  x.fillStyle = C.txt3; x.font = '10px ' + MONO; x.fillText('1g', 6, Y(1000) - 4);
   // línea por tramos de fase
   x.lineWidth = 1.8;
   let start = 0;
@@ -784,11 +1018,11 @@ function drawTrace(s) {
   }
   // marca de suelta
   const xRel = X(0);
-  x.strokeStyle = '#fff'; x.setLineDash([4, 4]);
+  x.strokeStyle = 'rgba(236,238,241,.5)'; x.lineWidth = 1; x.setLineDash([3, 4]);
   x.beginPath(); x.moveTo(xRel, 4); x.lineTo(xRel, h - 18); x.stroke(); x.setLineDash([]);
-  x.fillStyle = '#fff'; x.font = '10px system-ui'; x.fillText('suelta', xRel + 4, 12);
+  x.fillStyle = C.txt2; x.font = '500 11px ' + FONT; x.fillText('Suelta', xRel + 6, 13);
   // regla de tiempo relativa a la suelta: -2s … 0 … +2s
-  x.strokeStyle = '#3a3a44'; x.fillStyle = '#8b8b96'; x.font = '8.5px system-ui'; x.textAlign = 'center';
+  x.strokeStyle = C.grid; x.fillStyle = C.txt3; x.font = '10px ' + MONO; x.textAlign = 'center';
   x.beginPath(); x.moveTo(4, h - 14); x.lineTo(w - 4, h - 14); x.stroke();
   for (let k = Math.ceil(t0v / 1000); k <= Math.floor(t1 / 1000); k++) {
     const px = X(k * 1000);
@@ -802,28 +1036,31 @@ function drawTrend(S) {
   const [x, w] = canvasFit(c, 150);
   trendBars = [];
   const h = 150, n = data.shots.length, top = 14, base = h - 20;
-  const mean = avg(data.shots.map(s => s.aim_score));
+  const candidates=data.shots.every(s=>s.candidate), values=data.shots.map(s=>candidates?s.peak_mg:s.aim_score);
+  const mean = avg(values.filter(Number.isFinite)), max=candidates?Math.max(1,...values.filter(Number.isFinite)):100;
+  document.getElementById('trendTitle').textContent=candidates?'Impulso por candidato':'Estabilidad por flecha';
+  document.getElementById('trendHelp').textContent=candidates?'mG · toca una barra':'toca una barra';
   const bw = Math.max(.5, Math.min(30, (w - 24) / n * .75));
-  const ay = base - (mean / 100) * (base - top);
-  x.strokeStyle = '#ffffff2a'; x.setLineDash([4, 4]);
+  const ay = base - (mean / max) * (base - top);
+  x.strokeStyle = 'rgba(255,255,255,.14)'; x.lineWidth = 1; x.setLineDash([3, 4]);
   x.beginPath(); x.moveTo(6, ay); x.lineTo(w - 6, ay); x.stroke(); x.setLineDash([]);
-  x.fillStyle = '#8b8b96'; x.font = '9px system-ui'; x.textAlign = 'right';
-  x.fillText('media ' + Math.round(mean), w - 6, ay - 4);
+  x.fillStyle = C.txt2; x.font = '11px ' + FONT; x.textAlign = 'right';
+  if(Number.isFinite(mean))x.fillText('Media ' + Math.round(mean)+(candidates?' mG':''), w - 6, ay - 5);
   let si = 0, prevSi = -1;
   data.shots.forEach((s, i) => {
     while (!S[si].includes(i)) si++;
     const bx = 12 + i * ((w - 24) / n);
     if (prevSi >= 0 && si !== prevSi) {  // separador entre sets
-      x.strokeStyle = '#ffffff14'; x.beginPath();
+      x.strokeStyle = C.grid; x.beginPath();
       x.moveTo(bx - (w - 24) / n / 2, top - 8); x.lineTo(bx - (w - 24) / n / 2, base + 4); x.stroke();
     }
     prevSi = si;
-    const bh = Math.max((s.aim_score / 100) * (base - top), 3);
-    x.fillStyle = grade(s.aim_score)[0];
+    const bh = Math.max(((values[i]||0) / max) * (base - top), 3);
+    x.fillStyle = candidates?C.acc:grade(s.aim_score)[0];
     rr(x, bx, base - bh, bw, bh, 3); x.fill();
     trendBars.push({ x: bx - 4, w: bw + 8, i });
-    x.fillStyle = '#77777f'; x.font = '8.5px system-ui'; x.textAlign = 'center';
-    if (n <= 14) x.fillText('F' + (S[si].indexOf(i) + 1), bx + bw / 2, h - 6);
+    x.fillStyle = i === cur ? C.txt : C.txt3; x.font = '10px ' + MONO; x.textAlign = 'center';
+    if (n <= 24) x.fillText((n>14?'':s.candidate?'C':'F') + (S[si].indexOf(i) + 1), bx + bw / 2, h - 6);
     x.textAlign = 'left';
   });
 }
@@ -832,12 +1069,13 @@ function drawSet(g) {
   const [x, sz] = canvasFit(c, null);
   ringBase(x, sz);
   const all = g.map(j => proj(data.shots[j]));
-  const esc = Math.max(150, ...all.flatMap(({ pts }) => pts.map(p => Math.max(Math.abs(p[0]), Math.abs(p[1])))));
+  const extent = Math.max(0, ...all.flatMap(({ pts }) => pts.map(p => Math.max(Math.abs(p[0]), Math.abs(p[1])))));
+  const esc = extent > 0 ? extent * 1.1 : 1;
   const P = p => [sz / 2 + p[0] / esc * sz * .45, sz / 2 + p[1] / esc * sz * .45];
   g.forEach((j, k) => {
     const { pts } = all[k], col = ACOLORS[k % 6];
     if (!pts.length) return;
-    x.strokeStyle = col; x.globalAlpha = .5; lineWidth1(x);
+    x.strokeStyle = col; x.globalAlpha = .75; x.lineWidth = 1.6; x.lineJoin = 'round';
     x.beginPath(); pts.forEach((p, i) => i ? x.lineTo(...P(p)) : x.moveTo(...P(p))); x.stroke();
     x.globalAlpha = 1;
     const e = pts[pts.length - 1];

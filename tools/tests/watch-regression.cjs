@@ -2,37 +2,83 @@
 // Complements compilation; it does not emulate the Garmin VM or sensor hardware.
 const fs=require('node:fs'), assert=require('node:assert/strict');
 Number.prototype.toNumber=function(){return Math.trunc(this);};
+Number.prototype.toFloat=function(){return Math.fround(this);};
 String.prototype.equals=function(other){return String(this)===other;};
 Array.prototype.remove=function(value){const i=this.indexOf(value);if(i>=0)this.splice(i,1);};
-const convert=s=>s.replace(/\s+as\s+(?:Array<Float>|Float|Number|Boolean|Void|Array)/g,'').replace(/new \[([^\]]+)\]/g,'Array($1).fill(0)').replace(/\.size\(\)/g,'.length').replace(/(?<!training)\.add\(/g,'.push(').replace(/\.toFloat\(\)/g,'').replace(/=>/g,':');
+Error.prototype.getErrorMessage=function(){return this.message;};
+Object.defineProperty(Object.prototype,'hasKey',{value:function(key){return Object.hasOwn(this,key);},configurable:true});
+const Numeric=class {static [Symbol.hasInstance](v){return typeof v==='number';}};
+const Text=class {static [Symbol.hasInstance](v){return typeof v==='string';}};
+const Dict=class {static [Symbol.hasInstance](v){return v!==null&&typeof v==='object'&&!Array.isArray(v);}};
+const convert=s=>s.replace(/catch\s*\(\s*(\w+)\s+instanceof\s+[\w.]+\s*\)/g,'catch($1)').replace(/\s+as\s+(?:Array<Float>|Lang.Dictionary|Float|Number|Boolean|Void|Array)/g,'').replace(/new \[([^\]]+)\]/g,'Array($1).fill(0)').replace(/\.(?:size|length)\(\)/g,'.length').replace(/(?<!training)\.add\(/g,'.push(').replace(/(\w+) has :(\w+)/g,"('$2' in $1)").replace(/([({,]\s*):(\w+)/g,'$1"$2"').replace(/=>/g,':');
 function body(source,name){
   const start=source.indexOf('{',source.indexOf('function '+name+'('));let depth=1,end=start+1;
   while(depth){if(source[end]==='{')depth++;if(source[end]==='}')depth--;end++;}
   return source.slice(start+1,end-1);
 }
 function load(file,klass,names){
-  const source=fs.readFileSync(file,'utf8').split('class '+klass+' ')[1], env={Math,Toybox:{Timer:{Timer:function(){}}},WatchUi:{requestUpdate(){}},Application:{Storage:{setValue(){}}}};
+  const source=fs.readFileSync(file,'utf8').split('class '+klass+' ')[1], values=new Map(), env={Math,Lang:{Array,Dictionary:Dict,Number:Numeric,Long:Numeric,Float:Numeric,Double:Numeric,String:Text,InvalidValueException:Error},System:{getTimer:()=>0},Toybox:{Timer:{Timer:function(){}}},WatchUi:{requestUpdate(){}},Application:{Storage:{setValue:(k,v)=>values.set(k,v),getValue:k=>values.get(k)??null,deleteValue:k=>values.delete(k)}}};
   for(const match of source.slice(0,source.indexOf('function initialize')).matchAll(/(?:private|public) var ([^;]+);/g)){
     const declaration=convert(match[1]);
     const names=[...declaration.matchAll(/(?:^|,)\s*(\w+)\s*(?:=|$)/g)].map(m=>m[1]);
     Function('env','with(env){var '+declaration+';Object.assign(env,{'+names.join(',')+'});}')(env);
   }
   for(const name of names){
-    const args=source.match(new RegExp('function '+name+'\\(([^)]*)'))[1].replace(/\s+as\s+[\w<>]+/g,'');
+    const args=source.match(new RegExp('function '+name+'\\(([^)]*)'))[1].replace(/\s+as\s+[\w.<>]+/g,'');
     env[name]=Function('env','return function('+args+'){with(env){'+convert(body(source,name))+'}}')(env);
   }
   return env;
 }
-const watch=()=>load('watchapp/source/ArcheryApp.mc','ArcheryApp',['configureRate','sample','preStable','trigger','finalize','decimate','subArray','diffArray','mean','pstdev','clamp']);
-const training=()=>{const s=load('watchapp/source/Training.mc','TrainingState',['count','nextId','snapshot','close','calibrateShot','act']);s.app={};s.events=[];s.emit=(kind,payload)=>s.events.push({kind,...payload});s.buzz=()=>{};return s;};
+const watch=()=>load('watchapp/source/ArcheryApp.mc','ArcheryApp',['configureRate','onData','sample','magYaw','rememberRR','rrRmssd','preStable','trigger','finalize','finalizeBody','mark','decimate','subArray','diffArray','mean','pstdev','clamp']);
+const training=()=>{const s=load('watchapp/source/Training.mc','TrainingState',['count','total','nextId','snapshot','close','validProfile','add','act']);s.app={mark(){}};s.events=[];s.emit=(kind,payload)=>s.events.push({kind,...payload});s.buzz=()=>{};return s;};
 let failures=0;
 function test(name,run){try{run();console.log('PASS',name);}catch(e){failures++;console.error('FAIL',name,e.message);}}
+test('Sensor batches preserve 10 ms intervals after days of watch uptime',()=>{
+  for(const timestamp of [null,Array.from({length:100},(_,i)=>10000+i*10)]){
+    const s=watch(), times=[];s.t0=321860380;s.System.getTimer=()=>s.t0+990;s.sample=(x,y,z,t)=>times.push(t);s.configureRate(100);
+    s.onData({accelerometerData:{x:Array(100).fill(0),y:Array(100).fill(0),z:Array(100).fill(1000),timestamp}});
+    assert.equal(times.length,100);assert.equal(times[0],0);assert.ok(times.slice(1).every((t,i)=>t-times[i]===10),JSON.stringify(times));
+  }
+});
+test('An old movement does not block a later draw and release',()=>{
+  const s=watch(),shots=[];s.training={paused:false,calibration:false,threshold:1320,add:m=>shots.push(m)};s.configureRate(100);
+  for(let t=0;t<=42000;t+=10)s.sample(t>=1000&&t<5000||t>=36000?400:0,0,t===40000?5000:1000,t);
+  assert.deepEqual(shots.map(m=>m.t),[40000]);
+});
+test('A release precursor does not erase aiming calm before the main pulse',()=>{
+  const s=watch(),shots=[];s.training={paused:false,calibration:false,threshold:1320,add:m=>shots.push(m)};s.configureRate(100);
+  for(let t=0;t<=4500;t+=10)s.sample(t>=1000?400:0,0,t===2000?1500:t===2010?5000:1000,t);
+  assert.deepEqual(shots.map(m=>m.t),[2000]);
+});
+test('Opening the bow does not zero the score of a steady aim',()=>{
+  const s=watch(),shots=[];s.training={paused:false,calibration:false,threshold:1320,add:m=>shots.push(m)};s.configureRate(100);
+  for(let t=0;t<=4500;t+=10)s.sample(t>=1000?400:0,0,t===2500?5000:1000,t);
+  assert.equal(shots.length,1);assert.ok(shots[0].score>=90,String(shots[0].score));
+});
+test('Recorded release-shaped impulses survive calibration from any of the three references',()=>{
+  const rows=JSON.parse(fs.readFileSync('tools/tests/fixtures/field-20261002.json')),s=watch(),state=training();state.calibration=true;s.training=state;s.configureRate(100);
+  rows.forEach(([t,x,y,z])=>s.sample(x,y,z,t));const anchors=[60047,97846,134005],references=anchors.map(t=>state.events.find(e=>Math.abs(e.t-t)<100));
+  assert.ok(references.every(Boolean));
+  for(const reference of references){const preset=training();preset.act('profile','TRX 38');preset.act('calibrateShot',{peak:reference.peak,pose:reference.pose,profile:'TRX 38',requestId:'field'});assert.equal(preset.events.at(-1).applied,true);
+    const detector=watch();detector.training=preset;detector.configureRate(100);rows.forEach(([t,x,y,z])=>detector.sample(x,y,z,t));
+    const shots=preset.events.filter(e=>e.kind==='shot');assert.equal(shots.length,3,JSON.stringify(shots.map(e=>[e.t,e.peak])));assert.ok(shots.every((e,i)=>Math.abs(e.t-anchors[i])<100));
+  }
+});
 test('Incomplete three-arrow end cannot close',()=>{const s=training();s.target=3;s.rows=[[100,1]];s.close('manual',0);assert.equal(s.resting,false);assert.equal(s.ends.length,0);});
+test('The second field capture retains the three probable releases after calibration',()=>{
+  const rows=JSON.parse(fs.readFileSync('tools/tests/fixtures/field-20261002-afternoon.json')),candidates=JSON.parse(fs.readFileSync('tools/tests/fixtures/candidates-20261002.json'));
+  for(const i of [3,11,17]){
+    const reference=candidates[i],state=training();state.act('profile','TRX 38');state.act('calibrateShot',{peak:reference.peak_mg,pose:reference.pose,profile:'TRX 38',requestId:'field2'});
+    const detector=watch();detector.training=state;detector.configureRate(100);rows.forEach(([t,x,y,z])=>detector.sample(x,y,z,t));
+    const shots=state.events.filter(e=>e.kind==='shot');assert.equal(shots.length,3,JSON.stringify(shots.map(e=>[e.t,e.peak])));
+    assert.ok(shots.every((e,j)=>Math.abs(e.t-candidates[[3,11,17][j]].t_ms)<200),JSON.stringify(shots.map(e=>e.t)));
+  }
+});
 test('Next cannot skip an incomplete end; undo reopens the current end',()=>{const s=training();s.rows=[[100,1],[200,1]];s.act('next',0);assert.equal(s.currentSet,1);s.rows.push([300,1]);s.close('manual',0);assert.equal(s.resting,true);s.act('undo',0);assert.equal(s.resting,false);assert.equal(s.ends.length,0);});
-test('Calibration progress is published after each arrow',()=>{const s=training();s.calibration=true;s.calibrateShot(4000,[0,0,1000]);assert.equal(s.snapshot().calibrationCount,1);});
-test('Trace preserves opening eight seconds before release',()=>{const s=watch();s.training={paused:false,calibration:false,threshold:3200,add:m=>s.message=m};s.configureRate(100);
+test('Calibration candidates are published without advancing the training end',()=>{const s=training();s.calibration=true;s.add({t:1000,candidate:true});assert.equal(s.snapshot().calibrationCount,1);assert.equal(s.count(),0);assert.equal(s.app.nShots,0);assert.equal(s.events[0].kind,'shot');});
+test('Trace respects the six-second capture cap and preserves recent samples',()=>{const s=watch();s.training={paused:false,calibration:false,threshold:3200,add:m=>s.message=m};s.configureRate(100);
   for(let t=0;t<=14000;t+=10)s.sample(t>=2000 && t<5000?400:0,0,t===12000?5000:1000,t);
-  assert.ok(s.message.trace_t[0]<=-8000,JSON.stringify(s.message.trace_t));assert.ok(s.message.tx.some(x=>x>200));});
+  assert.equal(s.message.trace_t[0],-6000);assert.equal(s.message.trace_t.at(-1),-50);assert.equal(s.message.trace_t.length,s.message.tx.length);});
 test('Compression retains both endpoints',()=>{const s=watch();assert.deepEqual([s.decimate([0,1,2,3,4,5],3)[0],s.decimate([0,1,2,3,4,5],3).at(-1)],[0,5]);});
 test('Directional release, no doubles, at 25/50/100 Hz',()=>{
   for(const rate of [25,50,100]){const s=watch(), shots=[];s.training={paused:false,calibration:false,threshold:3200,add:m=>shots.push(m)};s.configureRate(rate);
@@ -57,7 +103,7 @@ test('A second impulse without a new draw is not another arrow',()=>{const s=wat
 test('Walking with repeated impacts and swinging the arm is rejected',()=>{const s=watch(), shots=[];s.training={paused:false,calibration:false,threshold:900,add:m=>shots.push(m)};s.configureRate(100);
   for(let t=0;t<=10000;t+=10){const moving=t>=1000;s.sample(moving?600*Math.sin(t/180):0,0,moving&&t%600===0?3500:1000,t);}assert.equal(shots.length,0);
 });
-test('Calibration accommodates a weaker release without follow-through inflating peak',()=>{const state=training();state.calibration=true;[4000,2200,3800].forEach(p=>state.calibrateShot(p,[0,0,1000]));assert.equal(state.threshold,1320);assert.equal(state.calibration,false);
+test('Selecting a weaker release calibrates without follow-through inflating peak',()=>{const state=training();state.calibration=true;state.act('calibrateShot',{peak:2200,profile:'Recurvo',requestId:'weak'});assert.equal(state.threshold,770);assert.equal(state.calibration,false);
   const s=watch(), shots=[];s.training={paused:false,calibration:false,threshold:state.threshold,add:m=>shots.push(m)};s.configureRate(100);
   for(let t=0;t<=5000;t+=10)s.sample(t>=1000?400:0,0,t===2000?2500:t===2500?8000:1000,t);
   assert.equal(shots.length,1);assert.ok(shots[0].peak>1400 && shots[0].peak<1600);
@@ -67,30 +113,90 @@ test('Legacy arrows stay together through long pauses, then start a new trio',()
   const shots=[0,90000,180000,270000].map(t_ms=>({t_ms}));identify(shots);assert.deepEqual(shots.map(s=>s.set_id),[0,0,0,270000]);
   shots.splice(1,1);identify(shots);assert.deepEqual(shots.map(s=>s.set_id),[0,0,270000]);
 });
-test('Calibration accepts three releases without a recognised opening',()=>{
+test('Calibration captures candidates without requiring a recognised opening',()=>{
   for(const rate of [25,50,100]){const s=watch(), state=training();state.calibration=true;s.training=state;s.configureRate(rate);
     for(let t=0;t<=14000;t+=1000/rate)s.sample(0,0,[2000,6000,10000].includes(t)?4000:1000,t);
-    assert.equal(state.positive.length,3);assert.equal(state.calibration,false);assert.ok(state.pose.every(Number.isFinite));}
+    assert.equal(state.snapshot().calibrationCount,3);assert.equal(state.calibration,true);assert.equal(state.threshold,3200);assert.equal(state.events.filter(e=>e.candidate).length,3);}
 });
 test('Calibration tolerates aiming sway before learning posture',()=>{
   const s=watch(), state=training();state.calibration=true;s.training=state;s.configureRate(100);
   for(let t=0;t<=5000;t+=10)s.sample(160*Math.sin(t/100),0,t===2000?4000:1000,t);
-  assert.equal(state.positive.length,1);
+  assert.equal(state.snapshot().calibrationCount,1);
 });
-test('Calibration still rejects slow motion and sustained shaking',()=>{
+test('Calibration retains sustained movement for the user to accept or discard',()=>{
   for(const shake of [false,true]){const s=watch(), state=training();state.calibration=true;s.training=state;s.configureRate(100);
     for(let t=0;t<=6000;t+=10)s.sample(300*Math.sin(t/1000),0,shake&&t>=2000&&t<2700?5000:1000,t);
-    assert.equal(state.positive.length,0);}
+    assert.equal(state.snapshot().calibrationCount>0,shake);assert.equal(state.calibration,true);}
 });
-test('Same six cycles: three calibrations followed by three training arrows',()=>{
-  for(const rate of [25,50,100]){const s=watch(), state=training(), shots=[];state.calibration=true;state.add=m=>shots.push(m);s.training=state;s.configureRate(rate);
-    for(let t=0;t<=36500;t+=1000/rate){const phase=t%6000;const x=phase<2000?600*Math.sin(phase/400):phase<4300?400+160*Math.sin(phase/100):0;s.sample(x,0,phase===4000?4000:1000,t);}
-    assert.equal(state.positive.length,3);assert.equal(shots.length,3,'Training must accept the same calibrated movement');
-    for(let t=36600;t<=46600;t+=1000/rate)s.sample(600*Math.sin(t/180),0,t%600===0?3500:1000,t);
-    assert.equal(shots.length,3,'Walking after real calibration must not add arrows');}
+test('Calibration never ends at three candidates; selected sensitivity detects later arrows',()=>{
+  for(const rate of [25,50,100]){const s=watch(), state=training();state.calibration=true;s.training=state;s.configureRate(rate);
+    for(let t=0;t<=14000;t+=1000/rate)s.sample(0,0,[2000,6000,10000].includes(t)?1250:1000,t);
+    const candidates=state.events.filter(e=>e.candidate);assert.equal(candidates.length,3);assert.equal(state.calibration,true);assert.equal(state.threshold,3200);
+    state.act('calibrateShot',{peak:candidates[1].peak,pose:candidates[1].pose,profile:'Recurvo',requestId:'selected'});
+    assert.equal(state.threshold,90);assert.equal(state.calibration,false);
+    for(let t=14000+1000/rate;t<=34000;t+=1000/rate){const phase=t%6000;s.sample(Math.min(400,Math.max(0,phase-1000)),0,phase===4000?1250:1000,t);}
+    assert.equal(state.total(),3,JSON.stringify({rate,events:state.events.map(e=>[e.t,e.peak]),status:s.detectorStatus}));}
+});
+test('Mobile calibration persists the selected profile and confirms the request',()=>{
+  const s=training();s.calibration=true;
+  s.act('calibrateShot',{peak:1200,profile:'Recurvo',requestId:'r1'});
+  assert.equal(s.threshold,420);assert.equal(s.calibration,false);
+  assert.equal(s.Application.Storage.getValue('threshold:Recurvo'),420);
+  assert.equal(s.events.at(-1).requestId,'r1');assert.equal(s.events.at(-1).applied,true);
+});
+test('Mobile calibration for another profile does not alter the active profile',()=>{
+  const s=training();s.calibration=true;
+  s.act('calibrateShot',{peak:2000,profile:'Compuesto',requestId:'r2'});
+  assert.equal(s.threshold,3200);assert.equal(s.profile,'Recurvo');assert.equal(s.calibration,true);
+  assert.equal(s.Application.Storage.getValue('threshold:Compuesto'),700);assert.equal(s.events.at(-1).applied,true);
+});
+test('Malformed mobile calibration never changes saved sensitivity',()=>{
+  for(const peak of [null,'1200',NaN,Infinity,-1,0,150,100001]){
+    const s=training();s.act('calibrateShot',{peak,profile:'Recurvo',requestId:'bad'});
+    assert.equal(s.threshold,3200);assert.equal(s.Application.Storage.getValue('threshold:Recurvo'),null);
+    assert.equal(s.events.at(-1).applied,false);
+  }
+});
+test('Mobile calibration accepts named bows, weak peaks and rejects invalid names',()=>{
+  const s=training();s.act('calibrateShot',{peak:151,profile:'Recurvo',requestId:'floor'});assert.equal(s.threshold,90);
+  s.act('profile','Olímpico 38');s.act('calibrateShot',{peak:250,profile:'Olímpico 38',pose:[0,0,1000],requestId:'named'});assert.equal(s.threshold,90);assert.equal(s.events.at(-1).applied,true);assert.deepEqual(s.pose,[0,0,1000]);
+  for(const profile of ['',null,'x'.repeat(25)]){s.act('calibrateShot',{peak:4000,profile,requestId:'bad'});assert.equal(s.threshold,90);assert.equal(s.events.at(-1).applied,false);}
+});
+test('Deleting a bow preset clears its sensitivity and posture and preserves other bows',()=>{
+  const s=training();s.act('profile','Equipo A');s.act('calibrateShot',{peak:1200,profile:'Equipo A',pose:[0,0,1000],requestId:'a'});s.Application.Storage.setValue('threshold:Equipo B',900);
+  s.act('deleteProfile','Equipo A');assert.equal(s.Application.Storage.getValue('threshold:Equipo A'),null);assert.equal(s.Application.Storage.getValue('pose:Equipo A'),null);assert.equal(s.profile,'Recurvo');assert.equal(s.threshold,3200);assert.equal(s.Application.Storage.getValue('threshold:Equipo B'),900);
+});
+test('Invalid posture never partially changes calibration; historical shots clear stale posture',()=>{
+  const s=training();for(const pose of [[0,0],[0,0,0],[NaN,0,1000],[0,0,Infinity],['0',0,1000],[0,0,1000,NaN],[0,0,1000,-1],[0,0,1000,4000001],[0,0,1000,0,0]]){s.act('calibrateShot',{peak:1200,profile:'Recurvo',pose,requestId:'bad-pose'});assert.equal(s.threshold,3200);assert.equal(s.Application.Storage.getValue('threshold:Recurvo'),null);}
+  s.pose=[1000,0,0];s.Application.Storage.setValue('pose:Recurvo',s.pose);s.act('calibrateShot',{peak:1200,profile:'Recurvo',requestId:'legacy'});assert.equal(s.pose,null);assert.equal(s.Application.Storage.getValue('pose:Recurvo'),null);
+});
+test('Zero acceleration samples do not create a non-finite pitch',()=>{
+  const s=watch();s.training={paused:false,calibration:false,threshold:3200};s.configureRate(100);s.sample(0,0,0,0);
+  assert.ok(Number.isFinite(s.rpt[0]));
+});
+test('A sensor restart discards the stale orientation reference',()=>{
+  const s=watch();s.basisOk=true;s.refOk=true;s.configureRate(100);assert.equal(s.basisOk,false);assert.equal(s.refOk,false);
+});
+test('RR metrics keep updating beyond ninety heartbeats and reject invalid intervals',()=>{
+  const s=watch();for(let i=0;i<100;i++)s.rememberRR(800);assert.equal(s.rrCount,90);assert.equal(s.rrRmssd(),0);
+  for(let i=0;i<40;i++)s.rememberRR(i%2?1000:800);assert.equal(s.rrCount,90);assert.equal(s.rrRmssd(),200);
+  for(const value of [0,300,2500,Infinity,NaN])s.rememberRR(value);assert.equal(s.rrRmssd(),200);
+});
+test('Vector-only and negative release candidates have usable calibration peaks',()=>{
+  for(const rate of [25,50,100])for(const directional of [false,true]){const s=watch(), state=training();state.calibration=true;s.training=state;s.configureRate(rate);
+    for(let t=0;t<=4000;t+=1000/rate)s.sample(t===2000&&directional?1000:0,0,t===2000?(directional?0:750):1000,t);
+    const shot=state.events.find(e=>e.candidate);assert.ok(shot&&shot.peak>150);assert.equal(shot.trace_t.length,shot.yw2.length);}
+});
+test('Normal training detects a brief vector impulse with unchanged acceleration magnitude',()=>{
+  for(const rate of [25,50,100]){const s=watch(), shots=[];s.training={paused:false,calibration:false,threshold:400,add:m=>shots.push(m)};s.configureRate(rate);
+    for(let t=0;t<=5000;t+=1000/rate)s.sample(t>=1000?(t===3000?-400:400):0,0,1000,t);
+    assert.equal(shots.length,1);assert.equal(shots[0].t,3000);assert.ok(shots[0].peak>600);assert.equal(shots[0].tx.length,shots[0].yw2.length);}
+});
+test('Historical calibration crosses the phone dispatcher as scalar fields and is idempotent',()=>{
+  const s=load('watchapp/source/ArcheryApp.mc','ArcheryApp',['onPhone']), state=training(), replies=[];
+  Object.assign(s,{Dictionary:Dict,String:Text,CommandListener:function(){},Communications:{transmit:r=>replies.push(r)},finishPending(){},training:state});state.save=()=>{};s.sid='current';
+  const message={data:{sid:'history',cid:1,client:'phone',action:'calibrateShot',value:1200,profile:'Recurvo',requestId:'old-shot'}};
+  s.onPhone(message);s.onPhone(message);
+  assert.equal(state.threshold,420);assert.equal(state.events.length,1);assert.equal(state.events[0].requestId,'old-shot');assert.equal(replies.length,2);
 });
 process.exitCode=failures?1:0;
-
-
-
-

@@ -8,15 +8,16 @@ import Toybox.Lang;
 class TrainingState {
     public var target=3, currentSet=1, resting=false, paused=false, feedback=true, mode="Indoor";
     public var profile="Recurvo", rows=[], ends=[], started=0, lastCommand=0, commandClient="";
-    public var calibration=false, positive=[], threshold=3200.0, pose=null;
+    public var calibration=false, threshold=3200.0, pose=null;
     public var app;
     function initialize(owner) { app=owner; started=Time.now().value(); }
     function count() { var n=0; for(var i=0;i<rows.size();i++) { if(rows[i][1]==currentSet){n++;} } return n; }
+    function total() { var n=0;for(var i=0;i<rows.size();i++){if(rows[i][1]>0){n++;}}return n; }
     function nextId() {var id=currentSet;for(var i=0;i<rows.size();i++){if(rows[i][1]>id){id=rows[i][1];}}return id+1;}
-    function displaySet() {var n=0,prev=-1;for(var i=0;i<rows.size();i++){if(rows[i][1]!=prev){n++;prev=rows[i][1];}if(prev==currentSet){return n;}}return n+1;}
-    function snapshot() { return {"target"=>target,"currentSet"=>currentSet,"resting"=>resting,"paused"=>paused,"ends"=>ends,"profile"=>profile,"mode"=>mode,"metric"=>2,"calibrating"=>calibration,"calibrationCount"=>positive.size()}; }
+    function displaySet() {var n=0,prev=-1;for(var i=0;i<rows.size();i++){if(rows[i][1]<0){continue;}if(rows[i][1]!=prev){n++;prev=rows[i][1];}if(prev==currentSet){return n;}}return n+1;}
+    function snapshot() { return {"target"=>target,"currentSet"=>currentSet,"resting"=>resting,"paused"=>paused,"ends"=>ends,"profile"=>profile,"mode"=>mode,"metric"=>2,"calibrating"=>calibration,"calibrationCount"=>rows.size()-total()}; }
     function record() { return {"sid"=>app.sid,"started"=>started,"state"=>snapshot(),"rows"=>rows,"lastCommand"=>lastCommand,"commandClient"=>commandClient,"feedback"=>feedback}; }
-    function save() { try { Application.Storage.setValue("training",record()); } catch (e instanceof Lang.Exception) {} }
+    function save() { try { Application.Storage.setValue("training",record()); } catch (e instanceof Lang.Exception) {app.err="No se pudo guardar la sesion";} }
     function restore(saved) {
         var preferences=Application.Storage.getValue("preferences");
         if(preferences instanceof Lang.Dictionary){target=preferences["target"];profile=preferences["profile"];feedback=preferences["feedback"];if(preferences.hasKey("mode")){mode=preferences["mode"];}}
@@ -24,6 +25,7 @@ class TrainingState {
             app.sid=saved["sid"]; started=saved["started"]; rows=saved["rows"]; lastCommand=saved["lastCommand"];
             var s=saved["state"] as Lang.Dictionary; target=s["target"];currentSet=s["currentSet"];resting=s["resting"];paused=s["paused"];ends=s["ends"];profile=s["profile"];if(s.hasKey("mode")){mode=s["mode"];}
             feedback=saved["feedback"];if(saved.hasKey("commandClient")){commandClient=saved["commandClient"];}
+            if(s.hasKey("calibrating")){calibration=s["calibrating"];}
         }
         if(profile.equals("Recurvo / arco") || profile.equals("Recurvo / cuerda")){profile="Recurvo";}  // perfiles antiguos -> tipo de arco
         if(profile.equals("Compuesto / arco") || profile.equals("Compuesto / cuerda")){profile="Compuesto";}
@@ -42,24 +44,14 @@ class TrainingState {
         emit("set",{});buzz();
     }
     function add(msg) {
-        if(resting) { currentSet=nextId(); resting=false; }
-        msg["set"]=currentSet;msg["profile"]=profile;msg["metric"]=2;
-        rows.add([msg["t"].toNumber(),currentSet]); app.nShots=rows.size();
-        if(target>0 && count()>=target){ends.add({"id"=>currentSet,"reason"=>"target"});resting=true;}
+        var candidate=msg.hasKey("candidate") && msg["candidate"];
+        if(!candidate && resting) { currentSet=nextId(); resting=false; }
+        msg["set"]=candidate?-1:currentSet;msg["profile"]=profile;msg["metric"]=2;
+        rows.add([msg["t"].toNumber(),msg["set"]]); app.nShots=total();
+        if(!candidate && target>0 && count()>=target){ends.add({"id"=>currentSet,"reason"=>"target"});resting=true;}
         emit("shot",msg);buzz();
     }
-    function calibrateShot(p as Float, orientation) as Void {
-        if(positive.size()==0){pose=orientation;}else{for(var k=0;k<3;k++){pose[k]=(pose[k]*positive.size()+orientation[k])/(positive.size()+1);}}
-        if(pose.size()>3 && orientation.size()>3 && orientation[3]>pose[3]){pose[3]=orientation[3];}
-        positive.add(p);buzz();
-        if(positive.size()>=3) {
-            var a1=positive[0],b1=positive[1],c1=positive[2];
-            var m=a1>b1 ? (a1>c1 ? (b1>c1?b1:c1) : a1) : (a1>c1 ? a1 : (b1>c1?c1:b1));  // mediana de 3: un valor raro no desordena el umbral
-            var weakest=a1<b1?(a1<c1?a1:c1):(b1<c1?b1:c1);
-            if(m>1000.0) {threshold=weakest*0.6;if(threshold<900){threshold=900.0;}Application.Storage.setValue("threshold:"+profile,threshold);Application.Storage.setValue("pose:"+profile,pose);calibration=false;emit("calibration",{"result"=>"Calibrado: postura y suelta"});return;}
-            positive=[];emit("calibration",{"result"=>"Senales debiles: repetir calibracion"});
-        } else { emit("state",{}); }
-    }
+    function validProfile(value) {return value instanceof Lang.String && value.length()>0 && value.length()<=24;}
     function act(action,value) {
         if(action.equals("split") || action.equals("merge")) {
             var index=-1;
@@ -80,21 +72,52 @@ class TrainingState {
         if(action.equals("pause")){paused=!paused;}
         if(action.equals("mode")) { mode=value;if(value.equals("Indoor")){target=3;}if(value.equals("Outdoor")){target=6;}if(value.equals("Libre")){target=0;} }
         if(action.equals("target")){target=value.toNumber();}
+        if(action.equals("calibrateShot")) {
+            var request=(value instanceof Lang.Dictionary?value:{"peak"=>0.0,"profile"=>"","requestId"=>""}) as Lang.Dictionary;
+            var p=request["peak"], dest=request["profile"], requestId=request["requestId"];
+            var numeric=p instanceof Lang.Number || p instanceof Lang.Float || p instanceof Lang.Long || p instanceof Lang.Double;
+            if(!numeric || !(p>150 && p<=100000) || !validProfile(dest) || !(requestId instanceof Lang.String)) {
+                emit("calibration",{"requestId"=>requestId,"applied"=>false,"result"=>"Pico o perfil de calibracion no valido"});return;
+            }
+            var orientation=request.hasKey("pose")?request["pose"]:null;
+            if(orientation!=null) {
+                if(!(orientation instanceof Lang.Array) || (orientation.size()!=3 && orientation.size()!=4)){emit("calibration",{"requestId"=>requestId,"applied"=>false,"result"=>"Postura no valida"});return;}
+                for(var k=0;k<3;k++){var v=orientation[k];if(!(v instanceof Lang.Number || v instanceof Lang.Float || v instanceof Lang.Long || v instanceof Lang.Double) || !(v>=-2000 && v<=2000)){emit("calibration",{"requestId"=>requestId,"applied"=>false,"result"=>"Postura no valida"});return;}}
+                if(orientation.size()==4){var noise=orientation[3];if(!(noise instanceof Lang.Number || noise instanceof Lang.Float || noise instanceof Lang.Long || noise instanceof Lang.Double) || !(noise>=0 && noise<=4000000)){emit("calibration",{"requestId"=>requestId,"applied"=>false,"result"=>"Estabilidad no valida"});return;}}
+                var norm=orientation[0]*orientation[0]+orientation[1]*orientation[1]+orientation[2]*orientation[2];if(!(norm>=250000 && norm<=2250000)){emit("calibration",{"requestId"=>requestId,"applied"=>false,"result"=>"Postura no valida"});return;}
+            }
+            var nextThreshold=Math.floor(p*0.35+0.5);if(nextThreshold<90){nextThreshold=90.0;}
+            Application.Storage.setValue("threshold:"+dest,nextThreshold);
+            if(orientation==null){Application.Storage.deleteValue("pose:"+dest);}else{Application.Storage.setValue("pose:"+dest,orientation);}
+            if(dest.equals(profile)){threshold=nextThreshold;pose=orientation;calibration=false;}
+            emit("calibration",{"requestId"=>requestId,"applied"=>true,"profile"=>dest,"threshold"=>nextThreshold,
+                "result"=>dest+": "+nextThreshold.toNumber()+" mG"+(dest.equals(profile)?" aplicado":" guardado; selecciona este arco en el movil")});return;
+        }
+        if(action.equals("deleteProfile")) {
+            if(!validProfile(value)){return;}
+            Application.Storage.deleteValue("threshold:"+value);Application.Storage.deleteValue("pose:"+value);
+            if(value.equals(profile)){profile="Recurvo";var fallback=Application.Storage.getValue("threshold:"+profile);threshold=fallback==null?3200.0:fallback;pose=Application.Storage.getValue("pose:"+profile);calibration=false;}
+        }
+        if(action.equals("threshold")) {
+            var numeric=value instanceof Lang.Number || value instanceof Lang.Float || value instanceof Lang.Long || value instanceof Lang.Double;
+            if(!numeric || !(value>0 && value<=60000)){emit("calibration",{"applied"=>false,"result"=>"Umbral no valido"});return;}
+            var nextThreshold=value<90?90.0:value.toFloat();Application.Storage.setValue("threshold:"+profile,nextThreshold);
+            threshold=nextThreshold;calibration=false;emit("calibration",{"result"=>"Umbral manual: "+threshold.toNumber()});return;
+        }
         if(action.equals("feedback")){feedback=!feedback;}
-        if(action.equals("profile")) { profile=value;var v=Application.Storage.getValue("threshold:"+profile);threshold=v==null?3200.0:v;pose=Application.Storage.getValue("pose:"+profile);calibration=false;positive=[]; }
+        if(action.equals("profile")) { if(!validProfile(value)){return;}profile=value;var v=Application.Storage.getValue("threshold:"+profile);threshold=v==null?3200.0:v;pose=Application.Storage.getValue("pose:"+profile);calibration=false; }
         if(action.equals("manual")) { add({"t"=>System.getTimer()-app.t0,"manual"=>true,"score"=>0,"peak"=>0,"instab"=>0,"settle"=>-1});return; }
-        if(action.equals("undo") && calibration && positive.size()>0) { positive.remove(positive[positive.size()-1]);emit("state",{});return; }
         if(action.equals("undo") || action.equals("remove")) {
             var times=action.equals("undo")?(rows.size()>0?[rows[rows.size()-1][0]]:[]):value;
             for(var j=rows.size()-1;j>=0;j--) {for(var k=0;k<times.size();k++) {if(rows[j][0]==times[k]){rows.remove(rows[j]);break;}}}
             if(target>0 && count()<target){resting=false;for(var e=ends.size()-1;e>=0;e--){if(ends[e]["id"]==currentSet){ends.remove(ends[e]);}}}
-            app.nShots=rows.size();emit("remove",{"times"=>times});return;
+            app.nShots=total();emit("remove",{"times"=>times});return;
         }
-        if(action.equals("calibrate")) { calibration=!calibration;positive=[];pose=Application.Storage.getValue("pose:"+profile);if(calibration){paused=false;} }
+        if(action.equals("calibrate")) { calibration=!calibration;if(calibration){paused=false;} }
         if(action.equals("probe")) { app.runSensorProbe();return; }
         if(action.equals("finish")) { app.finishActivity();return; }
         if(action.equals("exit")) {System.exit();return;}
-        if(action.equals("mode") || action.equals("target") || action.equals("profile") || action.equals("feedback")){Application.Storage.setValue("preferences",{"target"=>target,"profile"=>profile,"feedback"=>feedback,"mode"=>mode});}
+        if(action.equals("mode") || action.equals("target") || action.equals("profile") || action.equals("deleteProfile") || action.equals("feedback")){Application.Storage.setValue("preferences",{"target"=>target,"profile"=>profile,"feedback"=>feedback,"mode"=>mode});}
         emit("state",{});
     }
 }
@@ -102,9 +125,12 @@ class TrainingState {
 class TrainingMenu extends WatchUi.Menu2InputDelegate {
     function initialize() { Menu2InputDelegate.initialize(); }
     function onSelect(item) {
-        var a=Application.getApp();var id=item.getId();WatchUi.popView(WatchUi.SLIDE_IMMEDIATE);
+        var a=Application.getApp();
+        try {
+        var id=item.getId();WatchUi.popView(WatchUi.SLIDE_IMMEDIATE);
         if(id[0].equals("more")){openMoreMenu();return;}
         if(!id[0].equals("wait")){a.finishPending();a.training.act(id[0],id[1]);}
+        } catch(e instanceof Lang.Exception){a.err="SEL3:"+e.getErrorMessage();}
     }
 }
 function pushMenu(items) {
@@ -128,6 +154,6 @@ function openMoreMenu() {
     var items=[["Anadir flecha manual","manual",0],["Reabrir tanda","reopen",0],
         ["Modo Indoor (3 flechas)","mode","Indoor"],["Modo Outdoor (6 flechas)","mode","Outdoor"],["Modo libre","mode","Libre"],
         ["Recurvo","profile","Recurvo"],["Compuesto","profile","Compuesto"],
-        ["Vibracion: "+(t.feedback?"si":"no"),"feedback",0],["Diagnostico sensores","probe",0],[t.calibration?"Salir calibracion":"Calibrar: 3 tiros","calibrate",0]];
+        ["Vibracion: "+(t.feedback?"si":"no"),"feedback",0],["Diagnostico sensores","probe",0],[t.calibration?"Salir calibracion":"Calibrar desde movil","calibrate",0]];
     pushMenu(items);
 }

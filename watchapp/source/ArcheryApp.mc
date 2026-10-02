@@ -22,10 +22,23 @@ class ArcheryView extends WatchUi.View {
     }
 
     public function onShow() as Void {
-        if (!askedMode) { askedMode = true; openModeMenu(); }
+        if (!askedMode) {
+            askedMode = true;
+            try { openModeMenu(); } catch (e instanceof Lang.Exception) { _app.err = "SHOW:" + e.getErrorMessage(); }
+        }
     }
 
     public function onUpdate(dc as Dc) as Void {
+        try { onUpdateBody(dc); } catch (e instanceof Lang.Exception) {
+            _app.err = "UI:" + e.getErrorMessage();
+            dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_BLACK);
+            dc.clear();
+            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
+            dc.drawText(dc.getWidth() / 2, dc.getHeight() / 2, Graphics.FONT_SMALL, "ERROR " + _app.err, Graphics.TEXT_JUSTIFY_CENTER);
+        }
+    }
+
+    private function onUpdateBody(dc as Dc) as Void {
         var cx = dc.getWidth() / 2;
         var cy = dc.getHeight() / 2;
         dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_BLACK);
@@ -40,13 +53,21 @@ class ArcheryView extends WatchUi.View {
         if (t == null) { return; }
         if (_app.probeReport.size() > 0) {
             dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-            var yy = 78;
-            for (var pi = 0; pi < _app.probeReport.size(); pi++) {
+            var lh = dc.getFontHeight(Graphics.FONT_XTINY) + 5;
+            var top = 52, bottom = dc.getHeight() - 24;
+            var maxVis = (bottom - top) / lh;
+            var maxSc = _app.probeReport.size() - maxVis; if (maxSc < 0) { maxSc = 0; }
+            if (_app.probeScroll > maxSc) { _app.probeScroll = maxSc; }
+            var yy = top;
+            for (var pi = _app.probeScroll; pi < _app.probeReport.size() && pi < _app.probeScroll + maxVis; pi++) {
                 dc.drawText(cx, yy, Graphics.FONT_XTINY, _app.probeReport[pi], Graphics.TEXT_JUSTIFY_CENTER);
-                yy += dc.getFontHeight(Graphics.FONT_XTINY) + 5;
+                yy += lh;
             }
             dc.setColor(Graphics.COLOR_DK_GRAY, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(cx, yy + 10, Graphics.FONT_XTINY, "START: cerrar diagnostico", Graphics.TEXT_JUSTIFY_CENTER);
+            var hint = "desliza o UP/DN";
+            if (_app.probeScroll > 0) { hint = "^ " + hint; }
+            if (_app.probeScroll < maxSc) { hint = hint + " v"; }
+            dc.drawText(cx, bottom, Graphics.FONT_XTINY, hint + " | START cierra", Graphics.TEXT_JUSTIFY_CENTER);
             return;
         }
         // alturas reales: el layout nunca solapa aunque cambien las fuentes
@@ -61,16 +82,17 @@ class ArcheryView extends WatchUi.View {
         var yHero = yLine2 + 8;
         var yTime = yHero + hHot + 8;
         // linea superior: estado o score de la ultima flecha (una sola cosa, nunca se solapa)
+        var pk = _app.lastPeakDev > 300.0 && System.getTimer() - _app.lastPeakAt < 30000 ? " · PICO " + _app.lastPeakDev.toNumber() : "";
         if (t.calibration) {
             dc.setColor(Graphics.COLOR_ORANGE, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(cx, yLine1 - hXt - 8, Graphics.FONT_XTINY, "CALIBRANDO " + t.positive.size() + "/3", Graphics.TEXT_JUSTIFY_CENTER);
+            dc.drawText(cx, yLine1 - hXt - 8, Graphics.FONT_XTINY, "ELIGE EN EL MOVIL" + pk, Graphics.TEXT_JUSTIFY_CENTER);
         } else if (t.paused) {
             dc.setColor(Graphics.COLOR_DK_GRAY, Graphics.COLOR_TRANSPARENT);
             dc.drawText(cx, yLine1 - hXt - 8, Graphics.FONT_XTINY, "PAUSA", Graphics.TEXT_JUSTIFY_CENTER);
         } else if (_app.discardInfo != null) {
             dc.setColor(Graphics.COLOR_ORANGE, Graphics.COLOR_TRANSPARENT);
             dc.drawText(cx, yLine1 - hXt - 8, Graphics.FONT_XTINY, "✕ " + _app.discardInfo, Graphics.TEXT_JUSTIFY_CENTER);
-        } else if (t.calibration == false && _app.lastPeakDev > 800.0 && System.getTimer() - _app.lastPeakAt < 30000) {
+        } else if (_app.lastPeakDev > 300.0 && System.getTimer() - _app.lastPeakAt < 30000) {
             dc.setColor(Graphics.COLOR_DK_GRAY, Graphics.COLOR_TRANSPARENT);
             dc.drawText(cx, yLine1 - hXt - 8, Graphics.FONT_XTINY, "SACUDIDA " + _app.lastPeakDev.toNumber() + " · UMBRAL " + t.threshold.toNumber(), Graphics.TEXT_JUSTIFY_CENTER);
         } else if (_app.nShots > 0) {
@@ -99,7 +121,7 @@ class ArcheryView extends WatchUi.View {
         dc.setColor(0x282833, Graphics.COLOR_TRANSPARENT);
         dc.drawLine(cx - 120, yLine2, cx + 120, yLine2);
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(cx, yHero, Graphics.FONT_NUMBER_HOT, t.calibration ? t.positive.size()+"/3" : t.count() + (t.target > 0 ? "/" + t.target : ""), Graphics.TEXT_JUSTIFY_CENTER);
+        dc.drawText(cx, yHero, Graphics.FONT_NUMBER_HOT, t.calibration ? (t.rows.size()-t.total()).toString() : t.count() + (t.target > 0 ? "/" + t.target : ""), Graphics.TEXT_JUSTIFY_CENTER);
         // tiempo debajo del heroe
         var elapsed = (System.getTimer() - _app.t0) / 1000;
         if (yTime + hM < dc.getHeight() - 14) {
@@ -111,9 +133,12 @@ class ArcheryView extends WatchUi.View {
 
 class ModeMenuDelegate extends WatchUi.Menu2InputDelegate {
     function onSelect(item) {
-        var a=Application.getApp();var id=item.getId();
-        WatchUi.popView(WatchUi.SLIDE_IMMEDIATE);
-        a.training.act(id[0],id[1]);
+        var a=Application.getApp();
+        try {
+            var id=item.getId();
+            WatchUi.popView(WatchUi.SLIDE_IMMEDIATE);
+            a.training.act(id[0],id[1]);
+        } catch(e instanceof Lang.Exception){a.err="SEL2:"+e.getErrorMessage();}
     }
 }
 function openModeMenu() {
@@ -132,15 +157,35 @@ class ArcheryDelegate extends WatchUi.BehaviorDelegate {
     }
 
     public function onSelect() as Boolean {
-        if(_app.probeReport.size() > 0){_app.probeReport = new [0];WatchUi.requestUpdate();return true;}
-        if(_app.closing){openTrainingMenu();return true;}
-        _app.finishPending();
-        _app.training.act(_app.training.paused ? "pause" : (_app.training.resting ? "next" : "close"),0);
+        try {
+            if(_app.probeReport.size() > 0){_app.probeReport = new [0];_app.probeScroll=0;WatchUi.requestUpdate();return true;}
+            if(_app.closing){openTrainingMenu();return true;}
+            _app.finishPending();
+            _app.training.act(_app.training.paused ? "pause" : (_app.training.resting ? "next" : "close"),0);
+        } catch(e instanceof Lang.Exception){_app.err="EX:"+e.getErrorMessage();}
         return true;
     }
-    public function onMenu() as Boolean { openTrainingMenu();return true; }
-    public function onBack() as Boolean { openTrainingMenu();return true; }
-    public function onNextPage() as Boolean { openTrainingMenu();return true; }
+    public function onSwipe(e) as Boolean {
+        try {
+            if(_app.probeReport.size() > 0){
+                var d = e.getDirection();
+                if(d == WatchUi.SWIPE_UP){ _app.probeScroll += 1; WatchUi.requestUpdate(); return true; }
+                if(d == WatchUi.SWIPE_DOWN){ if(_app.probeScroll > 0){ _app.probeScroll -= 1; } WatchUi.requestUpdate(); return true; }
+            }
+        } catch(ex instanceof Lang.Exception){_app.err="SWP:"+ex.getErrorMessage();}
+        return false;
+    }
+    public function onMenu() as Boolean { try{openTrainingMenu();}catch(e instanceof Lang.Exception){_app.err="MENU:"+e.getErrorMessage();} return true; }
+    public function onBack() as Boolean { try{openTrainingMenu();}catch(e instanceof Lang.Exception){_app.err="MENU:"+e.getErrorMessage();} return true; }
+    public function onNextPage() as Boolean {
+        if(_app.probeReport.size() > 0){ _app.probeScroll += 1; WatchUi.requestUpdate(); return true; }
+        try{openTrainingMenu();}catch(e instanceof Lang.Exception){_app.err="MENU:"+e.getErrorMessage();}
+        return true;
+    }
+    public function onPreviousPage() as Boolean {
+        if(_app.probeReport.size() > 0){ if(_app.probeScroll > 0){ _app.probeScroll -= 1; } WatchUi.requestUpdate(); return true; }
+        return false;
+    }
 
 }
 
@@ -169,6 +214,7 @@ class ArcheryApp extends Application.AppBase {
     public var probeMode=false;      // diagnostico de sensores en vivo (investigacion-acelerometro.md §5)
     public var probeBatches=0;
     public var probeReport = new [0];
+    public var probeScroll = 0;      // primera linea visible del informe (swipe/botones)
 
     public var discardInfo=null;  // ultimo motivo de descarte: persiste hasta el proximo tiro aceptado
     public var lastPeakDev=0.0;   // mayor sacudida reciente SIN tiro aceptado (diagnostico de umbral en campo)
@@ -200,8 +246,24 @@ class ArcheryApp extends Application.AppBase {
     private var rm = new [400] as Array<Float>;
     private var rt=new [400];
     private var ryw=new [400] as Array<Float>;  // yaw de brujula (grados) por muestra diezmada
-    public var curMagX=1.0, curMagY=0.0;        // ultima lectura del magnetometro (alineada por onData)
+    private var ryw2=new [400] as Array<Float>; // yaw compensado por inclinacion (campo 3 ejes + gravedad)
+    private var rpt=new [400] as Array<Float>;  // pitch real de la esfera: asin(y/g) en grados
+    public var curMagX=1.0, curMagY=0.0, curMagZ=0.0;  // ultima lectura del magnetometro (alineada por onData)
     private var rrRing=new [90] as Array<Float>; private var rrCount=0;
+    // Posicion 3D sin giroscopio: TRIAD (gravedad + mag) da la rotacion por muestra
+    // cuasi-estatica; la referencia es la ultima quietud larga, asi a_lineal = R·a - a_ref
+    // cancela la gravedad exactamente incluso al rotar la muneca. ZUPT clava v=0 (y la
+    // quietud larga tambien re-ancora p) para acotar la deriva. Fallback: media vectorial.
+    private var gbx = new [50] as Array<Float>, gby = new [50] as Array<Float>, gbz = new [50] as Array<Float>;
+    private var gbSumX = 0.0, gbSumY = 0.0, gbSumZ = 50000.0;
+    private var vx_ = 0.0, vy_ = 0.0, vz_ = 0.0, pxx = 0.0, pyy = 0.0, pzz = 0.0, stillT = 0;
+    private var lastMoveT = -100000.0;  // ultimo instante con movimiento: la suelta exige quietud inmediata previa
+    private var b1x=0.0,b1y=0.0,b1z=0.0, b2x=0.0,b2y=0.0,b2z=0.0, b3x=0.0,b3y=0.0,b3z=0.0, basisOk=false;  // base TRIAD del instante
+    private var r1x=0.0,r1y=0.0,r1z=0.0, r2x=0.0,r2y=0.0,r2z=0.0, r3x=0.0,r3y=0.0,r3z=0.0;               // base TRIAD de referencia
+    private var refAx=0.0,refAy=0.0,refAz=0.0, refOk=false;                                            // accel (gravedad) de referencia
+    private var rpx = new [400] as Array<Float>, rpy = new [400] as Array<Float>, rpz = new [400] as Array<Float>;  // cm
+    private var postPX = new [24] as Array<Float>, postPY = new [24] as Array<Float>, postPZ = new [24] as Array<Float>;
+    private var snapPx = new [1] as Array<Float>, snapPy = new [1] as Array<Float>, snapPz = new [1] as Array<Float>;
     private var previousX=0.0, previousY=0.0, previousZ=1000.0;
     private var drawStart=-1.0, drawQuiet=0.0, baseX=0.0, baseY=0.0, baseZ=1000.0;
     private var motionSince=-1.0, motionSteps=0;
@@ -220,7 +282,7 @@ class ArcheryApp extends Application.AppBase {
     private var inShot = false;
     private var tShot = 0.0;
     private var lastShot = -100000.0;
-    private var peak = 0.0;
+    private var peak = 0.0, shotBaseline = 1000.0;
     private var settleT = -1.0;
     // snapshot pre-suelta congelado al detectar
     private var snapT = 0.0;
@@ -232,6 +294,8 @@ class ArcheryApp extends Application.AppBase {
     private var snapTy = new [1] as Array<Float>;
     private var snapMag = new [1] as Array<Float>;
     private var snapYw = new [1] as Array<Float>;
+    private var snapYw2 = new [1] as Array<Float>;
+    private var snapPt = new [1] as Array<Float>;
     private var postMx = 0.0;
     private var postMy = 0.0;
     private var qHead = 0;
@@ -251,14 +315,30 @@ class ArcheryApp extends Application.AppBase {
         for (var i = 0; i < 50; i++) { gBuf[i] = 1000.0; }
     }
 
+    // Miga de caja negra: si la app muere sin log (watchdog/fallo nativo), la ultima
+    // marca persistida dice en que operacion estaba cuando cayo.
+    public function mark(step) {
+        try {
+            if (step == null) { Application.Storage.deleteValue("step"); }
+            else { Application.Storage.setValue("step", step); }
+        } catch (e instanceof Lang.Exception) { }
+    }
+
     public function configureRate(rate) {
         rateA=rate;gravityN=Math.ceil(rateA*0.5).toNumber();stableN=gravityN-Math.ceil(rateA*0.08).toNumber();
         if(stableN<1){stableN=1;}stride=Math.ceil(rateA/20.0).toNumber();
-        gBuf=new [gravityN];for(var i=0;i<gravityN;i++){gBuf[i]=1000.0;}
-        gSum=1000.0*gravityN;gCount=0;gi=0;rn=0;ri=0;dec=0;drawStart=-1.0;drawQuiet=0.0;motionSince=-1.0;motionSteps=0;
+        gBuf=new [gravityN];gbx=new [gravityN];gby=new [gravityN];gbz=new [gravityN];
+        for(var i=0;i<gravityN;i++){gBuf[i]=1000.0;gbx[i]=0.0;gby[i]=0.0;gbz[i]=1000.0;}
+        gSum=1000.0*gravityN;gbSumX=0.0;gbSumY=0.0;gbSumZ=1000.0*gravityN;
+        vx_=0.0;vy_=0.0;vz_=0.0;pxx=0.0;pyy=0.0;pzz=0.0;stillT=0;lastMoveT=-100000.0;basisOk=false;refOk=false;
+        gCount=0;gi=0;rn=0;ri=0;dec=0;drawStart=-1.0;drawQuiet=0.0;motionSince=-1.0;motionSteps=0;
     }
 
     public function onStart(state as Dictionary?) as Void {
+        var cut = null;
+        try { cut = Application.Storage.getValue("step"); } catch (ec instanceof Lang.Exception) { }
+        mark("INI");  // primera marca: un kill durante el arranque deja esta miga
+        if (cut != null) { discardInfo = "CORTE EN " + cut; }  // la ejecucion anterior murio en medio de una operacion
         try {
             var meta = Application.Storage.getValue("queueIndex");
             if (meta != null) { qHead = meta[0]; qTail = meta[1]; }
@@ -275,7 +355,8 @@ class ArcheryApp extends Application.AppBase {
                 if(!pending["kind"].equals("end")){checkpoint=last["checkpoint"];}
                 else {checkpoint=null;Application.Storage.deleteValue("training");}
             }
-            training.restore(checkpoint);nShots=training.rows.size();
+            training.restore(checkpoint);nShots=training.total();
+
             Communications.registerForPhoneAppMessages(method(:onPhone));
             var logger = new SensorLogging.SensorLogger({:accelerometer => {:enabled => true}});
             session = ActivityRecording.createSession({
@@ -298,13 +379,15 @@ class ArcheryApp extends Application.AppBase {
             });
             timer.start(method(:flushTimer), 5000, true);
             t0 = System.getTimer()-(Time.now().value()-training.started)*1000;
-            sendControl("start");
+            emit({"kind"=>"start","state"=>training.snapshot(),"build"=>66,"recovery"=>cut});
+            mark(null);
         } catch (e instanceof Lang.Exception) {
             err = e.getErrorMessage();
         }
     }
 
     public function onStop(state as Dictionary?) as Void {
+        mark("STOP");
         try { if (inShot) { finalize(); }
             if(training!=null && !closing) {finishActivity();}
         } catch(e instanceof Lang.Exception){}
@@ -314,16 +397,21 @@ class ArcheryApp extends Application.AppBase {
         } catch (e instanceof Lang.Exception) {
         }
         if (session != null) {
-            if (session.isRecording()) {
-                session.stop();
-                saved = session.save();
-            }
+            mark("SES");
+            try {
+                if (session.isRecording()) {
+                    session.stop();
+                    saved = session.save();
+                }
+            } catch (e instanceof Lang.Exception) { err = "SES:" + e.getErrorMessage(); }
             session = null;  // tras stop/save el objeto queda invalido: cualquier metodo suyo es System Error
         }
+        mark(null);
     }
 
     public function finishActivity() {
         if(closing){return;}
+        mark("CIERRE");
         finishPending();
         Sensor.unregisterSensorDataListener();  // el listener debe morir antes de cerrar la sesion con sensorLogger
         training.paused=true;
@@ -343,6 +431,7 @@ class ArcheryApp extends Application.AppBase {
         closing=true;
         sendControl("end");
         Application.Storage.deleteValue("training");WatchUi.requestUpdate();
+        mark(null);
         System.println("FA-6");
     }
 
@@ -353,11 +442,16 @@ class ArcheryApp extends Application.AppBase {
         for (var i = from; i < rrCount; i++) { var d = rrRing[i] - rrRing[i-1]; sum += d * d; n += 1; }
         return n > 0 ? Math.sqrt(sum / n) : null;
     }
+    public function rememberRR(value) {
+        if(!(value>300.0 && value<2500.0)){return;}
+        if(rrCount==rrRing.size()){for(var r=1;r<rrCount;r++){rrRing[r-1]=rrRing[r];}rrCount--;}
+        rrRing[rrCount]=value;rrCount++;
+    }
 
     public function probeLine(line as Object) as Void {
         if (line == null) { return; }
         var txt = line.toString();
-        while (txt.length() > 0 && probeReport.size() < 9) {
+        while (txt.length() > 0 && probeReport.size() < 24) {
             var cut = txt.length() > 16 ? 16 : txt.length();
             probeReport.add(txt.substring(0, cut));
             txt = txt.substring(cut, txt.length());
@@ -372,22 +466,38 @@ class ArcheryApp extends Application.AppBase {
         if (Sensor has :getMaxSampleRateForSensorType) {
             var mm = Sensor.getMaxSampleRateForSensorType(:magnetometer);
             probeLine(mm != null ? "MAG api " + mm + " Hz" : "MAG api sin datos");
-        } else { probeLine("MAG api no expuesta"); }
-        if (Toybox has :SensorHistory && SensorHistory has :getPressureHistory) {
-            var ph = SensorHistory.getPressureHistory({:period => new Toybox.Time.Duration(300), :order => SensorHistory.ORDER_NEWEST_FIRST});
-            var ps = ph != null ? ph.next() : null;  // next() devuelve null cuando se agota (no hay hasNext)
-            var pd = ps != null ? ps.data : null;
-            probeLine(pd != null ? "BAR " + pd + " Pa" : "BAR sin lectura");
-        } else { probeLine("BAR api no expuesta"); }
+            var gr = Sensor.getMaxSampleRateForSensorType(:gyroscope);
+            probeLine(gr != null && gr > 0 ? "GYRO api " + gr + " Hz" : "GYRO api sin datos");
+        } else { probeLine("MAG/GYRO api no expuesta"); }
+        try {
+            if (Toybox has :SensorHistory && SensorHistory has :getPressureHistory) {
+                var ph = SensorHistory.getPressureHistory({:period => new Toybox.Time.Duration(300), :order => SensorHistory.ORDER_NEWEST_FIRST});
+                var ps = ph != null ? ph.next() : null;  // next() devuelve null cuando se agota (no hay hasNext)
+                var pd = ps != null ? ps.data : null;
+                probeLine(pd != null ? "BAR " + pd + " Pa" : "BAR sin lectura");
+            } else { probeLine("BAR api no expuesta"); }
+        } catch (eb instanceof Lang.Exception) { probeLine("BAR excepcion"); }
         try {
             Sensor.unregisterSensorDataListener();
-            Sensor.registerSensorDataListener(method(:onData), {
-                :period => 1,
-                :accelerometer => { :enabled => true, :sampleRate => 25 },
-                :magnetometer => { :enabled => true, :sampleRate => 25 },
-                :heartBeatIntervals => { :enabled => true }
-            });
-            probeLine("LISTENER MAG+RR OK");
+            try {
+                Sensor.registerSensorDataListener(method(:onData), {
+                    :period => 1,
+                    :accelerometer => { :enabled => true, :sampleRate => 25 },
+                    :magnetometer => { :enabled => true, :sampleRate => 25 },
+                    :gyroscope => { :enabled => true, :sampleRate => 25 },
+                    :heartBeatIntervals => { :enabled => true }
+                });
+                probeLine("LISTENER MAG+GYR+RR OK");
+            } catch (e2 instanceof Lang.Exception) {
+                probeLine("GYRO key rechazada");
+                Sensor.registerSensorDataListener(method(:onData), {
+                    :period => 1,
+                    :accelerometer => { :enabled => true, :sampleRate => 25 },
+                    :magnetometer => { :enabled => true, :sampleRate => 25 },
+                    :heartBeatIntervals => { :enabled => true }
+                });
+                probeLine("LISTENER MAG+RR OK");
+            }
         } catch (e instanceof Lang.Exception) {
             probeLine("LISTENER RECHAZADO");
             probeLine(e.getErrorMessage());
@@ -395,7 +505,7 @@ class ArcheryApp extends Application.AppBase {
     }
 
     public function onHr(sensorInfo as Sensor.Info) as Void {
-        if (sensorInfo.heartRate != null) {
+        if (sensorInfo != null && sensorInfo.heartRate != null) {
             lastHr = sensorInfo.heartRate;
         }
     }
@@ -403,7 +513,9 @@ class ArcheryApp extends Application.AppBase {
     public function onData(data as Sensor.SensorData) as Void {
         if (probeMode) {
             var mg = data has :magnetometerData ? data.magnetometerData : null;
-            probeLine(mg != null && mg.x.size() > 0 ? "MAG dato SI (" + mg.x[0] + " mGauss)" : "MAG dato ausente");
+            probeLine(mg != null && mg.x != null && mg.x.size() > 0 ? "MAG dato SI (" + mg.x[0] + " mGauss)" : "MAG dato ausente");
+            var gy = data has :gyroscopeData ? data.gyroscopeData : null;
+            probeLine(gy != null && gy.x != null && gy.x.size() > 0 ? "GYRO dato SI (" + gy.x[0] + ")" : "GYRO dato ausente");
             var hd = data has :heartRateData ? data.heartRateData : null;
             var rr = hd != null ? hd.heartBeatIntervals : null;
             probeBatches += 1;
@@ -415,13 +527,16 @@ class ArcheryApp extends Application.AppBase {
             if (rr != null && rr.size() > 0 || probeBatches >= 15) {
                 if (rr == null || rr.size() == 0) { probeLine("RR ausente en 15 s"); }
                 probeMode = false;  // volver al listener normal de deteccion
-                Sensor.unregisterSensorDataListener();
-                Sensor.registerSensorDataListener(method(:onData), { :period => 1, :accelerometer => { :enabled => true, :sampleRate => rateA } });
+                try {
+                    Sensor.unregisterSensorDataListener();
+                    Sensor.registerSensorDataListener(method(:onData), { :period => 1, :accelerometer => { :enabled => true, :sampleRate => rateA }, :magnetometer => { :enabled => true, :sampleRate => 25 }, :heartBeatIntervals => { :enabled => true } });
+                } catch (ep instanceof Lang.Exception) { err = "PROBE:" + ep.getErrorMessage(); }
             }
             return;
         }
+        try {
         var a = data.accelerometerData;
-        if (a == null || a.x.size() == 0) { return; }
+        if (a == null || a.x == null || a.y == null || a.z == null || a.x.size() == 0 || a.x.size()!=a.y.size() || a.x.size()!=a.z.size()) { return; }
         var n = a.x.size();
         var now = System.getTimer();
         var timestamps=null;
@@ -433,40 +548,50 @@ class ArcheryApp extends Application.AppBase {
         var magN = mag != null && mag.x.size() > 0 ? mag : null;  // su propio ritmo de lote: alinear por indice
         var hdata = data has :heartRateData ? data.heartRateData : null;
         var ivs = hdata != null ? hdata.heartBeatIntervals : null;
-        if (ivs != null) { for (var v = 0; v < ivs.size() && rrCount < rrRing.size(); v++) { if (ivs[v] > 300.0 && ivs[v] < 2500.0) { rrRing[rrCount] = ivs[v]; rrCount += 1; } } }
-        try {
+        if (ivs != null) { for (var v = 0; v < ivs.size(); v++) {rememberRR(ivs[v]);} }
             for (var i = 0; i < n; i++) {
-                var when=timestamps!=null?timestamps[i]+sensorOffset:now-(n-1-i)*(1000.0/rateA);
+                var when=timestamps!=null?timestamps[i]+sensorOffset:now-Math.round((n-1-i)*1000.0/rateA).toNumber();
                 if(when<=lastSample){continue;}
                 if(lastSample>=0 && when-lastSample>2000) {if(inShot){finalize();}configureRate(rateA);}
                 lastSample=when;
-                if (magN != null && i < magN.x.size()) { curMagX = magN.x[i].toFloat(); curMagY = magN.y[i].toFloat(); }  // lote corto: conserva el ultimo valor, sin repetir en cascada
-                sample(a.x[i].toFloat(),a.y[i].toFloat(),a.z[i].toFloat(),when.toFloat());
+                if (magN != null && i < magN.x.size()) { curMagX = magN.x[i].toFloat();
+                    if (magN.y != null && i < magN.y.size()) { curMagY = magN.y[i].toFloat(); }
+                    if (magN.z != null && i < magN.z.size()) { curMagZ = magN.z[i].toFloat(); } }  // lote corto: conserva el ultimo valor, sin repetir en cascada
+                sample(a.x[i].toFloat(),a.y[i].toFloat(),a.z[i].toFloat(),(when-t0).toFloat());
             }
-        } catch(e instanceof Lang.Exception){err="Error guardando datos";training.paused=true;}
+        } catch(e instanceof Lang.Exception){err="SENSOR:"+e.getErrorMessage();training.paused=true;}
         WatchUi.requestUpdate();
     }
 
-    public function sample(x as Float, y as Float, z as Float, tAbs as Float) as Void {
-        var t = tAbs - t0;
+    public function sample(x as Float, y as Float, z as Float, t as Float) as Void {
+        // Convertir solo el tiempo relativo: Float pierde muestras de 10 ms tras dias encendido.
         var mag = Math.sqrt(x * x + y * y + z * z);
         var dev = mag - gSum / gravityN;
         var dx=x-previousX,dy=y-previousY,dz=z-previousZ;
         var jerk=Math.sqrt(dx*dx+dy*dy+dz*dz);
         previousX=x;previousY=y;previousZ=z;
-        var limit=training.calibration?1200.0:training.threshold;
-        var impulse=dev>limit || (jerk>limit*1.2 && (dev<0?-dev:dev)>limit*0.35);
+        var limit=training.calibration?150.0:training.threshold;
         var adev=dev<0?-dev:dev;
+        var intensity=adev>jerk/1.2?adev:jerk/1.2, impulse=intensity>(limit<150?limit:150.0);
         if (detectorStatus != null) { discardInfo = detectorStatus; }
-        if (adev > 800.0) { if (adev > lastPeakDev) { lastPeakDev = adev; } lastPeakAt = System.getTimer(); }
-        if(dev>limit && !training.calibration && drawStart<0){detectorStatus="FALTA APERTURA";}
-        // apertura no detectada (aperturas suaves): una suelta claramente fuerte se acepta igual;
-        // los movimientos falsos siguen fuera por la ventana de apuntado quieta (preStable)
-        if (!inShot && !training.paused && (training.calibration || drawStart>=0 || adev>limit*1.05) && gCount >= gravityN && rn >= 10 && impulse && t - lastShot > REFRAC && preStable(dev>limit)) { trigger(t); peak = dev>0?dev:-dev;shotLimit=limit; }
+        if (adev > 300.0) { if (adev > lastPeakDev) { lastPeakDev = adev; } lastPeakAt = System.getTimer(); }  // registrar casi-disparos: visible en pantalla para ajustar el umbral
+        // una suelta real siempre sigue a una apertura reciente Y a ~600 ms de quietud
+        // de apunte: un golpe mientras se maneja el arco nunca tiene esa calma previa.
+        var drawAt=motionSince>=0?motionSince:drawStart;
+        var drew = drawStart >= 0 && drawAt >= 0 && t - drawAt >= 600 && t - drawAt < 30000;
+        var quietGap = t - lastMoveT;  // lastMoveT se actualiza DESPUES de esta evaluacion
+        if (dev > limit && !inShot && !training.paused) {
+            if (!drew) { detectorStatus="FALTA APERTURA"; }
+            else if (quietGap < 600) { detectorStatus="SIN QUIETUD"; }
+        }
+        if (!inShot && !training.paused && gCount >= gravityN && rn >= 10 && impulse && t - lastShot > REFRAC && (training.calibration || (drew && quietGap >= 600 && preStable(adev>limit)))) { mark("TRG");try{trigger(t);}catch(et instanceof Lang.Exception){err="TRG:"+et.getErrorMessage();}mark(null); peak = intensity;shotLimit=limit; }
         else if (inShot) {
-            if (t-tShot<=120 && dev > peak) { peak = dev; }
+            if (t-tShot<=120 && intensity > peak) { peak = intensity; }
+            if(!training.calibration && t-tShot>120 && peak<shotLimit){inShot=false;}
             if(t-tShot<=600 && !pulseRecovered) {
-                if((dev<0?-dev:dev)>shotLimit*0.5){pulseEnd=t-tShot;pulseQuiet=-1.0;}
+                var pulseDev=mag-shotBaseline;
+                var pulseLimit=peak*0.35>shotLimit*0.5?peak*0.35:shotLimit*0.5;
+                if((pulseDev<0?-pulseDev:pulseDev)>pulseLimit || jerk/1.2>pulseLimit){pulseEnd=t-tShot;pulseQuiet=-1.0;}
                 else {if(pulseQuiet<0){pulseQuiet=t;}if(t-pulseQuiet>=100){pulseRecovered=true;}}
             }
             if (settleT < 0 && t-tShot>50) {
@@ -476,11 +601,50 @@ class ArcheryApp extends Application.AppBase {
             if (t - tShot >= POST) { finalize(); }
         }
         gSum += mag - gBuf[gi]; gBuf[gi] = mag;
+        gbSumX += x - gbx[gi]; gbx[gi] = x;
+        gbSumY += y - gby[gi]; gby[gi] = y;
+        gbSumZ += z - gbz[gi]; gbz[gi] = z;
         gi = (gi + 1) % gravityN;
         if (gCount < gravityN) { gCount += 1; }
+        var still = adev < 400.0 && jerk < 700.0;  // el apunte humano tiembla: la quietud no puede pedir menos que el temblor propio de apuntar
+        if (still) { stillT += 1; } else { stillT = 0; lastMoveT = t; }
+        // base TRIAD solo en cuasi-estatica: en movimiento brusco el accel no es gravedad
+        // pura y la orientacion no es observable (se conserva la ultima base valida)
+        var magAbs = Math.sqrt(curMagX * curMagX + curMagY * curMagY + curMagZ * curMagZ);
+        if (adev < 150.0 && mag > 1.0 && magAbs > 150.0 && magAbs < 900.0) {
+            var na = 1.0 / mag;
+            var e1x = x * na, e1y = y * na, e1z = z * na;
+            var md = curMagX * e1x + curMagY * e1y + curMagZ * e1z;
+            var e2x = curMagX - md * e1x, e2y = curMagY - md * e1y, e2z = curMagZ - md * e1z;
+            var ne = Math.sqrt(e2x * e2x + e2y * e2y + e2z * e2z);
+            if (ne > magAbs * 0.15) {  // mag casi paralela a gravedad: yaw no observable
+                ne = 1.0 / ne; e2x *= ne; e2y *= ne; e2z *= ne;
+                b1x = e1x; b1y = e1y; b1z = e1z; b2x = e2x; b2y = e2y; b2z = e2z;
+                b3x = e1y * e2z - e1z * e2y; b3y = e1z * e2x - e1x * e2z; b3z = e1x * e2y - e1y * e2x;
+                basisOk = true;
+                if (stillT * 2 >= rateA) {  // quietud larga: este instante define el marco mundo
+                    refAx = x; refAy = y; refAz = z;
+                    r1x = b1x; r1y = b1y; r1z = b1z; r2x = b2x; r2y = b2y; r2z = b2z; r3x = b3x; r3y = b3y; r3z = b3z;
+                    refOk = true;
+                    pxx = 0.0; pyy = 0.0; pzz = 0.0;  // origen = ultimo reposo confirmado
+                }
+            }
+        }
+        var lx, ly, lz;
+        if (refOk && basisOk) {
+            var c1 = b1x * x + b1y * y + b1z * z, c2 = b2x * x + b2y * y + b2z * z, c3 = b3x * x + b3y * y + b3z * z;
+            lx = r1x * c1 + r2x * c2 + r3x * c3 - refAx;
+            ly = r1y * c1 + r2y * c2 + r3y * c3 - refAy;
+            lz = r1z * c1 + r2z * c2 + r3z * c3 - refAz;
+        } else {
+            lx = x - gbSumX / gravityN; ly = y - gbSumY / gravityN; lz = z - gbSumZ / gravityN;
+        }
+        if (lx > -15.0 && lx < 15.0) { lx = 0.0; } if (ly > -15.0 && ly < 15.0) { ly = 0.0; } if (lz > -15.0 && lz < 15.0) { lz = 0.0; }
+        if (still) { if (stillT * 10 >= rateA) { vx_ = 0.0; vy_ = 0.0; vz_ = 0.0; } }
+        else { var dt = 1.0 / rateA; vx_ += lx * dt; vy_ += ly * dt; vz_ += lz * dt; pxx += vx_ * dt; pyy += vy_ * dt; pzz += vz_ * dt; }
         if (dec == 0) {
             dx=x-baseX;dy=y-baseY;dz=z-baseZ;
-            if(gCount==1 || training.paused || inShot){drawQuiet=t;baseX=x;baseY=y;baseZ=z;motionSince=-1.0;motionSteps=0;if(training.paused){drawStart=-1.0;}}
+            if(gCount==1 || training.paused || (inShot && (training.calibration || peak>=shotLimit))){drawQuiet=t;baseX=x;baseY=y;baseZ=z;motionSince=-1.0;motionSteps=0;if(training.paused){drawStart=-1.0;}}
             else if(dx*dx+dy*dy+dz*dz>14400) {
                 if(drawStart<0 && t-drawQuiet>=600){drawStart=t-600;}
                 if(t-drawQuiet>600){motionSince=-1.0;motionSteps=0;}
@@ -490,11 +654,33 @@ class ArcheryApp extends Application.AppBase {
             }
             rx[ri] = x; ry[ri] = y; rz[ri]=z;rm[ri] = mag;rt[ri]=t;
             ryw[ri] = Math.atan2(curMagY, curMagX) * 57.2958;
+            ryw2[ri] = magYaw(x, y, z);
+            var pt=mag>1.0?y/mag:0.0;if(pt>1.0){pt=1.0;}else if(pt<-1.0){pt=-1.0;}
+            rpt[ri]=Math.asin(pt)*57.2958;  // pitch real: la aproximacion mG->deg diverge en aperturas grandes
+            rpx[ri]=pxx*0.9807;rpy[ri]=pyy*0.9807;rpz[ri]=pzz*0.9807;  // mG·s² -> cm
             ri = (ri + 1) % rx.size();
             if (rn < rx.size()) { rn += 1; }
-            if (inShot && pn < 24) { postMag[pn] = mag; postX[pn] = x; postY[pn] = y;postTimes[pn]=t-tShot; pn += 1; }
+            if (inShot && pn < 24) { postMag[pn] = mag; postX[pn] = x; postY[pn] = y;postTimes[pn]=t-tShot;
+                postPX[pn]=pxx*0.9807;postPY[pn]=pyy*0.9807;postPZ[pn]=pzz*0.9807; pn += 1; }
         }
         dec = (dec + 1) % stride;
+    }
+
+    // Azimut con compensacion de inclinacion: proyecta el campo magnetico 3 ejes al plano
+    // horizontal (gravedad del propio acelerometro) y lo mide contra el eje "arriba" de la
+    // esfera proyectado al mismo plano. Con la muneca girada el atan2 crudo mezclaba ejes.
+    private function magYaw(x as Float, y as Float, z as Float) as Float {
+        var gn = Math.sqrt(x * x + y * y + z * z);
+        if (gn < 1.0) { return Math.atan2(curMagY, curMagX) * 57.2958; }
+        var gx = x / gn, gy = y / gn, gz = z / gn;
+        var ux = -gy * gx, uy = 1.0 - gy * gy, uz = -gy * gz;   // "arriba" del reloj -> horizontal
+        var un = Math.sqrt(ux * ux + uy * uy + uz * uz);
+        if (un < 0.25) { return Math.atan2(curMagY, curMagX) * 57.2958; }  // eje arriba vertical: degenera
+        ux /= un; uy /= un; uz /= un;
+        var rxv = gy * uz - gz * uy, rvy = gz * ux - gx * uz, rvz = gx * uy - gy * ux;  // derecha = g x u
+        var bd = curMagX * gx + curMagY * gy + curMagZ * gz;
+        var hx = curMagX - bd * gx, hy = curMagY - bd * gy, hz = curMagZ - bd * gz;      // campo en plano horizontal
+        return Math.atan2(hx * rxv + hy * rvy + hz * rvz, hx * ux + hy * uy + hz * uz) * 57.2958;
     }
 
     private function preStable(strong as Boolean) as Boolean {
@@ -516,11 +702,10 @@ class ArcheryApp extends Application.AppBase {
         for(var j=0;j<rn;j++){var q=(ri-1-j+rx.size())%rx.size(),age=latest-rt[q];if(age>900){break;}if(age<80){continue;}ax+=rx[q];ay+=ry[q];az+=rz[q];energy+=rx[q]*rx[q]+ry[q]*ry[q]+rz[q]*rz[q];n++;}
         if(n<4){return false;}ax/=n;ay/=n;az/=n;
         var variance=energy/n-ax*ax-ay*ay-az*az,allowed=40000.0;  // sd 200 mG: el apunte humano tiembla; lo que separa de andar/maniobrar es MOVIMIENTO PREVIO
-        if(training.pose!=null && training.pose.size()>3 && training.pose[3]*3.0>allowed){allowed=training.pose[3]*3.0;}
-        if(!training.calibration && !strong && variance>allowed){detectorStatus="APUNTE INESTABLE";return false;}
-        if(!training.calibration && strong && variance>allowed*4){detectorStatus="APUNTE INESTABLE";return false;}
+        if(training.pose instanceof Lang.Array && training.pose.size()>3){allowed=training.pose[3]*4.0;if(allowed<2500){allowed=2500.0;}}
         snapPose=[ax,ay,az,variance>0?variance:0.0];
-        if(!training.calibration && !strong && training.pose!=null) {
+        if(variance>allowed){detectorStatus="APUNTE INESTABLE";return false;}
+        if(!training.calibration && training.pose instanceof Lang.Array && training.pose.size()>=3) {
             var p=training.pose;
             var norm=Math.sqrt((ax*ax+ay*ay+az*az)*(p[0]*p[0]+p[1]*p[1]+p[2]*p[2]));
             if(norm<1 || (ax*p[0]+ay*p[1]+az*p[2])/norm<0.85){detectorStatus="POSTURA DISTINTA";return false;}
@@ -535,8 +720,8 @@ class ArcheryApp extends Application.AppBase {
         inShot = true;
         detectorStatus="COMPROBANDO TIRO";
         tShot = t;
-        lastShot = t;
-        peak = 0.0;
+        if(training.calibration){lastShot=t;}
+        peak = 0.0;shotBaseline=gSum/gravityN;
         pulseEnd=0.0;pulseQuiet=-1.0;pulseRecovered=false;
         settleT = -1.0;quietSince=-1.0;
         pn = 0;
@@ -549,17 +734,19 @@ class ArcheryApp extends Application.AppBase {
         snapT = t;snapTimes=new [points];
         snapDraw = motionSince >= 0 ? t - motionSince : (drawStart >= 0 ? t - drawStart : -1.0);  // desde la apertura real, no desde colocar la flecha
         snapHr = lastHr;
+        if(training.calibration){preStable(false);}
         var dminX=1000000.0,dmaxX=-1000000.0,dminY=1000000.0,dmaxY=-1000000.0,sx=0.0,sxy=0.0,sy=0.0,syy=0.0,dn=0;
         var dc=72;if(dc>rn-2){dc=rn-2;}
         for(var d=2;d<=dc;d++){var q2=(ri-1-d+rx.size())%rx.size();
+            var age=t-rt[q2];if(age>900){break;}if(age<80){continue;}
             if(rx[q2]<dminX){dminX=rx[q2];}if(rx[q2]>dmaxX){dmaxX=rx[q2];}
             if(ry[q2]<dminY){dminY=ry[q2];}if(ry[q2]>dmaxY){dmaxY=ry[q2];}
             sx+=rx[q2];sxy+=rx[q2]*rx[q2];sy+=ry[q2];syy+=ry[q2]*ry[q2];dn+=1;}
         var drift=(dmaxX-dminX)>(dmaxY-dminY)?(dmaxX-dminX):(dmaxY-dminY);
         var vx=sxy/dn-(sx/dn)*(sx/dn),vy=syy/dn-(sy/dn)*(sy/dn);
-        var wob=Math.sqrt(vx>vy?vx:vy);  // temblor de toda la ventana de traza (~6 s), no solo el final
+        var variance=vx>vy?vx:vy, wob=Math.sqrt(variance>0?variance:0.0);  // evita NaN por redondeo en reposo
         var nv=pstdev(gBuf);if(nv<wob){nv=wob;}
-        snapScore = clamp(100 - nv * 0.8 - drift * 0.10);  // lo que se VE en la traza es lo que puntua
+        snapScore = clamp(100 - nv * 0.8 - drift * 0.10);  // puntua el apunte previo; la apertura no es temblor
         var recent=new [rn<64?rn:64];
         for(var r=0;r<recent.size();r++){recent[r]=rm[(ri-1-r+rx.size())%rx.size()];}
         snapInstab = pstdev(recent);
@@ -573,28 +760,41 @@ class ArcheryApp extends Application.AppBase {
         snapTy = new [points] as Array<Float>;
         snapMag = new [points] as Array<Float>;
         snapYw = new [points] as Array<Float>;
+        snapYw2 = new [points] as Array<Float>;
+        snapPt = new [points] as Array<Float>;
+        snapPx = new [points] as Array<Float>;
+        snapPy = new [points] as Array<Float>;
+        snapPz = new [points] as Array<Float>;
         for (var i = 0; i < points; i++) {
             var k = (ri - rn + rx.size() + first + i) % rx.size();
             snapTx[i] = rx[k];
             snapTy[i] = ry[k];
             snapMag[i] = rm[k];snapTimes[i]=rt[k]-t;
-            snapYw[i] = ryw[k];
+            snapYw[i] = ryw[k];snapYw2[i] = ryw2[k];snapPt[i] = rpt[k];
+            snapPx[i] = rpx[k];snapPy[i] = rpy[k];snapPz[i] = rpz[k];
         }
     }
 
     private function finalize() as Void {
+        mark("FIN");
+        try { finalizeBody(); } catch (e instanceof Lang.Exception) { err = "FNZ:" + e.getErrorMessage(); }
+        mark(null);
+    }
+
+    private function finalizeBody() as Void {
         inShot = false;
+        if(!training.calibration && (peak<shotLimit || !pulseRecovered || pulseEnd>250)){detectorStatus="PULSO DESCARTADO";return;}  // la sensibilidad se valida con el pulso completo, no con su primera muestra
+        lastShot=tShot;
         drawStart=-1.0;
-        if(peak < shotLimit*1.3 && (!pulseRecovered || pulseEnd>160)){detectorStatus="PULSO DESCARTADO";return;}  // suelta fuerte: el pulso no veta
         detectorStatus=null;discardInfo=null;lastPeakDev=0.0;
-        if (training.calibration) { training.calibrateShot(peak,snapPose); return; }
 
         lastScore = snapScore.toNumber();
+        var max=training.calibration?32:64;
         var msg = {
             "sid" => sid,
             "clock" => clockSource,
             "rate" => rateA,
-            "trace_t" => decimate(snapTimes,64),
+            "trace_t" => decimate(snapTimes,max),
             "pre_t" => decimate(snapTimes,48),
             "post_t" => subArray(postTimes,pn),
             "dt" => 1000.0 * stride / rateA,
@@ -604,26 +804,36 @@ class ArcheryApp extends Application.AppBase {
             "instab" => snapInstab.toNumber(),
             "settle" => settleT,
             "score" => snapScore,
-            "tx" => decimate(snapTx, 64),
-            "yw" => decimate(snapYw, 32),
+            "tx" => decimate(snapTx, max),
+            "yw" => decimate(snapYw, max),
+            "yw2" => decimate(snapYw2, max),
+            "pt" => decimate(snapPt, max),
+            "qx" => decimate(snapPx, max),
+            "qy" => decimate(snapPy, max),
+            "qz" => decimate(snapPz, max),
+            "qx2" => subArray(postPX, pn),
+            "qy2" => subArray(postPY, pn),
+            "qz2" => subArray(postPZ, pn),
             "drawms" => snapDraw,
-            "ty" => decimate(snapTy, 64),
+            "ty" => decimate(snapTy, max),
             "mp" => decimate(snapMag, 48),
             "mq" => subArray(postMag, pn),
             "px" => diffArray(subArray(postX, pn), 0.0),
             "py" => diffArray(subArray(postY, pn), 0.0)
         };
+        if(training.calibration){msg["candidate"]=true;msg["pose"]=snapPose;}
         var rr = rrRmssd();
         if (rr != null) { msg["rmssd"] = rr; }
         training.add(msg);
         WatchUi.requestUpdate();
     }
 
-    public function finishPending() { if(inShot){finalize();} }
+    public function finishPending() { if(inShot){try{finalize();}catch(e instanceof Lang.Exception){err="FIN:"+e.getErrorMessage();inShot=false;}} }
     public function pending() { return qTail-qHead; }
     public function emit(msg) { msg["sid"]=sid;msg["eid"]=qTail;enqueue({"event"=>msg,"checkpoint"=>training.record()});training.save();flush(); }
     private function sendControl(key as String) as Void { emit({"kind"=>key,"state"=>training.snapshot()}); }
     public function onPhone(message as Communications.PhoneAppMessage) as Void {
+        try {
         var m=message.data;
         if(!(m instanceof Dictionary)){return;}
         if(m.hasKey("ack") && qHead<qTail && m["ack"]==qHead) {
@@ -635,15 +845,22 @@ class ArcheryApp extends Application.AppBase {
             }
         }
         if(m.hasKey("cid") && m.hasKey("sid")) {
-            if(closing || !m["sid"].equals(sid)) {Communications.transmit({"commandAck"=>m["cid"],"client"=>m["client"],"error"=>"Actividad terminada"},null,new CommandListener());return;}
+            var knownSid = m["sid"].equals(sid);
+            var isThreshold = m.hasKey("action") && (m["action"] instanceof String) && (m["action"].equals("threshold") || m["action"].equals("calibrateShot") || m["action"].equals("deleteProfile"));  // ajustes de equipo: valen aunque la sesion cambiara
+            if(closing || (!knownSid && !isThreshold)) {Communications.transmit({"commandAck"=>m["cid"],"client"=>m["client"],"error"=>"Actividad terminada"},null,new CommandListener());return;}
             if(m.hasKey("client") && !m["client"].equals(training.commandClient)){training.commandClient=m["client"];training.lastCommand=0;}
             if(m["cid"]>training.lastCommand) {
                 finishPending();var previous=training.lastCommand;training.lastCommand=m["cid"];
-                try {training.act(m["action"],m["value"]);training.save();}
+                try {
+                    var value=m["value"];
+                    if(m["action"].equals("calibrateShot")){value={"peak"=>value,"profile"=>m["profile"],"requestId"=>m["requestId"]};if(m.hasKey("pose")){value["pose"]=m["pose"];}}
+                    training.act(m["action"],value);training.save();
+                }
                 catch(e instanceof Lang.Exception){training.lastCommand=previous;err="Error guardando orden";return;}
             }
             Communications.transmit({"commandAck"=>m["cid"],"client"=>m["client"]},null,new CommandListener());
         }
+        } catch(e instanceof Lang.Exception){err="PHN:"+e.getErrorMessage();}
     }
     private function enqueue(msg as Dictionary) as Void {
         try {
@@ -667,15 +884,18 @@ class ArcheryApp extends Application.AppBase {
     }
 
     private function flush() as Void {
-        if (sending || qHead >= qTail) { return; }
-        var m = Application.Storage.getValue("queued" + qHead);
-        if (!(m instanceof Dictionary)) { err = "Cola de envio incompleta"; return; }
-        if(m.hasKey("event")){m=m["event"] as Dictionary;}
-        m["eid"]=qHead;
-        sending = true;
-        txStarted=System.getTimer();
-        try { Communications.transmit(m, null, new TxListener(self)); }
-        catch (e instanceof Lang.Exception) { sending = false; }
+        try {
+            if (sending || qHead >= qTail) { return; }
+            var m = Application.Storage.getValue("queued" + qHead);
+            if (!(m instanceof Dictionary)) { err = "Cola de envio incompleta"; return; }
+            if(m.hasKey("event")){var ev=m["event"];if(!(ev instanceof Dictionary)){return;}m=ev;}
+            m["eid"]=qHead;
+            sending = true;
+            txStarted=System.getTimer();
+            mark("TX");
+            Communications.transmit(m, null, new TxListener(self));
+            mark(null);
+        } catch (e instanceof Lang.Exception) { sending = false; err = "TX:" + e.getErrorMessage(); }
     }
 
     public function onTxAck() as Void { sending=false; } // Transport ACK is not a durable receipt.

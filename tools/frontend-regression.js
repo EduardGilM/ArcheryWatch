@@ -6,11 +6,11 @@ async () => {
   const reset = () => { localStorage.removeItem('awSessions'); curSess = null; liveStart(); };
   try {
     reset(); liveShot(shot()); show('Session'); show('Set'); liveEnd();
-    check(!document.querySelectorAll('#setList [data-jump],#arrowList [data-jump],#legend span').length && !trendBars.length, 'Vaciar elimina flechas, sets, leyendas y zonas del gráfico');
+    check(!document.querySelectorAll('#setList [data-jump],#setArrows [data-jump],#legend span').length && !trendBars.length, 'Vaciar elimina flechas, sets, leyendas y zonas del gráfico');
     show('Shot'); step(1); play();
     check(cur === 0 && document.getElementById('play').disabled && document.getElementById('mScore').textContent === '–', 'Tiro vacío no reproduce ni navega');
     show('History'); document.querySelector('#histList [data-sess]').click(); show('Set'); backToCurrent(); show('Set');
-    check(!data.shots.length && !document.querySelector('#arrowList [data-jump]'), 'Salir del historial recupera el estado vacío en Set');
+    check(!data.shots.length && !document.querySelector('#setArrows [data-jump]'), 'Salir del historial recupera el estado vacío en Set');
     reset(); liveShot(shot(1000)); liveShot(shot(62001,70));
     show('History'); document.querySelector('#histList [data-sess]').click();
     check(cur === 0 && historyMode, 'Abrir historial reinicia la flecha seleccionada');
@@ -19,7 +19,7 @@ async () => {
     backToCurrent(); check(data.shots.length === 3 && !historyMode, 'Volver a actual recupera tiros recibidos durante la consulta');
     liveStart(); check(store.list().some(s => s.shots.length === 3 && !s.live), 'Iniciar actividad conserva la sesión anterior');
     liveShot(shot(1000,75,false)); show('Set');
-    check(document.querySelectorAll('#arrowList [data-jump]').length === 1, 'Set admite una flecha sin traza');
+    check(document.querySelectorAll('#setArrows [data-jump]').length === 1, 'Set admite una flecha sin traza');
     liveShot(shot(3000)); show('Shot'); play(); show('History');
     check(anim === null && document.getElementById('play').textContent === 'Reproducir', 'Cambiar de página detiene la reproducción');
     show('Shot');
@@ -43,7 +43,7 @@ async () => {
     window.confirm = () => true; removeSelection('shot'); liveShot(shot(70001));
     check(data.shots.length === 2, 'Eliminar flecha en vivo ignora reenvíos del reloj');
     show('Set'); removeSelection('set');
-    check(data.shots.length === 0 && !document.querySelector('#arrowList [data-jump]'), 'Eliminar set elimina sus flechas y limpia la vista');
+    check(data.shots.length === 0 && !document.querySelector('#setArrows [data-jump]'), 'Eliminar set elimina sus flechas y limpia la vista');
     curSess = null; liveShot(shot(1000));
     check(data.shots.length === 0, 'Marcas de eliminación sobreviven a restaurar la sesión');
     liveShot(shot(90001)); removeSelection('session'); liveShot(shot(90001));
