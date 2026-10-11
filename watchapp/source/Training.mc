@@ -17,7 +17,7 @@ class TrainingState {
     function displaySet() {var n=0,prev=-1;for(var i=0;i<rows.size();i++){if(rows[i][1]<0){continue;}if(rows[i][1]!=prev){n++;prev=rows[i][1];}if(prev==currentSet){return n;}}return n+1;}
     function snapshot() { return {"target"=>target,"currentSet"=>currentSet,"resting"=>resting,"paused"=>paused,"ends"=>ends,"profile"=>profile,"mode"=>mode,"metric"=>2,"calibrating"=>calibration,"calibrationCount"=>rows.size()-total()}; }
     function record() { return {"sid"=>app.sid,"started"=>started,"state"=>snapshot(),"rows"=>rows,"lastCommand"=>lastCommand,"commandClient"=>commandClient,"feedback"=>feedback}; }
-    function save() { try { Application.Storage.setValue("training",record()); } catch (e instanceof Lang.Exception) {app.err="No se pudo guardar la sesion";} }
+    function save() { try { Application.Storage.setValue("training",record()); } catch (e instanceof Lang.Exception) {app.note("No se pudo guardar la sesion", "save", false);} }
     function restore(saved) {
         var preferences=Application.Storage.getValue("preferences");
         if(preferences instanceof Lang.Dictionary){target=preferences["target"];profile=preferences["profile"];feedback=preferences["feedback"];if(preferences.hasKey("mode")){mode=preferences["mode"];}}
@@ -130,7 +130,7 @@ class TrainingMenu extends WatchUi.Menu2InputDelegate {
         var id=item.getId();WatchUi.popView(WatchUi.SLIDE_IMMEDIATE);
         if(id[0].equals("more")){openMoreMenu();return;}
         if(!id[0].equals("wait")){a.finishPending();a.training.act(id[0],id[1]);}
-        } catch(e instanceof Lang.Exception){a.err="SEL3:"+e.getErrorMessage();}
+        } catch(e instanceof Lang.Exception){a.note("SEL3:"+e.getErrorMessage(), "ui", false);}
     }
 }
 function pushMenu(items) {

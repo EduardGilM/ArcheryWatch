@@ -24,17 +24,19 @@ class ArcheryView extends WatchUi.View {
     public function onShow() as Void {
         if (!askedMode) {
             askedMode = true;
-            try { openModeMenu(); } catch (e instanceof Lang.Exception) { _app.err = "SHOW:" + e.getErrorMessage(); }
+            try { openModeMenu(); } catch (e instanceof Lang.Exception) { _app.note("SHOW:" + e.getErrorMessage(), "ui", false); }
         }
     }
 
     public function onUpdate(dc as Dc) as Void {
         try { onUpdateBody(dc); } catch (e instanceof Lang.Exception) {
-            _app.err = "UI:" + e.getErrorMessage();
+            // Este fotograma no se pudo pintar. No se engancha: el siguiente reintenta la interfaz.
+            var msg = "UI:" + e.getErrorMessage();
+            _app.note(msg, "ui", false);
             dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_BLACK);
             dc.clear();
             dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(dc.getWidth() / 2, dc.getHeight() / 2, Graphics.FONT_SMALL, "ERROR " + _app.err, Graphics.TEXT_JUSTIFY_CENTER);
+            dc.drawText(dc.getWidth() / 2, dc.getHeight() / 2, Graphics.FONT_SMALL, "ERROR " + msg, Graphics.TEXT_JUSTIFY_CENTER);
         }
     }
 
@@ -83,7 +85,10 @@ class ArcheryView extends WatchUi.View {
         var yTime = yHero + hHot + 8;
         // linea superior: estado o score de la ultima flecha (una sola cosa, nunca se solapa)
         var pk = _app.lastPeakDev > 300.0 && System.getTimer() - _app.lastPeakAt < 30000 ? " · PICO " + _app.lastPeakDev.toNumber() : "";
-        if (t.calibration) {
+        if (_app.noticeLive()) {
+            dc.setColor(Graphics.COLOR_ORANGE, Graphics.COLOR_TRANSPARENT);
+            dc.drawText(cx, yLine1 - hXt - 8, Graphics.FONT_XTINY, _app.notice, Graphics.TEXT_JUSTIFY_CENTER);
+        } else if (t.calibration) {
             dc.setColor(Graphics.COLOR_ORANGE, Graphics.COLOR_TRANSPARENT);
             dc.drawText(cx, yLine1 - hXt - 8, Graphics.FONT_XTINY, "ELIGE EN EL MOVIL" + pk, Graphics.TEXT_JUSTIFY_CENTER);
         } else if (t.paused) {
@@ -138,7 +143,7 @@ class ModeMenuDelegate extends WatchUi.Menu2InputDelegate {
             var id=item.getId();
             WatchUi.popView(WatchUi.SLIDE_IMMEDIATE);
             a.training.act(id[0],id[1]);
-        } catch(e instanceof Lang.Exception){a.err="SEL2:"+e.getErrorMessage();}
+        } catch(e instanceof Lang.Exception){a.note("SEL2:"+e.getErrorMessage(), "ui", false);}
     }
 }
 function openModeMenu() {
@@ -162,7 +167,7 @@ class ArcheryDelegate extends WatchUi.BehaviorDelegate {
             if(_app.closing){openTrainingMenu();return true;}
             _app.finishPending();
             _app.training.act(_app.training.paused ? "pause" : (_app.training.resting ? "next" : "close"),0);
-        } catch(e instanceof Lang.Exception){_app.err="EX:"+e.getErrorMessage();}
+        } catch(e instanceof Lang.Exception){_app.note("EX:"+e.getErrorMessage(), "ui", false);}
         return true;
     }
     public function onSwipe(e) as Boolean {
@@ -172,14 +177,14 @@ class ArcheryDelegate extends WatchUi.BehaviorDelegate {
                 if(d == WatchUi.SWIPE_UP){ _app.probeScroll += 1; WatchUi.requestUpdate(); return true; }
                 if(d == WatchUi.SWIPE_DOWN){ if(_app.probeScroll > 0){ _app.probeScroll -= 1; } WatchUi.requestUpdate(); return true; }
             }
-        } catch(ex instanceof Lang.Exception){_app.err="SWP:"+ex.getErrorMessage();}
+        } catch(ex instanceof Lang.Exception){_app.note("SWP:"+ex.getErrorMessage(), "ui", false);}
         return false;
     }
-    public function onMenu() as Boolean { try{openTrainingMenu();}catch(e instanceof Lang.Exception){_app.err="MENU:"+e.getErrorMessage();} return true; }
-    public function onBack() as Boolean { try{openTrainingMenu();}catch(e instanceof Lang.Exception){_app.err="MENU:"+e.getErrorMessage();} return true; }
+    public function onMenu() as Boolean { try{openTrainingMenu();}catch(e instanceof Lang.Exception){_app.note("MENU:"+e.getErrorMessage(), "ui", false);} return true; }
+    public function onBack() as Boolean { try{openTrainingMenu();}catch(e instanceof Lang.Exception){_app.note("MENU:"+e.getErrorMessage(), "ui", false);} return true; }
     public function onNextPage() as Boolean {
         if(_app.probeReport.size() > 0){ _app.probeScroll += 1; WatchUi.requestUpdate(); return true; }
-        try{openTrainingMenu();}catch(e instanceof Lang.Exception){_app.err="MENU:"+e.getErrorMessage();}
+        try{openTrainingMenu();}catch(e instanceof Lang.Exception){_app.note("MENU:"+e.getErrorMessage(), "ui", false);}
         return true;
     }
     public function onPreviousPage() as Boolean {
@@ -222,7 +227,12 @@ class ArcheryApp extends Application.AppBase {
     public var lastScore = 0;
     public var lastHr = 0;
     public var t0 = 0;
-    public var err = null;
+    public var err = null;  // solo arranque: bloquea la pantalla porque la app no puede funcionar
+    public var notice = null;
+    private var noticeAt = 0;
+    private var noticeHold = false;
+    private var noticeKey = null;
+    private var sensorFaults = 0;
     public var saved = false;
     public var closing=false;
     private var session = null;
@@ -324,6 +334,25 @@ class ArcheryApp extends Application.AppBase {
         } catch (e instanceof Lang.Exception) { }
     }
 
+    // Aviso en la barra de estado, sin tapar el entrenamiento. Con hold se queda hasta
+    // clearNote (la causa sigue viva); si no, desaparece a los 6 s.
+    public function note(text, key, hold) {
+        notice = text;
+        noticeKey = key;
+        noticeAt = System.getTimer();
+        noticeHold = hold;
+    }
+
+    public function clearNote(key) {
+        if (noticeKey != null && noticeKey.equals(key)) { notice = null; noticeKey = null; noticeHold = false; }
+    }
+
+    public function noticeLive() as Boolean {
+        if (notice == null) { return false; }
+        if (!noticeHold && System.getTimer() - noticeAt >= 6000) { notice = null; noticeKey = null; noticeHold = false; return false; }
+        return true;
+    }
+
     public function configureRate(rate) {
         rateA=rate;gravityN=Math.ceil(rateA*0.5).toNumber();stableN=gravityN-Math.ceil(rateA*0.08).toNumber();
         if(stableN<1){stableN=1;}stride=Math.ceil(rateA/20.0).toNumber();
@@ -403,7 +432,7 @@ class ArcheryApp extends Application.AppBase {
                     session.stop();
                     saved = session.save();
                 }
-            } catch (e instanceof Lang.Exception) { err = "SES:" + e.getErrorMessage(); }
+            } catch (e instanceof Lang.Exception) { note("SES:" + e.getErrorMessage(), "ses", false); }
             session = null;  // tras stop/save el objeto queda invalido: cualquier metodo suyo es System Error
         }
         mark(null);
@@ -530,7 +559,8 @@ class ArcheryApp extends Application.AppBase {
                 try {
                     Sensor.unregisterSensorDataListener();
                     Sensor.registerSensorDataListener(method(:onData), { :period => 1, :accelerometer => { :enabled => true, :sampleRate => rateA }, :magnetometer => { :enabled => true, :sampleRate => 25 }, :heartBeatIntervals => { :enabled => true } });
-                } catch (ep instanceof Lang.Exception) { err = "PROBE:" + ep.getErrorMessage(); }
+                    clearNote("probe");
+                } catch (ep instanceof Lang.Exception) { note("PROBE:" + ep.getErrorMessage(), "probe", true); }
             }
             return;
         }
@@ -538,6 +568,7 @@ class ArcheryApp extends Application.AppBase {
         var a = data.accelerometerData;
         if (a == null || a.x == null || a.y == null || a.z == null || a.x.size() == 0 || a.x.size()!=a.y.size() || a.x.size()!=a.z.size()) { return; }
         var n = a.x.size();
+        var consumed = 0;
         var now = System.getTimer();
         var timestamps=null;
         if(a has :timestamp){timestamps=a.timestamp;}
@@ -558,8 +589,18 @@ class ArcheryApp extends Application.AppBase {
                     if (magN.y != null && i < magN.y.size()) { curMagY = magN.y[i].toFloat(); }
                     if (magN.z != null && i < magN.z.size()) { curMagZ = magN.z[i].toFloat(); } }  // lote corto: conserva el ultimo valor, sin repetir en cascada
                 sample(a.x[i].toFloat(),a.y[i].toFloat(),a.z[i].toFloat(),(when-t0).toFloat());
+                consumed += 1;
             }
-        } catch(e instanceof Lang.Exception){err="SENSOR:"+e.getErrorMessage();training.paused=true;}
+        if (consumed > 0) { sensorFaults = 0; clearNote("sensor"); }
+        } catch(e instanceof Lang.Exception) {
+            // Un lote roto no deja el detector en pausa muda: se suelta el tiro a medias,
+            // se rearma la ventana y se sigue. Solo si se repite se avisa en la barra.
+            sensorFaults += 1;
+            inShot = false;
+            mark(null);
+            if (rateA > 0) { try { configureRate(rateA); } catch (er instanceof Lang.Exception) {} }
+            if (sensorFaults >= 3) { note("SENSOR repetido: " + e.getErrorMessage(), "sensor", true); }
+        }
         WatchUi.requestUpdate();
     }
 
@@ -584,7 +625,7 @@ class ArcheryApp extends Application.AppBase {
             if (!drew) { detectorStatus="FALTA APERTURA"; }
             else if (quietGap < 600) { detectorStatus="SIN QUIETUD"; }
         }
-        if (!inShot && !training.paused && gCount >= gravityN && rn >= 10 && impulse && t - lastShot > REFRAC && (training.calibration || (drew && quietGap >= 600 && preStable(adev>limit)))) { mark("TRG");try{trigger(t);}catch(et instanceof Lang.Exception){err="TRG:"+et.getErrorMessage();}mark(null); peak = intensity;shotLimit=limit; }
+        if (!inShot && !training.paused && gCount >= gravityN && rn >= 10 && impulse && t - lastShot > REFRAC && (training.calibration || (drew && quietGap >= 600 && preStable(adev>limit)))) { mark("TRG");try{trigger(t);}catch(et instanceof Lang.Exception){note("TRG:"+et.getErrorMessage(), "trg", false);}mark(null); peak = intensity;shotLimit=limit; }
         else if (inShot) {
             if (t-tShot<=120 && intensity > peak) { peak = intensity; }
             if(!training.calibration && t-tShot>120 && peak<shotLimit){inShot=false;}
@@ -777,7 +818,7 @@ class ArcheryApp extends Application.AppBase {
 
     private function finalize() as Void {
         mark("FIN");
-        try { finalizeBody(); } catch (e instanceof Lang.Exception) { err = "FNZ:" + e.getErrorMessage(); }
+        try { finalizeBody(); } catch (e instanceof Lang.Exception) { note("FNZ:" + e.getErrorMessage(), "fnz", false); }
         mark(null);
     }
 
@@ -828,7 +869,7 @@ class ArcheryApp extends Application.AppBase {
         WatchUi.requestUpdate();
     }
 
-    public function finishPending() { if(inShot){try{finalize();}catch(e instanceof Lang.Exception){err="FIN:"+e.getErrorMessage();inShot=false;}} }
+    public function finishPending() { if(inShot){try{finalize();}catch(e instanceof Lang.Exception){note("FIN:"+e.getErrorMessage(), "fin", false);inShot=false;}} }
     public function pending() { return qTail-qHead; }
     public function emit(msg) { msg["sid"]=sid;msg["eid"]=qTail;enqueue({"event"=>msg,"checkpoint"=>training.record()});training.save();flush(); }
     private function sendControl(key as String) as Void { emit({"kind"=>key,"state"=>training.snapshot()}); }
@@ -836,6 +877,7 @@ class ArcheryApp extends Application.AppBase {
         try {
         var m=message.data;
         if(!(m instanceof Dictionary)){return;}
+        clearNote("phn");
         if(m.hasKey("ack") && qHead<qTail && m["ack"]==qHead) {
             var first=Application.Storage.getValue("queued"+qHead);
             if(first instanceof Dictionary && first.hasKey("event")){first=first["event"];}
@@ -856,11 +898,11 @@ class ArcheryApp extends Application.AppBase {
                     if(m["action"].equals("calibrateShot")){value={"peak"=>value,"profile"=>m["profile"],"requestId"=>m["requestId"]};if(m.hasKey("pose")){value["pose"]=m["pose"];}}
                     training.act(m["action"],value);training.save();
                 }
-                catch(e instanceof Lang.Exception){training.lastCommand=previous;err="Error guardando orden";return;}
+                catch(e instanceof Lang.Exception){training.lastCommand=previous;note("Error guardando orden", "ord", false);return;}
             }
             Communications.transmit({"commandAck"=>m["cid"],"client"=>m["client"]},null,new CommandListener());
         }
-        } catch(e instanceof Lang.Exception){err="PHN:"+e.getErrorMessage();}
+        } catch(e instanceof Lang.Exception){note("PHN:"+e.getErrorMessage(), "phn", false);}
     }
     private function enqueue(msg as Dictionary) as Void {
         try {
@@ -872,7 +914,8 @@ class ArcheryApp extends Application.AppBase {
             Application.Storage.setValue("queued" + qTail, msg);
             Application.Storage.setValue("queueIndex", [qHead, qTail + 1]);
             qTail += 1;
-        } catch (e instanceof Lang.Exception) { err = "Memoria de envio llena"; }
+            clearNote("mem");
+        } catch (e instanceof Lang.Exception) { note("Memoria de envio llena", "mem", true); }
     }
 
     // ---- cola de reenvío ----
@@ -887,18 +930,20 @@ class ArcheryApp extends Application.AppBase {
         try {
             if (sending || qHead >= qTail) { return; }
             var m = Application.Storage.getValue("queued" + qHead);
-            if (!(m instanceof Dictionary)) { err = "Cola de envio incompleta"; return; }
-            if(m.hasKey("event")){var ev=m["event"];if(!(ev instanceof Dictionary)){return;}m=ev;}
+            if (!(m instanceof Dictionary)) { note("Cola de envio incompleta", "queue", true); return; }
+            if(m.hasKey("event")){var ev=m["event"];if(!(ev instanceof Dictionary)){note("Cola de envio incompleta", "queue", true);return;}m=ev;}
             m["eid"]=qHead;
             sending = true;
             txStarted=System.getTimer();
             mark("TX");
             Communications.transmit(m, null, new TxListener(self));
             mark(null);
-        } catch (e instanceof Lang.Exception) { sending = false; err = "TX:" + e.getErrorMessage(); }
+            clearNote("tx");
+            clearNote("queue");
+        } catch (e instanceof Lang.Exception) { sending = false; mark(null); note("TX:" + e.getErrorMessage(), "tx", false); }
     }
 
-    public function onTxAck() as Void { sending=false; } // Transport ACK is not a durable receipt.
+    public function onTxAck() as Void { sending=false; clearNote("tx"); } // Transport ACK is not a durable receipt.
 
     public function onTxError() as Void {
         sending = false;

@@ -29,7 +29,7 @@ function load(file,klass,names){
   }
   return env;
 }
-const watch=()=>load('watchapp/source/ArcheryApp.mc','ArcheryApp',['configureRate','onData','sample','magYaw','rememberRR','rrRmssd','preStable','trigger','finalize','finalizeBody','mark','decimate','subArray','diffArray','mean','pstdev','clamp']);
+const watch=()=>load('watchapp/source/ArcheryApp.mc','ArcheryApp',['configureRate','onData','sample','magYaw','rememberRR','rrRmssd','preStable','trigger','finalize','finalizeBody','mark','note','clearNote','noticeLive','decimate','subArray','diffArray','mean','pstdev','clamp']);
 const training=()=>{const s=load('watchapp/source/Training.mc','TrainingState',['count','total','nextId','snapshot','close','validProfile','add','act']);s.app={mark(){}};s.events=[];s.emit=(kind,payload)=>s.events.push({kind,...payload});s.buzz=()=>{};return s;};
 let failures=0;
 function test(name,run){try{run();console.log('PASS',name);}catch(e){failures++;console.error('FAIL',name,e.message);}}
@@ -193,10 +193,72 @@ test('Normal training detects a brief vector impulse with unchanged acceleration
     assert.equal(shots.length,1);assert.equal(shots[0].t,3000);assert.ok(shots[0].peak>600);assert.equal(shots[0].tx.length,shots[0].yw2.length);}
 });
 test('Historical calibration crosses the phone dispatcher as scalar fields and is idempotent',()=>{
-  const s=load('watchapp/source/ArcheryApp.mc','ArcheryApp',['onPhone']), state=training(), replies=[];
+  const s=load('watchapp/source/ArcheryApp.mc','ArcheryApp',['onPhone','note','clearNote']), state=training(), replies=[];
   Object.assign(s,{Dictionary:Dict,String:Text,CommandListener:function(){},Communications:{transmit:r=>replies.push(r)},finishPending(){},training:state});state.save=()=>{};s.sid='current';
   const message={data:{sid:'history',cid:1,client:'phone',action:'calibrateShot',value:1200,profile:'Recurvo',requestId:'old-shot'}};
   s.onPhone(message);s.onPhone(message);
   assert.equal(state.threshold,420);assert.equal(state.events.length,1);assert.equal(state.events[0].requestId,'old-shot');assert.equal(replies.length,2);
+});
+test('A startup failure stays latched and a transient notice does not clear it or block by itself',()=>{
+  const s=watch();
+  s.err='Sin acelerometro';
+  s.note('TX:radio','tx',false);
+  assert.equal(s.err,'Sin acelerometro');
+  assert.equal(s.notice,'TX:radio');
+  assert.equal(s.noticeLive(),true);
+  s.System.getTimer=()=>s.noticeAt+5999;assert.equal(s.noticeLive(),true);
+  s.System.getTimer=()=>s.noticeAt+6000;assert.equal(s.noticeLive(),false);assert.equal(s.notice,null);assert.equal(s.err,'Sin acelerometro');
+  s.note('PROBE:listener','probe',true);
+  s.System.getTimer=()=>s.noticeAt+60000;assert.equal(s.noticeLive(),true);
+  s.clearNote('tx');assert.equal(s.notice,'PROBE:listener');
+  s.clearNote('probe');assert.equal(s.notice,null);
+});
+test('One sensor glitch keeps detecting; repeated faults are shown and then clear',()=>{
+  const s=watch(), shots=[];
+  s.training={paused:false,calibration:false,threshold:1320,add:m=>shots.push(m)};
+  s.configureRate(100);s.t0=0;
+  const real=s.sample;
+  s.sample=()=>{throw new Error('glitch');};
+  for(let n=1;n<=3;n++){
+    s.System.getTimer=()=>n*1000;
+    s.onData({accelerometerData:{x:[0],y:[0],z:[1000],timestamp:[n*1000]}});
+    assert.equal(s.training.paused,false);assert.equal(s.err,null);assert.equal(s.inShot,false);
+    if(n<3){assert.equal(s.notice,null);assert.equal(s.sensorFaults,n);}
+  }
+  assert.equal(s.notice,'SENSOR repetido: glitch');assert.equal(s.noticeHold,true);
+  s.System.getTimer=()=>999999;assert.equal(s.noticeLive(),true);
+  s.sample=real;
+  const xs=[],ys=[],zs=[],ts=[];
+  for(let t=4000;t<=8500;t+=10){xs.push(t>=5000?400:0);ys.push(0);zs.push(t===6000?5000:1000);ts.push(t);}
+  s.System.getTimer=()=>8500;
+  s.onData({accelerometerData:{x:xs,y:ys,z:zs,timestamp:ts}});
+  assert.deepEqual(shots.map(m=>m.t),[6000]);
+  assert.equal(s.notice,null);assert.equal(s.sensorFaults,0);assert.equal(s.training.paused,false);assert.equal(s.err,null);
+});
+test('Send failures are status notices and clear when the queue moves again',()=>{
+  const s=load('watchapp/source/ArcheryApp.mc','ArcheryApp',['enqueue','flush','note','clearNote','noticeLive','mark','onTxAck']);
+  s.Dictionary=Dict;s.TxListener=function(){};s.self=s;
+  s.Communications={transmit(){throw new Error('radio');}};
+  const store=s.Application.Storage, realSet=store.setValue;
+  store.setValue=()=>{throw new Error('full');};
+  s.enqueue({event:{kind:'shot'}});
+  assert.equal(s.err,null);assert.equal(s.notice,'Memoria de envio llena');assert.equal(s.noticeHold,true);
+  store.setValue=realSet;
+  s.enqueue({event:{kind:'shot'}});
+  assert.equal(s.notice,null);assert.equal(s.qTail,1);
+  store.setValue('queued0','roto');s.qHead=0;s.qTail=1;s.sending=false;
+  s.flush();
+  assert.equal(s.err,null);assert.equal(s.notice,'Cola de envio incompleta');assert.equal(s.sending,false);
+  store.setValue('queued0',{event:1});s.flush();
+  assert.equal(s.notice,'Cola de envio incompleta');assert.equal(s.sending,false);
+  store.setValue('queued0',{event:{kind:'shot',sid:'a'}});s.flush();
+  assert.equal(s.err,null);assert.equal(s.sending,false);assert.equal(s.notice,'TX:radio');assert.equal(s.noticeHold,false);
+  assert.equal(store.getValue('step'),null);
+  s.System.getTimer=()=>s.noticeAt+6000;assert.equal(s.noticeLive(),false);
+  store.setValue('queued0',{event:{kind:'shot',sid:'a'}});s.sending=false;s.Communications={transmit(){}};
+  s.note('TX:radio','tx',false);s.flush();
+  assert.equal(s.notice,null);assert.equal(s.sending,true);
+  s.note('TX:radio','tx',false);s.onTxAck();
+  assert.equal(s.notice,null);assert.equal(s.sending,false);
 });
 process.exitCode=failures?1:0;
