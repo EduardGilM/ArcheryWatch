@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="aw-version" content="4.14">
+<meta name="aw-version" content="4.16">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#0c0d10">
 <link rel="manifest" href="manifest.json">
@@ -165,7 +165,7 @@
   .setline:last-child, .arrowline:last-child { border-bottom:none; }
   .setline b, .arrowline b { font-weight:600; }
   .setline .r, .arrowline .r { margin-left:auto; color:var(--txt-3); font-size:12.5px; white-space:nowrap; display:flex; align-items:center; gap:4px; }
-  .setline[data-jump] .r::after, .setline[data-sess] .r::after, .arrowline .r::after { content:""; width:13px; height:13px; background:var(--txt-3);
+  .setline[data-jump] .r::after, .setline[data-sess] .r::after, #setList summary .r::after, .arrowline .r::after { content:""; width:13px; height:13px; background:var(--txt-3);
     -webkit-mask:var(--i-caret) center/contain no-repeat; mask:var(--i-caret) center/contain no-repeat; }
   .rowMain { display:flex; flex-direction:column; min-width:0; flex:1; }
   .rowMain b { font-size:14.5px; }
@@ -184,7 +184,19 @@
 
   /* Sesión */
   .hero { display:flex; align-items:center; gap:16px; }
-  #trend { width:100%; height:150px; display:block; }
+  #setList details:not(:last-child), #setList details[open] summary { border-bottom:1px solid var(--line); }
+  #setList summary { list-style:none; cursor:pointer; border:0; }
+  #setList summary::-webkit-details-marker { display:none; }
+  #setList details[open] summary .r::after { transform:rotate(90deg); }
+  .trendRow { width:100%; display:grid; grid-template-columns:minmax(80px, max-content) minmax(0,1fr) 44px; gap:10px; align-items:center; min-height:56px; padding:8px 0; background:none; border:0; border-bottom:1px solid var(--line); text-align:left; }
+  .trendRow:last-child { border-bottom:0; }
+  .trendLabel { font-size:13px; }
+  .trendLabel small { display:block; color:var(--txt-3); font-size:11px; }
+  .trendScore { margin-left:6px; font-family:var(--mono); font-size:13px; font-weight:600; color:var(--acc); }
+  .trendRow[aria-current="true"] .trendLabel { color:var(--acc); }
+  .trendBar { height:10px; overflow:hidden; border-radius:5px; background:var(--surface-3); }
+  .trendBar span { display:block; height:100%; border-radius:inherit; background:var(--c); }
+  .trendValue { text-align:right; font:13px var(--mono); color:var(--c); }
   #progress { width:100%; height:140px; display:block; }
   #progSum { font-size:13px; color:var(--txt-2); margin-bottom:10px; }
   #progSum b { font-family:var(--mono); color:var(--txt); font-weight:500; }
@@ -273,8 +285,8 @@
     <div id="sessionScoreGroups" class="scoreGroups"></div>
     <p id="sessionScoreInsight" class="scoreNote"></p>
   </section>
-  <div class="card"><div class="cardTitle"><span id="trendTitle">Estabilidad por flecha</span><small id="trendHelp">toca una barra</small></div><canvas id="trend"></canvas></div>
   <div class="card list" id="setList"></div>
+  <div class="card"><div class="cardTitle"><span id="trendTitle">Estabilidad por flecha</span><small id="trendHelp">toca una flecha</small></div><div id="trend"></div></div>
   <button class="deleteAction" id="deleteCurrent" onclick="removeSelection('session')">Eliminar sesión</button>
 </main>
 <main id="vProgress" style="display:none">
@@ -362,7 +374,7 @@ function setMetric(id, value, unit = '') {
   const el = document.getElementById(id); el.textContent = value;
   if (unit && value !== '–') { const u = document.createElement('small'); u.textContent = unit.trim(); el.appendChild(u); }
 }
-let data = null, cur = 0, view = 'Shot', anim = null, live = false, trendBars = [], historyMode = false, histId = 0;
+let data = null, cur = 0, view = 'Shot', anim = null, live = false, historyMode = false, histId = 0;
 window.onerror = (m, s, l) => {  // superficie de errores JS: sin esto un fallo es invisible en la WebView
   let d = document.getElementById('jserr');
   if (!d) { d = document.createElement('div'); d.id = 'jserr';
@@ -561,13 +573,6 @@ async function boot() {
   document.getElementById('tracebar').onclick = e => { const mode = e.target.closest('[data-trace]')?.dataset.trace; if (mode) setTrace(mode); };
   document.getElementById('armLength').onchange = e => setArm(e.target.value);
   syncTraceUi();
-  // tocar una barra del grafico -> abrir esa flecha
-  document.getElementById('trend').addEventListener('pointerdown', e => {
-    const r = e.target.getBoundingClientRect();
-    const px = e.clientX - r.left;
-    const hit = trendBars.find(b => px >= b.x && px <= b.x + b.w);
-    if (hit) { cur = hit.i; show('Shot'); }
-  });
   // swipe izquierda/derecha en la vista de tiro
   let tx0 = null, ty0 = 0;
   addEventListener('touchstart', e => { if (view === 'Shot') { tx0 = e.touches[0].clientX; ty0 = e.touches[0].clientY; } }, { passive: true });
@@ -622,13 +627,13 @@ function render() {
     document.getElementById('subtitle').textContent = 'Esperando flechas';
     ['sTotal', 'sSets', 'sAvg', 'sSd'].forEach(id => document.getElementById(id).textContent = '–');
     document.getElementById('sAvg').style.color = '';
-    ['setList', 'setArrows', 'legend', 'tip', 'tLegend'].forEach(id => document.getElementById(id).textContent = '');
+    ['trend', 'setList', 'setArrows', 'legend', 'tip', 'tLegend'].forEach(id => document.getElementById(id).textContent = '');
     ['mScore', 'mPeak', 'mSettle', 'mInstab'].forEach(id => document.getElementById(id).textContent = '–');
     document.getElementById('mScore').parentElement.style.color = '';
     document.getElementById('mScore').parentElement.style.borderColor = '';
     document.getElementById('play').disabled = true;
-    ['trend', 'aim', 'aimSet', 'trace'].forEach(id => { const c = document.getElementById(id); c.width = c.width; });
-    trendBars = []; cur = 0;
+    ['aim', 'aimSet', 'trace'].forEach(id => { const c = document.getElementById(id); c.width = c.width; });
+    cur = 0;
     document.getElementById('setList').innerHTML = '<div class="empty">Esperando flechas del reloj</div>';
     const box = document.getElementById('sessionScore');
     if (box) box.hidden = true;
@@ -727,17 +732,6 @@ function renderSession(S) {
   document.getElementById('sessionScoreLine').textContent = Score.totalsLine(sessionTotals) || 'Sin valores. En Set, marca X, 10, 9… o M después de cada tanda.';
   document.getElementById('sessionScoreGroups').innerHTML = Score.groups(sessionShots).map(Score.groupLine).filter(Boolean).map(line => `<div>${line}</div>`).join('');
   document.getElementById('sessionScoreInsight').textContent = Score.insight(sessionShots).text;
-  document.getElementById('setList').innerHTML = S.map((g, i) => {
-    const sa = Math.round(avg(g.map(j => data.shots[j].aim_score)));
-    const pts = Score.totals(g.map(j => data.shots[j]));
-    return `<div class="setline" data-jump="${g[0]}"><b>${setLabel(S,i)}</b>` +
-      `<span class="chip" style="--c:${grade(sa)[0]}">${Number.isFinite(sa)?sa:'–'}</span>` +
-      `<span class="r">${pts.scored ? pts.score + ' pts · ' : ''}${g.length} ${data.shots[g[0]].candidate?'candidatos':'flecha'+(g.length>1?'s':'')}</span></div>`;
-  }).join('');
-  document.getElementById('setList').onclick = e => {
-    const j = e.target.closest('[data-jump]')?.dataset.jump;
-    if (j) { cur = +j; show('Shot'); }
-  };
   drawTrend(S);
 }
 
@@ -1463,37 +1457,30 @@ function drawTrace(s) {
   x.textAlign = 'left';
 }
 function drawTrend(S) {
-  const c = document.getElementById('trend');
-  const [x, w] = canvasFit(c, 150);
-  trendBars = [];
-  const h = 150, n = data.shots.length, top = 14, base = h - 20;
+  const c = document.getElementById('trend'), list=document.getElementById('setList');
+  const opened=new Set([...list.querySelectorAll('details[open]')].map(d=>d.dataset.set));
   const candidates=data.shots.every(s=>s.candidate), values=data.shots.map(s=>candidates?s.peak_mg:s.aim_score);
-  const mean = avg(values.filter(Number.isFinite)), max=candidates?Math.max(1,...values.filter(Number.isFinite)):100;
+  const max=candidates?values.reduce((m,v)=>Number.isFinite(v)?Math.max(m,v):m,1):100;
+  const anyValue=!candidates && data.shots.some(s => Score.points(s.result && s.result.value) != null);
   document.getElementById('trendTitle').textContent=candidates?'Impulso por candidato':'Estabilidad por flecha';
-  document.getElementById('trendHelp').textContent=candidates?'mG · toca una barra':'toca una barra';
-  const bw = Math.max(.5, Math.min(30, (w - 24) / n * .75));
-  const ay = base - (mean / max) * (base - top);
-  x.strokeStyle = 'rgba(255,255,255,.14)'; x.lineWidth = 1; x.setLineDash([3, 4]);
-  x.beginPath(); x.moveTo(6, ay); x.lineTo(w - 6, ay); x.stroke(); x.setLineDash([]);
-  x.fillStyle = C.txt2; x.font = '11px ' + FONT; x.textAlign = 'right';
-  if(Number.isFinite(mean))x.fillText('Media ' + Math.round(mean)+(candidates?' mG':''), w - 6, ay - 5);
-  let si = 0, prevSi = -1;
-  data.shots.forEach((s, i) => {
-    while (!S[si].includes(i)) si++;
-    const bx = 12 + i * ((w - 24) / n);
-    if (prevSi >= 0 && si !== prevSi) {  // separador entre sets
-      x.strokeStyle = C.grid; x.beginPath();
-      x.moveTo(bx - (w - 24) / n / 2, top - 8); x.lineTo(bx - (w - 24) / n / 2, base + 4); x.stroke();
-    }
-    prevSi = si;
-    const bh = Math.max(((values[i]||0) / max) * (base - top), 3);
-    x.fillStyle = candidates?C.acc:grade(s.aim_score)[0];
-    rr(x, bx, base - bh, bw, bh, 3); x.fill();
-    trendBars.push({ x: bx - 4, w: bw + 8, i });
-    x.fillStyle = i === cur ? C.txt : C.txt3; x.font = '10px ' + MONO; x.textAlign = 'center';
-    if (n <= 24) x.fillText((n>14?'':s.candidate?'C':'F') + (S[si].indexOf(i) + 1), bx + bw / 2, h - 6);
-    x.textAlign = 'left';
-  });
+  document.getElementById('trendHelp').textContent=candidates?'mG · toca una flecha':(anyValue?'valor en naranja · barra = estabilidad':'toca una flecha');
+  const rows=S.map((g,si)=>{const name=setLabel(S,si);return g.map((i,j)=>{
+    const s=data.shots[i], v=values[i], valid=Number.isFinite(v), label=(s.candidate?'Candidato':'Flecha')+' '+(j+1);
+    const marked=!s.candidate && s.result && Score.points(s.result.value) != null ? s.result.value : '';
+    const scoreBit=anyValue ? `<b class="trendScore" title="Valor">${marked || '·'}</b>` : '';
+    const aria=`${name}, ${label}${marked ? ', valor ' + marked : ''}, ${valid ? Math.round(v) + (candidates ? ' mG' : ' de estabilidad') : 'sin estabilidad'}`;
+    return `<button class="trendRow" data-shot="${i}" aria-current="${i===cur}" aria-label="${aria}" style="--c:${candidates?C.acc:grade(v)[0]}">`+
+      `<span class="trendLabel">${label}${scoreBit}<small>${name}</small></span><span class="trendBar" aria-hidden="true"><span style="width:${valid?Math.max(0,Math.min(100,v/max*100)):0}%"></span></span><span class="trendValue" title="${candidates?'Impulso':'Estabilidad'}">${valid?Math.round(v):'–'}</span></button>`;
+  }).join('');});
+  c.innerHTML=rows.join('');
+  list.innerHTML=S.map((g,i)=>{
+    const sa=Math.round(avg(g.map(j=>data.shots[j].aim_score))), key=(historyMode?histId:curSess?.id)+'_'+encodeURIComponent(data.shots[g[0]].set_id);
+    const pts=Score.totals(g.map(j => data.shots[j]));
+    const noun=data.shots[g[0]].candidate?'candidatos':'flecha'+(g.length>1?'s':'');
+    const points=pts.scored ? `<span class="chip" style="--c:var(--acc)">${pts.score} pts</span>` : '';
+    return `<details data-set="${key}" ${opened.has(key)?'open':''}><summary class="setline"><b>${setLabel(S,i)}</b><span class="chip" style="--c:${grade(sa)[0]}">${Number.isFinite(sa)?sa:'–'}</span>${points}<span class="r">${g.length} ${noun}</span></summary>${rows[i]}</details>`;
+  }).join('');
+  c.onclick=list.onclick=e=>{const i=e.target.closest('[data-shot]')?.dataset.shot;if(i!=null){cur=+i;show('Shot');}};
 }
 function drawSet(g) {
   const c = document.getElementById('aimSet');

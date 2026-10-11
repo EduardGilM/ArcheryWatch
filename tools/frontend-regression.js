@@ -6,7 +6,7 @@ async () => {
   const reset = () => { localStorage.removeItem('awSessions'); curSess = null; liveStart(); };
   try {
     reset(); liveShot(shot()); show('Session'); show('Set'); liveEnd();
-    check(!document.querySelectorAll('#setList [data-jump],#setArrows [data-jump],#legend span').length && !trendBars.length, 'Vaciar elimina flechas, sets, leyendas y zonas del gráfico');
+    check(!document.querySelectorAll('#setList details,#setArrows [data-jump],#legend span,#trend [data-shot]').length, 'Vaciar elimina flechas, sets, leyendas y barras');
     show('Shot'); step(1); play();
     check(cur === 0 && document.getElementById('play').disabled && document.getElementById('mScore').textContent === '–', 'Tiro vacío no reproduce ni navega');
     show('History'); document.querySelector('#histList [data-sess]').click(); show('Set'); backToCurrent(); show('Set');
@@ -35,12 +35,12 @@ async () => {
     store.save([]); render();
     check(!document.getElementById('progSum').textContent && document.getElementById('progress').style.display === 'none', 'Progreso vacío no conserva resumen ni gráfica');
     data = {shots:Array.from({length:200},(_,i)=>({...sample,t_ms:i*2000}))}; show('Session');
-    check(trendBars.length === 200 && trendBars.every(b => b.w > 0), 'Gráfico de sesiones largas conserva barras válidas');
+    check(document.querySelectorAll('#trend [data-shot]').length === 200 && [...document.querySelectorAll('#trend .trendRow')].every(b=>b.offsetHeight>=44), 'Sesiones largas conservan una fila legible por flecha');
     check(!document.querySelectorAll('[id="aimwrap"]').length, 'Sin identificadores duplicados de la diana');
     reset(); liveShot(shot(1000)); liveShot(shot(3000)); liveShot(shot(70001));
-    window.confirm = () => false; removeSelection('shot');
-    check(data.shots.length === 3, 'Cancelar eliminación conserva las flechas');
-    window.confirm = () => true; removeSelection('shot'); liveShot(shot(70001));
+    removeSelection('shot');
+    check(data.shots.length === 2, 'Eliminar la flecha actual la quita de la sesión');
+    liveShot(shot(70001));
     check(data.shots.length === 2, 'Eliminar flecha en vivo ignora reenvíos del reloj');
     show('Set'); removeSelection('set');
     check(data.shots.length === 0 && !document.querySelector('#setArrows [data-jump]'), 'Eliminar set elimina sus flechas y limpia la vista');
@@ -48,7 +48,7 @@ async () => {
     check(data.shots.length === 0, 'Marcas de eliminación sobreviven a restaurar la sesión');
     liveShot(shot(90001)); removeSelection('session'); liveShot(shot(90001));
     check(data.shots.length === 0 && !store.list().some(s => s.live && s.shots.length), 'Eliminar sesión en vivo no reaparece por un reenvío');
-    liveShot(shot(95001)); liveShot(shot(170001)); liveEnd(); show('History');
+    liveShot(shot(95001)); liveShot(shot(100001)); liveShot(shot(105001)); liveShot(shot(170001)); liveEnd(); show('History');
     document.querySelector('#histList [data-sess]').click(); removeSelection('set');
     check(data.shots.length === 1 && historyMode, 'Eliminar set del historial conserva el resto de la sesión');
     removeSelection('shot');

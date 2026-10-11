@@ -241,8 +241,10 @@ test('recorded calibration candidates show orientation when integrated position 
 
 test('calibration bars compare impulse peaks instead of missing stability scores', () => {
   const p=page(), shots=require('./fixtures/candidates-20261002.json');
-  p.run(`const heights=[];const drawBar=rr;rr=(...a)=>{heights.push(a[4]);drawBar(...a)};data={shots:[${JSON.stringify(shots[3])},${JSON.stringify(shots[4])}]};cur=0;show('Session')`);
-  assert.ok(p.run('heights[0]>heights[1]*5'),p.run('JSON.stringify(heights)'));
+  p.run(`data={shots:[${JSON.stringify(shots[3])},${JSON.stringify(shots[4])}]};cur=0;show('Session')`);
+  const widths=[...p.elements.get('trend').innerHTML.matchAll(/width:([\d.]+)%/g)].map(m=>+m[1]);
+  assert.equal(widths.length,2);
+  assert.ok(widths[0]>widths[1]*5,JSON.stringify(widths));
 });
 
 test('the visual onset does not interpolate aiming coordinates through the impulse', () => {
@@ -418,6 +420,12 @@ test('scoring the set stores the value and a repeated watch event leaves it', ()
   p.run("view='Session';render()");
   assert.match(p.elements.get('sessionScoreLine').textContent, /19 puntos · media 6\.3 · 1 X · 0 dieces/);
   assert.match(p.elements.get('sessionScoreInsight').textContent, /al menos 4/);
+  assert.match(p.elements.get('setList').innerHTML, /<details/);
+  assert.match(p.elements.get('setList').innerHTML, /19 pts/);
+  assert.match(p.elements.get('trend').innerHTML, /class="trendScore"[^>]*>X</);
+  assert.match(p.elements.get('trend').innerHTML, /class="trendScore"[^>]*>9</);
+  assert.match(p.elements.get('trend').innerHTML, /class="trendScore"[^>]*>M</);
+  assert.match(p.elements.get('trend').innerHTML, /class="trendValue"[^>]*>80</);
   p.run("scoreArrow(1000,null)");
   assert.equal(p.run("store.list()[0].shots.find(s=>s.t_ms===1000).result"), undefined);
   p.run("historyMode=true;histId=curSess.id;curSess=null;scoreArrow(2000,'8')");
