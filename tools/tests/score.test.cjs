@@ -30,7 +30,7 @@ test('totals count the set and the session without old shots or candidates', () 
   assert.equal(t.score, 29);
   assert.equal(t.x, 1);
   assert.equal(t.ten, 1);
-  assert.equal(Score.totalsLine(t), '29 puntos · media 7.3 · 1 X · 1 diez');
+  assert.equal(Score.totalsLine(t), '29 puntos · media 7,3 · 1 X · 1 diez');
   assert.equal(Score.totals([{aim_score: 80}]).scored, 0);
   assert.equal(Score.totalsLine(Score.totals([])), '');
 });
@@ -46,7 +46,7 @@ test('value groups average execution and the sentence waits for four arrows', ()
   assert.equal(groups.find(g => g.id === 'm').n, 1);
   assert.ok(x10.aim >= 80 && x10.aim_min >= 80);
   assert.ok(Math.abs(x10.shot_s - 4.35) < 0.05, x10.shot_s);
-  assert.match(Score.groupLine(x10), /X-10 · 4 flechas · estabilidad 8\d · tiro 4\.[34] s/);
+  assert.match(Score.groupLine(x10), /X-10 · 4 flechas · estabilidad 8\d · tiro 4,[34] s/);
   const said = Score.insight([...high, ...rest]);
   assert.equal(said.enough, true);
   assert.match(said.text, /Tus X-10 salen con 4-5 s de tiro y estabilidad ≥80/);

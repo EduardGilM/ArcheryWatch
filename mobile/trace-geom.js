@@ -190,31 +190,31 @@ const Trace = {
     const rawPA = avg(anchorIdx.map(i => rawP[i]));
     const ptsAll = u.map((v, i) => [v - uA, pitch[i] - pA, t[i]]);
     const aim = (aimIdx.length ? aimIdx : t.map((_, i) => i));
-    const radii = aim.map(i => Math.hypot(ptsAll[i][0], ptsAll[i][1])).sort((a, b) => a - b);
-    const p90 = radii.length ? radii[Math.min(radii.length - 1, Math.floor(radii.length * 0.9))] : 0.4;
-    const scale = Math.max(0.25, p90 * 1.2);
     const lead = -hold - 200;
-    const cap = (p) => {
-      const r = Math.hypot(p[0], p[1]);
-      if (!(r > scale) || r === 0) return p;
-      return [p[0] / r * scale, p[1] / r * scale, p[2]];
-    };
-    const pts = ptsAll.filter(p => p[2] >= lead).map(p => (p[2] >= -hold && p[2] <= 30) ? p : cap(p));
+    const aimPhase = ptsAll.filter(p => p[2] >= lead && p[2] <= 30 && Number.isFinite(p[0]) && Number.isFinite(p[1]));
+    const maxR = aimPhase.reduce((m, p) => Math.max(m, Math.hypot(p[0], p[1])), 0);
+    const scale = Math.max(0.25, (maxR * 1.08) || 0.4);
+    const pts = aimPhase.slice();
     const post = s.post_yaw || [];
     const postP = s.post_pitch || [];
     const postT = s.post_t || [];
+    let follow = null;
     if (post.length && postP.length === post.length) {
       const anchorYaw = this.circMean(anchorIdx.map(i => yaw[i]));
       const anchorPitch = avg(anchorIdx.map(i => pitchIn[i]));
-      post.forEach((y, i) => {
-        if (!Number.isFinite(y) || !Number.isFinite(postP[i])) return;
-        const pt = cap([this.yawDelta(y, anchorYaw), postP[i] - anchorPitch, Number.isFinite(postT[i]) ? postT[i] : (i + 1) * dt]);
-        if (Math.hypot(pt[0], pt[1]) > 0.12) pts.push(pt);
-      });
-    } else {
-      const tick = this.followTick(s, scale);
-      if (tick) pts.push(tick);
+      for (let i = 0; i < post.length; i++) {
+        if (!Number.isFinite(post[i]) || !Number.isFinite(postP[i])) continue;
+        const dx = this.yawDelta(post[i], anchorYaw), dy = postP[i] - anchorPitch;
+        const r = Math.hypot(dx, dy);
+        const tt = Number.isFinite(postT[i]) ? postT[i] : (i + 1) * dt;
+        if (!(r > 0.12) || !(tt > 0)) continue;
+        const len = Math.min(r, 0.75, scale);
+        follow = [dx / r * len, dy / r * len, tt];
+        break;
+      }
     }
+    if (!follow) follow = this.followTick(s, scale);
+    if (follow && Math.hypot(follow[0], follow[1]) <= scale + 1e-9) pts.push(follow);
     const aimRaw = aim.map(i => Math.hypot(rawU[i] - rawUA, rawP[i] - rawPA));
     const aimSm = aim.map(i => Math.hypot(ptsAll[i][0], ptsAll[i][1]));
     return {

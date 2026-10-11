@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="aw-version" content="4.18">
+<meta name="aw-version" content="4.19">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#000000">
 <link rel="manifest" href="manifest.json">
@@ -81,8 +81,8 @@
   .lowDot[hidden] { display:none; }
   .cardTitle { display:flex; align-items:baseline; justify-content:space-between; gap:8px; font-size:14px; font-weight:600; margin-bottom:10px; }
   .cardTitle small { font-size:12px; font-weight:400; color:var(--txt-3); }
-  .aimwrap { display:flex; justify-content:center; position:relative; }
-  #aim, #aimSet, #cmpAim { width:100%; height:auto; aspect-ratio:1; max-height:min(78vw,340px); }
+  .aimwrap { display:flex; justify-content:center; align-items:center; width:100%; position:relative; }
+  #aim, #aimSet, #cmpAim { width:min(100%,340px); max-width:100%; height:auto; aspect-ratio:1/1; display:block; flex:0 0 auto; }
   .target { position:relative; background:var(--surface); border:1px solid var(--line); border-radius:20px; padding:8px 8px 4px; }
   .tclock { position:absolute; left:16px; top:12px; font:500 11px/1 var(--font); letter-spacing:.12em; text-transform:uppercase; color:var(--txt-2); }
   .tlClock { position:absolute; right:16px; top:10px; font:600 15px/1 var(--num); color:var(--acc); letter-spacing:.02em; }
@@ -441,6 +441,11 @@ const C = {txt:'#fff', txt2:'#9a9aa2', txt3:'#5c5c64', grid:'rgba(255,255,255,.0
 const FONT = "'Geist', system-ui, sans-serif", MONO = "'Barlow Condensed', sans-serif";
 const HEART = '<svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M178,40c-20.65,0-38.73,8.88-50,23.89C116.73,48.88,98.65,40,78,40a62.07,62.07,0,0,0-62,62c0,70,103.790,126.66,108.21,129a8,8,0,0,0,7.58,0C136.21,228.66,240,172,240,102A62.07,62.07,0,0,0,178,40Z"/></svg>';
 const TRASH = '<svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z"/></svg>';
+function esNum(n, digits) {
+  if (!Number.isFinite(n)) return '–';
+  const q = Math.round(n * 10 ** digits) / 10 ** digits;
+  return (digits ? q.toFixed(digits) : String(q)).replace('.', ',');
+}
 function setMetric(id, value, unit = '') {
   const el = document.getElementById(id); el.textContent = value;
   if (unit && value !== '–') { const u = document.createElement('small'); u.textContent = unit.trim(); el.appendChild(u); }
@@ -605,7 +610,7 @@ const sets = shots => {
   return out;
 };
 const setLabel = (S,i) => S[i].every(j=>data.shots[j].candidate) ? 'Calibración' : 'Set '+S.slice(0,i+1).filter(g=>g.some(j=>!data.shots[j].candidate)).length;
-const grade = v => !Number.isFinite(v) ? ['#5c5c64','–'] : v >= 80 ? ['#FF8A1F', 'A'] : v < 70 ? ['#F0506E', 'E'] : ['rgba(255,255,255,.85)', 'C'];
+const grade = v => !Number.isFinite(v) ? ['#5c5c64','–'] : v >= 80 ? ['#FF8A1F', 'A'] : v < 70 ? ['#F0506E', 'E'] : ['#E8E8EE', 'C'];
 const avg = a => { a=a.filter(Number.isFinite); return a.length ? a.reduce((x,y)=>x+y,0)/a.length : NaN; };
 const sd = a => { const m = avg(a); return Math.sqrt(avg(a.map(x => (x - m) ** 2))); };
 // radio de apuntado: con brujula en GRADOS reales (yaw + inclinacion); sin ella, estimacion MOA
@@ -675,7 +680,6 @@ function show(v) {
 function render() {
   if (anim != null && (view !== 'Shot' || playbackKey !== shotViewKey())) stopPlayback();
   ['Shot', 'Set'].forEach(v => document.getElementById('v' + v).dataset.empty = !data?.shots.length);
-  document.getElementById('trend').parentElement.style.display = data?.shots.length ? '' : 'none';
   document.getElementById('deleteCurrent').hidden = !data?.shots.length;
   document.getElementById('returnCurrent').style.display = historyMode ? 'block' : 'none';
   document.getElementById('prev').disabled = document.getElementById('next').disabled = !data?.shots.length;
@@ -798,9 +802,9 @@ function renderSession(S) {
   const avgDot = document.getElementById('sAvgDot'); if (avgDot) avgDot.hidden = !(Number.isFinite(a) && a < 70);
   const gauge = document.getElementById('stabGauge'); if (gauge) gauge.innerHTML = gaugeSvg(Number.isFinite(a) ? a : 0);
   const ars = real.map(aimRadius).filter(Number.isFinite);
-  setMetric('sSd', ars.length ? avg(ars).toFixed(1) : '–', aimUnit(real[0] || data.shots[0]));
+  setMetric('sSd', ars.length ? esNum(avg(ars), 1) : '–', aimUnit(real[0] || data.shots[0]));
   const secs = real.map(s => s.draw_ms != null ? (s.draw_ms + 1200) / 1000 : null).filter(Number.isFinite);
-  setMetric('sShot', secs.length ? (secs.reduce((x, y) => x + y, 0) / secs.length).toFixed(1) : '–', 's');
+  setMetric('sShot', secs.length ? esNum(secs.reduce((x, y) => x + y, 0) / secs.length, 1) : '–', 's');
   const best = sc.length ? Math.max(...sc) : NaN;
   setMetric('sBest', Number.isFinite(best) ? Math.round(best) : '–');
   const bestEl = document.getElementById('sBest'); if (bestEl) bestEl.style.color = Number.isFinite(best) && best >= 80 ? 'var(--acc)' : 'var(--txt)';
@@ -829,11 +833,11 @@ function renderShot(S, si) {
   mS.style.color = scored && s.aim_score >= 80 ? 'var(--acc)' : 'var(--txt)';
   const dot = document.getElementById('mScoreDot'); if (dot) dot.hidden = !scored || s.aim_score >= 70;
   const at = s.draw_ms != null ? s.draw_ms + 1200 : aimTime(s), ar = aimRadius(s);
-  setMetric('mPeak', at == null ? '–' : (at / 1000).toFixed(1), 's');
-  setMetric('mInstab', ar == null ? '–' : ar.toFixed(2), aimUnit(s));
+  setMetric('mPeak', at == null ? '–' : esNum(at / 1000, 1), 's');
+  setMetric('mInstab', ar == null ? '–' : esNum(ar, 2), aimUnit(s));
   setMetric('mSettle', s.settle_ms == null ? '–' : s.settle_ms, 'ms');
   setMetric('mHr', s.hr_bpm > 0 ? Math.round(s.hr_bpm) : '–');
-  setMetric('mG', Number.isFinite(s.peak_mg) ? (s.peak_mg / 1000).toFixed(1) : '–', 'g');
+  setMetric('mG', Number.isFinite(s.peak_mg) ? esNum(s.peak_mg / 1000, 1) : '–', 'g');
   const legend = document.getElementById('tLegend'); if (legend) legend.innerHTML = '';
   document.getElementById('tip').textContent = tips(s).join(' · ');
   syncTimeline(null);
@@ -870,9 +874,9 @@ async function calibrateFromShot() {
 function tips(s) {
   const t = [];
   if (!(s.tilt_x?.length || s.pos_x?.length || s.traj_x?.length)) t.push('Sin traza');
-  if (s.instab_mg > 250) t.push(`Temblor ${(s.instab_mg / 1000).toFixed(2)} g`);
+  if (s.instab_mg > 250) t.push(`Temblor ${esNum(s.instab_mg / 1000, 2)} g`);
   if (s.settle_ms != null && s.settle_ms > 400) t.push(`${s.settle_ms} ms`);
-  if (s.peak_mg > 5000) t.push(Number.isFinite(s.peak_mg) ? (s.peak_mg / 1000).toFixed(1) + ' g' : '');
+  if (s.peak_mg > 5000) t.push(Number.isFinite(s.peak_mg) ? esNum(s.peak_mg / 1000, 1) + ' g' : '');
   if (Number.isFinite(s.aim_score) && s.aim_score < 60) t.push('Estabilidad baja');
   return t.filter(Boolean);
 }
@@ -946,10 +950,13 @@ function renderProgress() {
       (sessions.length > 1 ? ` · última <b>${scores[scores.length - 1]}</b> ${d > 0 ? '▲' + d : d < 0 ? '▼' + (-d) : 'sin cambio'}` : '');
     if (bars && sessions.length > 1) {
       const shown = sessions.slice(-8), base = scores.slice(-8);
-      const lo = Math.min(...base);
+      const lo = Math.min(...base), hi = Math.max(...base);
+      const floor = Math.max(0, lo - 4);
+      const ceil = hi - lo < 15 ? Math.min(100, hi + 4) : 100;
+      const span = Math.max(8, ceil - floor);
       bars.innerHTML = shown.map((s, i) => {
         const v = base[i], last = i === shown.length - 1;
-        const h = Math.max(8, ((v - lo) / (Math.max(8, 100 - lo))) * 72 + 8);
+        const h = Math.round(8 + ((v - floor) / span) * 72);
         return `<div><b style="${last ? 'color:var(--acc)' : ''}">${v}</b><i class="${last ? 'last' : ''}" style="height:${h}px"></i><small>${fmtDate(s.id).split(',')[0]}</small></div>`;
       }).join('');
     } else if (bars) bars.innerHTML = '';
@@ -1199,7 +1206,7 @@ function renderSet(S, si) {
     const mark = s.candidate || Score.points(s.result?.value) == null ? '' : `<span class="trendScore">${s.result.value}</span>`;
     const tone = !s.candidate && Number.isFinite(s.aim_score) && s.aim_score >= 80 ? 'var(--acc)' : 'var(--txt)';
     return `<div class="arrowline" data-jump="${j}"><span class="chip dotChip" style="--c:${ACOLORS[k % 6]}">${k + 1}</span>` +
-      mark + `<b style="color:${tone}">${s.candidate?'Cal':s.aim_score ?? '–'}</b><span class="r">${Number.isFinite(s.peak_mg)?(s.peak_mg / 1000).toFixed(1)+' g':'–'} · ${s.settle_ms ?? '–'} ms</span></div>`;
+      mark + `<b style="color:${tone}">${s.candidate?'Cal':s.aim_score ?? '–'}</b><span class="r">${Number.isFinite(s.peak_mg)?esNum(s.peak_mg / 1000, 1)+' g':'–'} · ${s.settle_ms ?? '–'} ms</span></div>`;
   }).join('');
   document.getElementById('setArrows').onclick = e => {
     const j = e.target.closest('[data-jump]')?.dataset.jump;
@@ -1216,10 +1223,20 @@ function rr(x, X, y, w2, h2, r) {
   x.arcTo(X, y + h2, X, y, r); x.arcTo(X, y, X + w2, y, r); x.closePath();
 }
 function canvasFit(c, h) {
-  const dpr = devicePixelRatio || 1, w = c.clientWidth || 320;
-  c.width = w * dpr; c.height = (h || w) * dpr;
+  const dpr = devicePixelRatio || 1;
+  if (h == null) {
+    const side = Math.max(1, Math.round(c.clientWidth || 320));
+    c.style.height = side + 'px';
+    const px = Math.max(1, Math.round(side * dpr));
+    c.width = px; c.height = px;
+    const x = c.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0);
+    x.clearRect(0, 0, side, side);
+    return [x, side];
+  }
+  const w = c.clientWidth || 320;
+  c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
   const x = c.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0);
-  x.clearRect(0, 0, w, h || w);
+  x.clearRect(0, 0, w, h);
   return [x, w];
 }
 function niceStep(maxDeg) {
@@ -1269,7 +1286,13 @@ function gaugeSvg(v) {
 function syncTimeline(ms) {
   const fill = document.getElementById('tlFill'), clock = document.getElementById('aimClock');
   if (fill) fill.style.width = ms == null ? '0' : Math.max(0, Math.min(100, (ms - -6000) / 7200 * 100)) + '%';
-  if (clock) clock.textContent = ms == null ? '' : (ms < 0 ? '−' : '+') + (Math.abs(ms) / 1000).toFixed(1).replace('.', ',') + ' s';
+  if (clock) {
+    if (ms == null) clock.textContent = '';
+    else {
+      const body = esNum(Math.abs(ms) / 1000, 1);
+      clock.textContent = (body === '0,0' ? '' : (ms < 0 ? '−' : '+')) + body + ' s';
+    }
+  }
 }
 const yawOf = s => s.yaw_c?.length ? s.yaw_c : (s.yaw_deg || []);  // yw2 = azimut compensado por inclinacion; yw = atan2 crudo
 const hasCompass = s => { const y=yawOf(s); return y.length>2 && (Math.max(...y)-Math.min(...y))>0.5; };
@@ -1311,6 +1334,8 @@ function aimPath(x,pts,P,hold,release=0) {
   const flush = () => { if (run) { x.save(); x.globalAlpha = run.a; x.lineWidth = run.w; x.strokeStyle = run.c; x.stroke(); x.restore(); run = null; } };
   for(let i=1;i<pts.length;i++) {
     const a0=P(pts[i-1]), a1=P(pts[i]);
+    const step = Math.hypot(pts[i][0] - pts[i-1][0], pts[i][1] - pts[i-1][1]);
+    if (pts[i][2] > 0 && Math.hypot(pts[i-1][0], pts[i-1][1]) < 0.35 && step > 1.2) { flush(); continue; }
     const c=col(pts[i-1][2]);
     const follow = pts[i-1][2] >= release;
     const prev=i>1?P(pts[i-2]):a0;
@@ -1529,8 +1554,8 @@ function drawTrend(S) {
     const s=data.shots[i], v=values[i], valid=Number.isFinite(v), label=(s.candidate?'Candidato':'Flecha')+' '+(j+1);
     const marked=!s.candidate && s.result && Score.points(s.result.value) != null ? s.result.value : '';
     const scoreBit=anyValue ? `<b class="trendScore">${marked || '·'}</b>` : '';
-    const sec = s.draw_ms != null ? ((s.draw_ms + 1200) / 1000).toFixed(1) + ' s' : '';
-    const rad = aimRadius(s); const radTxt = rad == null ? '' : rad.toFixed(1) + '°';
+    const sec = s.draw_ms != null ? esNum((s.draw_ms + 1200) / 1000, 1) + ' s' : '';
+    const rad = aimRadius(s); const radTxt = rad == null ? '' : esNum(rad, 1) + '°';
     const meta = [sec, radTxt].filter(Boolean).join(' · ');
     const aria=`${name}, ${label}${marked ? ', valor ' + marked : ''}, ${valid ? Math.round(v) + (candidates ? ' mG' : ' de estabilidad') : 'sin estabilidad'}`;
     return `<button class="trendRow" data-shot="${i}" aria-current="${i===cur}" aria-label="${aria}" style="--c:${barOf(v)};--n:${numOf(v)}">`+

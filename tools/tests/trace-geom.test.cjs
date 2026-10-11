@@ -55,3 +55,25 @@ test('field traces keep the aim and cut the follow-through down to a short tick'
     assert.ok(aim.length >= 4, i);
   }
 });
+
+test('the whole aim fits the scale and a wild follow-through stays a short tick', () => {
+  const n = 30;
+  const t = Array.from({length: n}, (_, i) => -(n - 1 - i) * 50);
+  const yaw = t.map((_, i) => 20 + (i === 4 ? 0.6 : 0));
+  const pitch = t.map((_, i) => (i === 4 || i === 5) ? 3.5 : 0);
+  const shot = {
+    yaw_c: yaw, pitch_deg: pitch, trace_t: t, dt: 50,
+    tilt_x: t.map(() => 0), tilt_y: t.map(() => 0),
+    post_yaw: [80, 120], post_pitch: [40, 55], post_t: [40, 90]
+  };
+  const view = Trace.view(shot);
+  const aim = view.pts.filter(p => p[2] <= 0);
+  const maxAim = Math.max(...aim.map(p => Math.hypot(p[0], p[1])));
+  assert.ok(maxAim > 2, maxAim);
+  assert.ok(view.scale + 1e-6 >= maxAim, `scale ${view.scale} aim ${maxAim}`);
+  const follow = view.pts.filter(p => p[2] > 0);
+  assert.equal(follow.length, 1);
+  const r = Math.hypot(follow[0][0], follow[0][1]);
+  assert.ok(r <= 0.75 + 1e-6, r);
+  assert.ok(r < view.scale * 0.5, `tick on the rim ${r} scale ${view.scale}`);
+});

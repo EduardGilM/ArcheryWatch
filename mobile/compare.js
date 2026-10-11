@@ -54,13 +54,13 @@ const Compare = {
   text(v, digits, suffix) {
     const n = this.round(v, digits);
     if (n == null) return '–';
-    return (digits ? n.toFixed(digits) : String(n)) + (suffix || '');
+    return ((digits ? n.toFixed(digits) : String(n)).replace('.', ',')) + (suffix || '');
   },
   deltaText(a, b, digits, suffix) {
     if (!Number.isFinite(a) || !Number.isFinite(b)) return '–';
     const n = this.round(b - a, digits);
     if (n == null || n === 0) return '0';
-    const body = digits ? Math.abs(n).toFixed(digits) : String(Math.abs(n));
+    const body = (digits ? Math.abs(n).toFixed(digits) : String(Math.abs(n))).replace('.', ',');
     return (n > 0 ? '+' : '-') + body + (suffix || '');
   },
   round(v, digits) {

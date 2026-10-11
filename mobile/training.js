@@ -163,7 +163,8 @@ render=function() {
   originalRender();const s=displayedSession(), shot=data?.shots[cur];
   const groups=s?sets(s.shots).filter(g=>!s.shots[g[0]].candidate):[], ordinal=groups.findIndex(g=>s.shots[g[0]].set_id===s.currentSet);
   const setNumber=ordinal>=0?ordinal+1:groups.length+1;
-  $('trainingStatus').textContent=historyMode?'Guardada':s?`${s.mode?s.mode+' · ':''}${s.paused?'Pausa':s.resting?'Descanso':'Set '+setNumber} · ${s.shots.filter(x=>x.set_id===(s.currentSet??1)).length}${s.target?'/'+s.target:''}`:'Equipo';
+  $('trainingPanel').hidden=!!historyMode;
+  $('trainingStatus').textContent=s?`${s.mode?s.mode+' · ':''}${s.paused?'Pausa':s.resting?'Descanso':'Set '+setNumber} · ${s.shots.filter(x=>x.set_id===(s.currentSet??1)).length}${s.target?'/'+s.target:''}`:'Equipo';
   if(!historyMode && s?.calibrating)$('trainingStatus').textContent=`Calibración · ${s.calibrationCount||0}`;
   $('calibrationMode').hidden=historyMode||!s?.live||!s.watchId||!window.Native?.command;
   $('calibrationMode').textContent=s?.calibrating?'Salir de calibración':'Iniciar calibración';
@@ -179,7 +180,7 @@ render=function() {
     $('setState').textContent=(s?.ends||[]).some(e=>e.id===shot.set_id)?'Cerrado':'Abierto';
     const group=sets(data.shots).find(g=>g.includes(cur)), stats=Training.summary(group.map(i=>data.shots[i]));
     const eq=[...new Set([shot.profile,s?.profile,s?.bow,s?.arrows].filter(Boolean))].join(' · ');
-    const rhythm=stats.rhythm==null?'':` · ${stats.rhythm.toFixed(1)} s`;
+    const rhythm=stats.rhythm==null?'':` · ${stats.rhythm.toFixed(1).replace('.', ',')} s`;
     $('shotContext').textContent=`${shot.candidate?'Candidato':shot.manual?'Manual':eq||'–'}${rhythm}`;
     const select=$('compareShot'), selected=select.value;
     select.innerHTML='<option value="">Ninguna</option>'+group.filter(i=>i!==cur).map(i=>`<option value="${i}">Flecha ${group.indexOf(i)+1}</option>`).join('');select.value=selected;
@@ -200,6 +201,6 @@ renderProgress=function() {
   select.innerHTML=keys.map(k=>`<option value="${escapeText(k)}">${escapeText(PROFILE_LABELS[k]||k)}</option>`).join('');if(keys.includes(old))select.value=old;
   const filtered=L.map(s=>({...s,shots:s.shots.filter(a=>Training.key({profile:a.profile||s.profile,metric:a.metric||s.metric})===select.value)}));
   const week=filtered.filter(s=>s.id>=Date.now()-7*864e5).reduce((n,s)=>n+s.shots.filter(a=>!a.candidate).length,0), total=filtered.reduce((n,s)=>n+s.shots.filter(a=>!a.candidate).length,0);
-  $('volume').textContent=`${week} · 7 d · ${total}`;
+  $('volume').textContent=`${week} flechas · 7 días · ${total} total`;
   const list=store.list;try {store.list=()=>filtered.map(s=>({...s,shots:s.shots.filter(a=>Number.isFinite(a.aim_score))}));originalProgress();}finally{store.list=list;}
 };

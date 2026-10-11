@@ -407,7 +407,7 @@ test('scoring the set stores the value and a repeated watch event leaves it', ()
   const kept = p.run("store.list()[0].shots.find(s=>s.t_ms===1000).result.value");
   assert.equal(kept, 'X');
   p.run("view='Session';render()");
-  assert.match(p.elements.get('sessionScoreLine').textContent, /19 puntos · media 6\.3 · 1 X · 0 dieces/);
+  assert.match(p.elements.get('sessionScoreLine').textContent, /19 puntos · media 6,3 · 1 X · 0 dieces/);
   assert.match(p.elements.get('sessionScoreInsight').textContent, /al menos 4/);
   assert.match(p.elements.get('setList').innerHTML, /<details/);
   assert.match(p.elements.get('setList').innerHTML, /19 pts/);
@@ -419,4 +419,27 @@ test('scoring the set stores the value and a repeated watch event leaves it', ()
   assert.equal(p.run("store.list()[0].shots.find(s=>s.t_ms===1000).result"), undefined);
   p.run("historyMode=true;histId=curSess.id;curSess=null;scoreArrow(2000,'8')");
   assert.equal(p.run("historyMode && store.list()[0].shots.find(s=>s.t_ms===2000).result.value"), '8');
+});
+
+test('the session view stays hidden under other tabs and visible when it is empty', () => {
+  const p = page();
+  p.run("document.getElementById('trend');document.getElementById('vSession')");
+  const session = p.elements.get('vSession');
+  p.elements.get('trend').parentElement = session;
+  p.run("show('Shot')");
+  assert.equal(session.style.display, 'none');
+  p.run("show('Progress')");
+  assert.equal(session.style.display, 'none');
+  p.run("data={shots:[]};show('Session')");
+  assert.equal(session.style.display, 'flex');
+});
+
+test('a stretched aim box is stored as a square bitmap', () => {
+  const p = page();
+  const aim = p.elements.get('aim');
+  aim.clientWidth = 300;
+  aim.clientHeight = 180;
+  p.run("aimDrawnKey='';render()");
+  assert.equal(aim.width, aim.height);
+  assert.equal(aim.style.height, '300px');
 });

@@ -52,7 +52,7 @@ const Score = {
   totalsLine(t) {
     if (!t || !t.scored) return '';
     const avg = Math.round(t.avg * 10) / 10;
-    const avgText = Number.isInteger(avg) ? String(avg) : avg.toFixed(1);
+    const avgText = Number.isInteger(avg) ? String(avg) : avg.toFixed(1).replace('.', ',');
     const tens = t.ten === 1 ? '1 diez' : t.ten + ' dieces';
     return t.score + ' puntos · media ' + avgText + ' · ' + t.x + ' X · ' + tens;
   },
@@ -85,7 +85,7 @@ const Score = {
     if (!g || !g.n) return '';
     const bits = [g.n + ' flecha' + (g.n === 1 ? '' : 's')];
     if (g.aim_n) bits.push('estabilidad ' + Math.round(g.aim));
-    if (g.shot_n) bits.push('tiro ' + g.shot_s.toFixed(1) + ' s');
+    if (g.shot_n) bits.push('tiro ' + g.shot_s.toFixed(1).replace('.', ',') + ' s');
     if (g.settle_n) bits.push('estabilización ' + Math.round(g.settle) + ' ms');
     if (g.hr_n) bits.push('pulso ' + Math.round(g.hr));
     return g.label + ' · ' + bits.join(' · ');
