@@ -33,6 +33,7 @@ function page() {
   run(fs.readFileSync(path.join(root, 'mobile/backup.js'), 'utf8'));
   run(fs.readFileSync(path.join(root, 'mobile/score.js'), 'utf8'));
   run(fs.readFileSync(path.join(root, 'mobile/compare.js'), 'utf8'));
+  run(fs.readFileSync(path.join(root, 'mobile/goals.js'), 'utf8'));
   const html = fs.readFileSync(path.join(root, 'mobile/index.html'), 'utf8');
   const scripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map(m => m[1]).filter(s => s.trim());
   scripts.forEach(s => new vm.Script(s));
@@ -367,6 +368,21 @@ test('history compares two sessions with the score pad metrics and degree traces
   assert.match(p.elements.get('cmpAimCap').textContent, /Flecha 2/);
   assert.equal(p.run('cmpMetric'), 'score');
   assert.notEqual(p.run('cmpA'), p.run('cmpB'));
+});
+
+test('progress shows the current week bar and keeps the goal in awGoals', () => {
+  const p = page();
+  p.run(`localStorage.setItem('awGoals', JSON.stringify({arrows:10, sessions:null, average:null, stability:null}));
+    store.save([{id:Date.now(), shots:[0,1,2,3].map(t => ({t_ms:t, aim_score:80, candidate:false}))}]);
+    show('Progress');`);
+  assert.match(p.elements.get('goalBars').innerHTML, /4\/10 · 40%/);
+  assert.match(p.elements.get('goalBars').innerHTML, /width:40%/);
+  assert.match(p.elements.get('goalStreak').textContent, /1 día seguido/);
+  assert.match(p.elements.get('title').textContent, /Progreso/);
+  p.run("document.getElementById('goalArrows').value='12'; document.getElementById('goalAverage').value='8,5'; saveGoals();");
+  assert.deepEqual(JSON.parse(p.run("localStorage.getItem('awGoals')")), {arrows: 12, sessions: null, average: 8.5, stability: null});
+  assert.match(p.elements.get('notice').textContent, /Objetivos guardados/);
+  assert.match(p.elements.get('goalBars').innerHTML, /Media/);
 });
 
 test('scoring the set stores the value and a repeated watch event leaves it', () => {
