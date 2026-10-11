@@ -125,9 +125,19 @@
 
   /* Traza */
   #trace { width:100%; height:150px; display:block; }
-  #tLegend, #legend, #legend2 { display:flex; gap:6px 14px; flex-wrap:wrap; font-size:12px; color:var(--txt-2); margin-top:10px; }
-  #tLegend span, #legend span, #legend2 span { display:inline-flex; align-items:center; gap:6px; }
-  #tLegend i, #legend i, #legend2 i { display:inline-block; width:8px; height:8px; border-radius:50%; }
+  #tLegend, #legend, #legend2, #cmpLegend { display:flex; gap:6px 14px; flex-wrap:wrap; font-size:12px; color:var(--txt-2); margin-top:10px; }
+  #tLegend span, #legend span, #legend2 span, #cmpLegend span { display:inline-flex; align-items:center; gap:6px; }
+  #tLegend i, #legend i, #legend2 i, #cmpLegend i { display:inline-block; width:8px; height:8px; border-radius:50%; }
+  .cmpPick { display:grid; gap:8px; }
+  .cmpPick select { width:100%; min-height:44px; border-radius:12px; border:1px solid var(--line-2); background:var(--surface-2); padding:0 12px; }
+  .cmpTable { display:grid; grid-template-columns:minmax(76px,1.2fr) repeat(3,minmax(0,1fr)); margin-top:12px; }
+  .cmpTable span, .cmpTable b { padding:7px 4px; border-bottom:1px solid var(--line); font-size:12.5px; min-width:0; }
+  .cmpTable b { font-family:var(--mono); font-weight:500; text-align:right; }
+  .cmpTable .cmpH { color:var(--txt-3); font-size:11px; font-weight:500; text-align:right; }
+  .cmpGear { margin-top:8px; display:grid; gap:4px; font-size:12.5px; color:var(--txt-2); }
+  .cmpGear b { color:var(--txt); font-weight:600; }
+  #cmpAim { width:min(82vw,330px); height:min(82vw,330px); }
+  #cmpSets { width:100%; height:160px; }
   #tLegend .hr { margin-left:auto; color:var(--txt); font-family:var(--mono); font-size:12px; }
   #tLegend .hr svg { width:13px; height:13px; color:var(--danger); }
   #tip { display:flex; gap:10px; align-items:flex-start; background:var(--surface); border:1px solid var(--line); border-radius:12px;
@@ -263,6 +273,32 @@
 </main>
 <main id="vHistory" style="display:none">
   <div class="card list" id="histList"></div>
+  <button type="button" class="btnSecondary" id="openCompare" onclick="openCompare()">Comparar sesiones</button>
+  <section class="card" id="compareCard" hidden>
+    <div class="cardTitle">Lado a lado<small>Δ = segunda − primera</small></div>
+    <div class="cmpPick">
+      <select id="cmpA" aria-label="Primera sesión" onchange="cmpSide('A', this.value)"></select>
+      <select id="cmpB" aria-label="Segunda sesión" onchange="cmpSide('B', this.value)"></select>
+    </div>
+    <div class="tracebar" id="cmpQuick">
+      <button type="button" onclick="cmpQuick('today')">Hoy vs anterior</button>
+      <button type="button" onclick="cmpQuick('score')">Vs mejor puntuación</button>
+      <button type="button" onclick="cmpQuick('aim')">Vs mejor estabilidad</button>
+    </div>
+    <div class="cmpTable" id="cmpTable"></div>
+    <div class="cmpGear" id="cmpGear"></div>
+    <div class="cardTitle" style="margin-top:14px">Por set</div>
+    <div class="tracebar" id="cmpMetricBar">
+      <button type="button" id="cmpMetricAim" onclick="cmpMetricSet('aim')">Estabilidad</button>
+      <button type="button" id="cmpMetricScore" onclick="cmpMetricSet('score')">Puntuación</button>
+    </div>
+    <canvas id="cmpSets"></canvas>
+    <div id="cmpLegend"></div>
+    <div class="cardTitle" style="margin-top:14px">Apunte en grados</div>
+    <div class="cmpPick"><select id="cmpArrow" aria-label="Flecha a comparar" onchange="cmpArrowSet(this.value)"></select></div>
+    <div class="aimwrap"><canvas id="cmpAim"></canvas></div>
+    <p class="caption" id="cmpAimCap"></p>
+  </section>
   <button type="button" class="btnSecondary" id="exportData" onclick="exportBackup()">Exportar datos</button>
 </main>
 <main id="vSet" style="display:none">
@@ -286,6 +322,7 @@
 <script src="trace-geom.js"></script>
 <script src="backup.js"></script>
 <script src="score.js"></script>
+<script src="compare.js"></script>
 <script>
 const GAP_MS = 60000, ACOLORS = ['#5ab0f0', '#ff7a1a', '#b58cf0', '#3ecf8e', '#e8c14e', '#ef5a5a'];
 const C = {txt:'#eceef1', txt2:'#a0a4ad', txt3:'#6f747d', grid:'rgba(255,255,255,.06)', acc:'#ff7a1a', prev:'#5d6571', aim:'#e6e8eb', rel:'#ef5a5a', ref:'#5ab0f0'};
@@ -790,6 +827,142 @@ function renderHistory() {
       show('Session');
     }
   };
+  const comparable = store.list().filter(s => (s.shots || []).some(x => x && !x.candidate));
+  const open = document.getElementById('openCompare');
+  if (open) open.hidden = comparable.length < 2;
+  const card = document.getElementById('compareCard');
+  if (!card) return;
+  if (comparable.length < 2) cmpOpen = false;
+  card.hidden = !cmpOpen;
+  if (cmpOpen) renderCompare(comparable);
+}
+let cmpOpen = false, cmpA = null, cmpB = null, cmpArrow = 'mean', cmpMetric = 'aim';
+function openCompare() {
+  const rows = Compare.usable(store.list());
+  if (rows.length < 2) return;
+  cmpOpen = !cmpOpen;
+  if (cmpOpen && (cmpA == null || cmpB == null)) {
+    const pick = Compare.pick(rows, 'today');
+    if (pick) { cmpA = pick[0]; cmpB = pick[1]; }
+  }
+  render();
+  if (cmpOpen) document.getElementById('compareCard').scrollIntoView?.({block: 'start'});
+}
+function cmpSide(side, value) {
+  const id = Number(value);
+  if (side === 'A') cmpA = id; else cmpB = id;
+  renderCompare(Compare.usable(store.list()));
+}
+function cmpQuick(kind) {
+  const pick = Compare.pick(store.list(), kind, cmpA);
+  if (!pick) {
+    notice(kind === 'score' ? 'Ninguna otra sesión tiene puntuación.' : 'No hay otra sesión para comparar.');
+    return;
+  }
+  cmpA = pick[0]; cmpB = pick[1]; cmpOpen = true;
+  render();
+}
+function cmpMetricSet(metric) { cmpMetric = metric === 'score' ? 'score' : 'aim'; renderCompare(Compare.usable(store.list())); }
+function cmpArrowSet(value) { cmpArrow = value === 'mean' ? 'mean' : String(Number(value)); renderCompare(Compare.usable(store.list())); }
+function cmpOptionLabel(s) {
+  const n = Compare.real(s).length;
+  return fmtDate(s.id) + ' · ' + n + (n === 1 ? ' flecha' : ' flechas');
+}
+function renderCompare(sessions) {
+  const rows = sessions || Compare.usable(store.list());
+  if (cmpA == null || !rows.some(s => s.id === cmpA) || cmpB == null || !rows.some(s => s.id === cmpB)) {
+    const pick = Compare.pick(rows, 'today');
+    if (!pick) return;
+    cmpA = pick[0]; cmpB = pick[1];
+  }
+  const A = rows.find(s => s.id === cmpA), B = rows.find(s => s.id === cmpB);
+  const fill = (id, selected) => {
+    const el = document.getElementById(id);
+    el.innerHTML = rows.map(s => `<option value="${s.id}">${escapeText(cmpOptionLabel(s))}</option>`).join('');
+    el.value = String(selected);
+  };
+  fill('cmpA', cmpA); fill('cmpB', cmpB);
+  const same = cmpA === cmpB;
+  const face = same ? [] : Compare.rows(A, B);
+  document.getElementById('cmpTable').innerHTML = same ? '' : `<span></span><span class="cmpH">${escapeText(fmtDate(A.id))}</span><span class="cmpH">${escapeText(fmtDate(B.id))}</span><span class="cmpH">Δ</span>` +
+    face.filter(r => r.key !== 'gear').map(r => `<span>${r.label}</span><b>${escapeText(r.a)}</b><b>${escapeText(r.b)}</b><b>${escapeText(r.d)}</b>`).join('');
+  const gear = face.find(r => r.key === 'gear');
+  document.getElementById('cmpGear').innerHTML = !gear ? '' : `<b>Material${gear.d === 'Igual' ? ' · igual' : ''}</b><span>${escapeText(gear.a)}</span><span>${escapeText(gear.b)}</span>`;
+  document.getElementById('cmpMetricAim').className = cmpMetric === 'aim' ? 'sel' : '';
+  document.getElementById('cmpMetricScore').className = cmpMetric === 'score' ? 'sel' : '';
+  const maxArrows = Math.max(Compare.real(A).length, Compare.real(B).length, 0);
+  const arrow = document.getElementById('cmpArrow');
+  const choices = ['mean', ...Array.from({length: maxArrows}, (_, i) => String(i))];
+  if (!choices.includes(cmpArrow)) cmpArrow = 'mean';
+  arrow.innerHTML = choices.map(v => `<option value="${v}">${v === 'mean' ? 'Flecha media' : 'Flecha ' + (Number(v) + 1)}</option>`).join('');
+  arrow.value = cmpArrow;
+  document.getElementById('cmpLegend').innerHTML = `<span><i style="background:${Compare.COLORS[0]}"></i>${escapeText(fmtDate(A.id))}</span><span><i style="background:${Compare.COLORS[1]}"></i>${escapeText(fmtDate(B.id))}</span>`;
+  if (same) {
+    document.getElementById('cmpAimCap').textContent = 'Elige dos sesiones distintas.';
+    document.getElementById('cmpLegend').innerHTML = '';
+    for (const id of ['cmpSets', 'cmpAim']) {
+      const c = document.getElementById(id);
+      c.getContext('2d').clearRect(0, 0, c.width, c.height);
+    }
+    return;
+  }
+  drawCmpSets(Compare.setSeries(A), Compare.setSeries(B), cmpMetric);
+  const pathA = Compare.arrowPath(A, cmpArrow), pathB = Compare.arrowPath(B, cmpArrow);
+  drawCmpAim([pathA, pathB]);
+  const missing = [pathA ? '' : 'La primera no tiene brújula.', pathB ? '' : 'La segunda no tiene brújula.'].filter(Boolean);
+  document.getElementById('cmpAimCap').textContent = missing.join(' ') || (cmpArrow === 'mean' ? 'Flecha media, en grados.' : 'Flecha ' + (Number(cmpArrow) + 1) + ', en grados.');
+}
+function drawCmpSets(seriesA, seriesB, metric) {
+  const c = document.getElementById('cmpSets');
+  const [x, w] = canvasFit(c, 160);
+  const h = 160, top = 16, base = h - 22, left = 28, right = 8;
+  const n = Math.max(seriesA.length, seriesB.length, 1);
+  const max = metric === 'score' ? 10 : 100;
+  const X = i => left + (n === 1 ? (w - left - right) / 2 : i * ((w - left - right) / (n - 1)));
+  const Y = v => base - (Math.max(0, Math.min(max, v)) / max) * (base - top);
+  x.strokeStyle = 'rgba(255,255,255,.08)'; x.lineWidth = 1; x.beginPath();
+  x.moveTo(left, top); x.lineTo(left, base); x.lineTo(w - right, base); x.stroke();
+  x.fillStyle = '#6f747d'; x.font = '10px ' + FONT;
+  x.fillText(metric === 'score' ? '10' : '100', 2, top + 4);
+  x.fillText('0', 8, base);
+  [seriesA, seriesB].forEach((series, si) => {
+    x.beginPath();
+    let moved = false;
+    series.forEach((row, i) => {
+      const v = row[metric];
+      if (!Number.isFinite(v)) { moved = false; return; }
+      const px = X(i), py = Y(v);
+      if (!moved) { x.moveTo(px, py); moved = true; } else x.lineTo(px, py);
+    });
+    x.strokeStyle = Compare.COLORS[si]; x.lineWidth = 2; x.stroke();
+    series.forEach((row, i) => {
+      if (!Number.isFinite(row[metric])) return;
+      x.beginPath(); x.arc(X(i), Y(row[metric]), 3, 0, 7); x.fillStyle = Compare.COLORS[si]; x.fill();
+    });
+  });
+  x.fillStyle = '#6f747d'; x.font = '10px ' + FONT;
+  for (let i = 0; i < n; i++) x.fillText(String(i + 1), X(i) - 3, h - 6);
+}
+function drawCmpAim(paths) {
+  const c = document.getElementById('cmpAim');
+  const [x, w] = canvasFit(c);
+  const present = (paths || []).map(p => p && p.length > 1 ? p : null);
+  const span = Math.max(1, ...present.filter(Boolean).flatMap(p => p.flatMap(q => [Math.abs(q[0]), Math.abs(q[1])])));
+  const esc = span * 1.25;
+  const P = q => [w / 2 + Math.max(-1, Math.min(1, q[0] / esc)) * w * .42, w / 2 + Math.max(-1, Math.min(1, q[1] / esc)) * w * .42];
+  x.strokeStyle = 'rgba(255,255,255,.08)'; x.lineWidth = 1; x.beginPath();
+  x.arc(w / 2, w / 2, w * .42, 0, 7);
+  x.moveTo(w * .08, w / 2); x.lineTo(w * .92, w / 2);
+  x.moveTo(w / 2, w * .08); x.lineTo(w / 2, w * .92);
+  x.stroke();
+  present.forEach((p, i) => {
+    if (!p) return;
+    x.beginPath();
+    p.forEach((q, k) => { const pt = P(q); k ? x.lineTo(pt[0], pt[1]) : x.moveTo(pt[0], pt[1]); });
+    x.strokeStyle = Compare.COLORS[i]; x.lineWidth = 2; x.stroke();
+  });
+  x.fillStyle = '#6f747d'; x.font = '11px ' + FONT;
+  x.fillText('±' + (Math.round(esc * 10) / 10) + '°', 8, 16);
 }
 function askConfirm(message) {  // dialogo propio: los confirm() nativos rompen la estetica en el APK
   return new Promise(resolve => {

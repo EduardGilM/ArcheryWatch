@@ -32,6 +32,7 @@ function page() {
   run(fs.readFileSync(path.join(root, 'mobile/trace-geom.js'), 'utf8'));
   run(fs.readFileSync(path.join(root, 'mobile/backup.js'), 'utf8'));
   run(fs.readFileSync(path.join(root, 'mobile/score.js'), 'utf8'));
+  run(fs.readFileSync(path.join(root, 'mobile/compare.js'), 'utf8'));
   const html = fs.readFileSync(path.join(root, 'mobile/index.html'), 'utf8');
   const scripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map(m => m[1]).filter(s => s.trim());
   scripts.forEach(s => new vm.Script(s));
@@ -339,6 +340,33 @@ test('a closed end opens the score pad once and a repeat does not', () => {
   assert.equal(p.run('view'), 'Shot');
   p.run("historyMode=true;histId=1;view='History';liveEvent({sid:'test',eid:4,kind:'set',reason:'walk',state:{resting:false,currentSet:2,target:0,paused:false,ends:[{id:1,reason:'walk'},{id:2,reason:'walk'}]}})");
   assert.equal(p.run('view'), 'History');
+});
+
+test('history compares two sessions with the score pad metrics and degree traces', () => {
+  const p = page();
+  const now = Date.now(), older = now - 3 * 864e5;
+  p.run(`const yaw=(base)=>[10,12,14,16,18].map(v=>v+base);
+    const shot=(t,aim,value,set_id,base)=>({t_ms:t,set_id,aim_score:aim,draw_ms:2000,settle_ms:180,hr_bpm:80,candidate:false,result:{value},yaw_c:yaw(base),pitch_deg:[0,1,0,1,0],trace_t:[-400,-300,-200,-100,-40]});
+    store.save([
+      {id:${older},mode:'Indoor',bow:'Recurvo',arrows:'X10',shots:[shot(1000,70,'8',1,0),shot(4000,60,'7',2,0)]},
+      {id:${now},mode:'Indoor',bow:'Recurvo',arrows:'ACE',shots:[shot(1000,90,'X',1,5),shot(2000,88,'10',1,5),shot(5000,84,'9',2,5)]}
+    ]);
+    show('History');openCompare();`);
+  const table = p.elements.get('cmpTable').innerHTML;
+  assert.match(table, /Flechas/);
+  assert.match(table, /Puntos/);
+  assert.match(table, />15</);
+  assert.match(table, />29</);
+  assert.match(table, /Estabilidad/);
+  assert.match(p.elements.get('cmpGear').innerHTML, /Recurvo/);
+  assert.match(p.elements.get('cmpAimCap').textContent, /grados/);
+  assert.equal(p.elements.get('compareCard').hidden, false);
+  const strokes = p.elements.get('cmpAim').getContext('2d').calls.filter(c => c[0] === 'stroke').map(c => c[1]);
+  assert.ok(strokes.includes('#5ab0f0') && strokes.includes('#ff7a1a'), JSON.stringify(strokes));
+  p.run("cmpArrowSet('1');cmpMetricSet('score');cmpQuick('aim')");
+  assert.match(p.elements.get('cmpAimCap').textContent, /Flecha 2/);
+  assert.equal(p.run('cmpMetric'), 'score');
+  assert.notEqual(p.run('cmpA'), p.run('cmpB'));
 });
 
 test('scoring the set stores the value and a repeated watch event leaves it', () => {
