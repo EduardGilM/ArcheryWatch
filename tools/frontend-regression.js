@@ -6,7 +6,7 @@ async () => {
   const reset = () => { localStorage.removeItem('awSessions'); curSess = null; liveStart(); };
   try {
     reset(); liveShot(shot()); show('Session'); show('Set'); liveEnd();
-    check(!document.querySelectorAll('#setList [data-jump],#setArrows [data-jump],#legend span').length && !trendBars.length, 'Vaciar elimina flechas, sets, leyendas y zonas del gráfico');
+    check(!document.querySelectorAll('#setList details,#setArrows [data-jump],#legend span,#trend [data-shot]').length, 'Vaciar elimina flechas, sets, leyendas y barras');
     show('Shot'); step(1); play();
     check(cur === 0 && document.getElementById('play').disabled && document.getElementById('mScore').textContent === '–', 'Tiro vacío no reproduce ni navega');
     show('History'); document.querySelector('#histList [data-sess]').click(); show('Set'); backToCurrent(); show('Set');
@@ -35,7 +35,7 @@ async () => {
     store.save([]); render();
     check(!document.getElementById('progSum').textContent && document.getElementById('progress').style.display === 'none', 'Progreso vacío no conserva resumen ni gráfica');
     data = {shots:Array.from({length:200},(_,i)=>({...sample,t_ms:i*2000}))}; show('Session');
-    check(trendBars.length === 200 && trendBars.every(b => b.w > 0), 'Gráfico de sesiones largas conserva barras válidas');
+    check(document.querySelectorAll('#trend [data-shot]').length === 200 && [...document.querySelectorAll('#trend .trendRow')].every(b=>b.offsetHeight>=44), 'Sesiones largas conservan una fila legible por flecha');
     check(!document.querySelectorAll('[id="aimwrap"]').length, 'Sin identificadores duplicados de la diana');
     reset(); liveShot(shot(1000)); liveShot(shot(3000)); liveShot(shot(70001));
     window.confirm = () => false; removeSelection('shot');

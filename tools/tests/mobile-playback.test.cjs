@@ -193,8 +193,10 @@ test('recorded calibration candidates show orientation when integrated position 
 
 test('calibration bars compare impulse peaks instead of missing stability scores', () => {
   const p=page(), shots=require('./fixtures/candidates-20261002.json');
-  p.run(`const heights=[];const drawBar=rr;rr=(...a)=>{heights.push(a[4]);drawBar(...a)};data={shots:[${JSON.stringify(shots[3])},${JSON.stringify(shots[4])}]};cur=0;show('Session')`);
-  assert.ok(p.run('heights[0]>heights[1]*5'),p.run('JSON.stringify(heights)'));
+  p.run(`data={shots:[${JSON.stringify(shots[3])},${JSON.stringify(shots[4])}]};cur=0;show('Session')`);
+  const widths=[...p.elements.get('trend').innerHTML.matchAll(/width:([\d.]+)%/g)].map(m=>+m[1]);
+  assert.equal(widths.length,2);
+  assert.ok(widths[0]>widths[1]*5,JSON.stringify(widths));
 });
 
 test('the visual onset does not interpolate aiming coordinates through the impulse', () => {
