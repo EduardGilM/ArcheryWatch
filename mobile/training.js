@@ -115,6 +115,7 @@ window.liveEvent = e => {
   const L=store.list();let i=L.findIndex(s=>s.watchId===e.sid);
   if(i<0) { const epoch=Number(e.sid.split('-')[0])*1000;L.push(Training.create(e,Number.isFinite(epoch)&&epoch>1e12?epoch:Math.max(Date.now(),...L.map(s=>s.id+1))));i=L.length-1; }
   if(e.eid<=(L[i].lastEvent??-1))return;
+  const openEnds=new Set((L[i].ends||[]).map(x=>x.id));
   if(e.kind==='start')L.forEach((s,j)=>{if(i!==j)s.live=false;});
   const follow=!data?.shots.length||cur===data.shots.length-1, s=Training.apply(L[i],e);L[i]=s;store.save(L);
   if(e.kind==='calibration')notice(e.result);  // se calibra desde el reloj; aqui solo informamos
@@ -122,8 +123,23 @@ window.liveEvent = e => {
     if(s.live) {curSess=s;data={shots:s.shots};live=true;if(follow)cur=Math.max(0,s.shots.length-1);}
     else if(curSess?.watchId===e.sid) {curSess=null;data={shots:[]};live=false;cur=0;}
   } else if(histId===s.id) {data={shots:s.shots};}
-  liveStatus('');if(!historyMode && (e.kind==='start'||e.kind==='end'))show('Session');else render();
+  liveStatus('');
+  if(offerEndScore(s, openEnds)) show('Set');
+  else if(!historyMode && (e.kind==='start'||e.kind==='end'))show('Session');
+  else render();
 };
+function offerEndScore(s, openEnds) {
+  const closed=(s.ends||[]).filter(e=>e && !openEnds.has(e.id));
+  if(!closed.length || historyMode || !s.live) return false;
+  const id=closed[closed.length-1].id;
+  const idx=s.shots.findIndex(x=>x.set_id===id && !x.candidate);
+  if(idx<0) return false;
+  cur=idx;
+  const blank=s.shots.find(x=>x.set_id===id && !x.candidate && Score.points(x.result?.value)==null);
+  scoreFocus=(blank||s.shots[idx]).t_ms;
+  notice('Tanda cerrada. Anota el valor de las flechas.');
+  return true;
+}
 const originalRemove=removeSelection;
 removeSelection=function(kind,id=historyMode?histId:curSess?.id) {
   const s=store.list().find(s=>s.id===id);

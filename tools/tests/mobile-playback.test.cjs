@@ -325,6 +325,22 @@ test('export packs the aw* storage for Android and reports a failed download', (
   assert.equal(p.run("document.getElementById('notice').textContent"), '');
 });
 
+test('a closed end opens the score pad once and a repeat does not', () => {
+  const p = page();
+  p.run(`curSess.ends=[];curSess.target=0;curSess.mode='Libre';curSess.live=true;curSess.lastEvent=1;store.save([curSess]);view='Shot';
+    liveEvent({sid:'test',eid:2,kind:'set',reason:'walk',state:{resting:true,currentSet:1,target:0,paused:false,mode:'Libre',ends:[{id:1,reason:'walk'}]}})`);
+  assert.equal(p.run('view'), 'Set');
+  assert.match(p.elements.get('notice').textContent, /Tanda cerrada/);
+  assert.match(p.elements.get('notice').textContent, /valor de las flechas/);
+  assert.match(p.elements.get('setScore').innerHTML, /Flecha 1/);
+  assert.equal(p.run("store.list()[0].ends[0].reason"), 'walk');
+  assert.equal(p.run("store.list()[0].shots[0].t_ms"), 1000);
+  p.run("view='Shot';liveEvent({sid:'test',eid:3,kind:'state',state:{resting:true,currentSet:1,target:0,paused:false,ends:[{id:1,reason:'walk'}]}})");
+  assert.equal(p.run('view'), 'Shot');
+  p.run("historyMode=true;histId=1;view='History';liveEvent({sid:'test',eid:4,kind:'set',reason:'walk',state:{resting:false,currentSet:2,target:0,paused:false,ends:[{id:1,reason:'walk'},{id:2,reason:'walk'}]}})");
+  assert.equal(p.run('view'), 'History');
+});
+
 test('scoring the set stores the value and a repeated watch event leaves it', () => {
   const p = page();
   p.run(`fixture.draw_ms=3000;fixture.settle_ms=180;fixture.hr_bpm=90;fixture.set_id=1;

@@ -6,7 +6,7 @@ import Toybox.Attention;
 import Toybox.Lang;
 
 class TrainingState {
-    public var target=3, currentSet=1, resting=false, paused=false, feedback=true, mode="Indoor";
+    public var target=3, currentSet=1, resting=false, paused=false, feedback=true, walkClose=true, mode="Indoor";
     public var profile="Recurvo", rows=[], ends=[], started=0, lastCommand=0, commandClient="";
     public var calibration=false, threshold=3200.0, pose=null;
     public var app;
@@ -16,15 +16,15 @@ class TrainingState {
     function nextId() {var id=currentSet;for(var i=0;i<rows.size();i++){if(rows[i][1]>id){id=rows[i][1];}}return id+1;}
     function displaySet() {var n=0,prev=-1;for(var i=0;i<rows.size();i++){if(rows[i][1]<0){continue;}if(rows[i][1]!=prev){n++;prev=rows[i][1];}if(prev==currentSet){return n;}}return n+1;}
     function snapshot() { return {"target"=>target,"currentSet"=>currentSet,"resting"=>resting,"paused"=>paused,"ends"=>ends,"profile"=>profile,"mode"=>mode,"metric"=>2,"calibrating"=>calibration,"calibrationCount"=>rows.size()-total()}; }
-    function record() { return {"sid"=>app.sid,"started"=>started,"state"=>snapshot(),"rows"=>rows,"lastCommand"=>lastCommand,"commandClient"=>commandClient,"feedback"=>feedback}; }
+    function record() { return {"sid"=>app.sid,"started"=>started,"state"=>snapshot(),"rows"=>rows,"lastCommand"=>lastCommand,"commandClient"=>commandClient,"feedback"=>feedback,"walkClose"=>walkClose}; }
     function save() { try { Application.Storage.setValue("training",record()); } catch (e instanceof Lang.Exception) {app.note("No se pudo guardar la sesion", "save", false);} }
     function restore(saved) {
         var preferences=Application.Storage.getValue("preferences");
-        if(preferences instanceof Lang.Dictionary){target=preferences["target"];profile=preferences["profile"];feedback=preferences["feedback"];if(preferences.hasKey("mode")){mode=preferences["mode"];}}
+        if(preferences instanceof Lang.Dictionary){target=preferences["target"];profile=preferences["profile"];feedback=preferences["feedback"];if(preferences.hasKey("mode")){mode=preferences["mode"];}if(preferences.hasKey("walkClose")){walkClose=preferences["walkClose"];}}
         if(saved instanceof Lang.Dictionary) {
             app.sid=saved["sid"]; started=saved["started"]; rows=saved["rows"]; lastCommand=saved["lastCommand"];
             var s=saved["state"] as Lang.Dictionary; target=s["target"];currentSet=s["currentSet"];resting=s["resting"];paused=s["paused"];ends=s["ends"];profile=s["profile"];if(s.hasKey("mode")){mode=s["mode"];}
-            feedback=saved["feedback"];if(saved.hasKey("commandClient")){commandClient=saved["commandClient"];}
+            feedback=saved["feedback"];if(saved.hasKey("walkClose")){walkClose=saved["walkClose"];}if(saved.hasKey("commandClient")){commandClient=saved["commandClient"];}
             if(s.hasKey("calibrating")){calibration=s["calibrating"];}
         }
         if(profile.equals("Recurvo / arco") || profile.equals("Recurvo / cuerda")){profile="Recurvo";}  // perfiles antiguos -> tipo de arco
@@ -35,13 +35,16 @@ class TrainingState {
         pose=Application.Storage.getValue("pose:"+profile);
     }
     function buzz() { if(feedback && Attention has :vibrate) { Attention.vibrate([new Attention.VibeProfile(45,resting?240:80)]); } }
+    function buzzSoft() { if(feedback && Attention has :vibrate) { Attention.vibrate([new Attention.VibeProfile(25,120)]); } }
     function emit(kind, payload) { payload["kind"]=kind; payload["state"]=snapshot(); app.emit(payload); WatchUi.requestUpdate(); }
     function close(reason,id) {
         if(id==0){id=currentSet;}var n=0;
         for(var i=0;i<rows.size();i++){if(rows[i][1]==id){n++;}}
         for(var j=0;j<ends.size();j++){if(ends[j]["id"]==id){return;}}
         if(n==0 || (target>0 && n<target)){return;}ends.add({"id"=>id,"reason"=>reason});if(id==currentSet){resting=true;}
-        emit("set",{});buzz();
+        emit("set",{"reason"=>reason});
+        if(reason.equals("walk")){buzzSoft();if(app has :note){app.note("Tanda cerrada", "walk", false);}}
+        else {buzz();}
     }
     function add(msg) {
         var candidate=msg.hasKey("candidate") && msg["candidate"];
@@ -105,6 +108,7 @@ class TrainingState {
             threshold=nextThreshold;calibration=false;emit("calibration",{"result"=>"Umbral manual: "+threshold.toNumber()});return;
         }
         if(action.equals("feedback")){feedback=!feedback;}
+        if(action.equals("walkClose")){walkClose=!walkClose;}
         if(action.equals("profile")) { if(!validProfile(value)){return;}profile=value;var v=Application.Storage.getValue("threshold:"+profile);threshold=v==null?3200.0:v;pose=Application.Storage.getValue("pose:"+profile);calibration=false; }
         if(action.equals("manual")) { add({"t"=>System.getTimer()-app.t0,"manual"=>true,"score"=>0,"peak"=>0,"instab"=>0,"settle"=>-1});return; }
         if(action.equals("undo") || action.equals("remove")) {
@@ -117,7 +121,7 @@ class TrainingState {
         if(action.equals("probe")) { app.runSensorProbe();return; }
         if(action.equals("finish")) { app.finishActivity();return; }
         if(action.equals("exit")) {System.exit();return;}
-        if(action.equals("mode") || action.equals("target") || action.equals("profile") || action.equals("deleteProfile") || action.equals("feedback")){Application.Storage.setValue("preferences",{"target"=>target,"profile"=>profile,"feedback"=>feedback,"mode"=>mode});}
+        if(action.equals("mode") || action.equals("target") || action.equals("profile") || action.equals("deleteProfile") || action.equals("feedback") || action.equals("walkClose")){Application.Storage.setValue("preferences",{"target"=>target,"profile"=>profile,"feedback"=>feedback,"walkClose"=>walkClose,"mode"=>mode});}
         emit("state",{});
     }
 }
@@ -154,6 +158,6 @@ function openMoreMenu() {
     var items=[["Anadir flecha manual","manual",0],["Reabrir tanda","reopen",0],
         ["Modo Indoor (3 flechas)","mode","Indoor"],["Modo Outdoor (6 flechas)","mode","Outdoor"],["Modo libre","mode","Libre"],
         ["Recurvo","profile","Recurvo"],["Compuesto","profile","Compuesto"],
-        ["Vibracion: "+(t.feedback?"si":"no"),"feedback",0],["Diagnostico sensores","probe",0],[t.calibration?"Salir calibracion":"Calibrar desde movil","calibrate",0]];
+        ["Vibracion: "+(t.feedback?"si":"no"),"feedback",0],["Cerrar al recoger: "+(t.walkClose?"si":"no"),"walkClose",0],["Diagnostico sensores","probe",0],[t.calibration?"Salir calibracion":"Calibrar desde movil","calibrate",0]];
     pushMenu(items);
 }

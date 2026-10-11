@@ -29,8 +29,8 @@ function load(file,klass,names){
   }
   return env;
 }
-const watch=()=>load('watchapp/source/ArcheryApp.mc','ArcheryApp',['configureRate','onData','sample','magYaw','rememberRR','rrRmssd','preStable','trigger','finalize','finalizeBody','mark','note','clearNote','noticeLive','decimate','subArray','diffArray','mean','pstdev','clamp']);
-const training=()=>{const s=load('watchapp/source/Training.mc','TrainingState',['count','total','nextId','snapshot','close','validProfile','add','act']);s.app={mark(){}};s.events=[];s.emit=(kind,payload)=>s.events.push({kind,...payload});s.buzz=()=>{};return s;};
+const watch=()=>load('watchapp/source/ArcheryApp.mc','ArcheryApp',['configureRate','walkReset','stepsNow','considerWalk','onData','sample','magYaw','rememberRR','rrRmssd','preStable','trigger','finalize','finalizeBody','mark','note','clearNote','noticeLive','decimate','subArray','diffArray','mean','pstdev','clamp']);
+const training=()=>{const s=load('watchapp/source/Training.mc','TrainingState',['count','total','nextId','snapshot','close','buzzSoft','validProfile','add','act','restore']);s.app={mark(){}};s.events=[];s.buzzes=[];s.emit=(kind,payload)=>s.events.push({kind,...payload});s.buzz=()=>s.buzzes.push('hard');s.buzzSoft=()=>s.buzzes.push('soft');return s;};
 let failures=0;
 function test(name,run){try{run();console.log('PASS',name);}catch(e){failures++;console.error('FAIL',name,e.message);}}
 test('Sensor batches preserve 10 ms intervals after days of watch uptime',()=>{
@@ -260,5 +260,95 @@ test('Send failures are status notices and clear when the queue moves again',()=
   assert.equal(s.notice,null);assert.equal(s.sending,true);
   s.note('TX:radio','tx',false);s.onTxAck();
   assert.equal(s.notice,null);assert.equal(s.sending,false);
+});
+function gait(s, until, stepMs, pulseMs, from = 0) {
+  const dt = 1000 / s.rateA;
+  for (let t = from; t <= until; t += dt) {
+    const on = stepMs > 0 && (Math.round(t) % stepMs) < pulseMs;
+    s.sample(0, 0, on ? 1700 : 1000, t);
+  }
+}
+function libreWalker() {
+  const s = watch(), state = training();
+  state.target = 0; state.mode = 'Libre'; state.walkClose = true; state.rows = [[100, 1]]; state.currentSet = 1;
+  s.training = state; s.configureRate(100); s.lastShot = 0;
+  return [s, state];
+}
+test('Walking to the target closes a free end once, with a soft buzz and no extra arrow', () => {
+  const [s, state] = libreWalker();
+  gait(s, 9000, 500, 120);
+  assert.equal(state.events.filter(e => e.kind === 'shot').length, 0);
+  assert.equal(state.ends.length, 1);
+  assert.equal(state.ends[0].reason, 'walk');
+  assert.equal(state.resting, true);
+  assert.deepEqual(state.buzzes, ['soft']);
+  assert.equal(state.events.filter(e => e.kind === 'set').length, 1);
+  assert.equal(state.events.at(-1).reason, 'walk');
+  const before = state.buzzes.length;
+  gait(s, 16000, 500, 120, 9000);
+  assert.equal(state.ends.length, 1);
+  assert.equal(state.buzzes.length, before);
+});
+test('Standing still does not close the end', () => {
+  const [s, state] = libreWalker();
+  gait(s, 12000, 0, 0);
+  assert.equal(state.ends.length, 0);
+  assert.equal(state.resting, false);
+  assert.equal(state.buzzes.length, 0);
+  assert.equal(state.events.filter(e => e.kind === 'shot').length, 0);
+});
+test('Repositioning or an irregular shift does not close the end', () => {
+  const [s, state] = libreWalker();
+  for (let t = 0; t <= 12000; t += 10) s.sample(0, 0, t < 2200 && t % 500 < 120 ? 1700 : 1000, t);
+  assert.equal(state.ends.length, 0, 'short cadence');
+  const [shift, shifted] = libreWalker();
+  const bursts = [400, 700, 1800, 2600, 5000, 8200];
+  for (let t = 0; t <= 12000; t += 10) shift.sample(0, 0, bursts.some(p => t >= p && t < p + 150) ? 1700 : 1000, t);
+  assert.equal(shifted.ends.length, 0, 'irregular');
+  assert.equal(shifted.events.filter(e => e.kind === 'shot').length, 0);
+});
+test('An indoor end with fewer arrows than the mode stays open while walking', () => {
+  const s = watch(), state = training();
+  state.target = 3; state.mode = 'Indoor'; state.walkClose = true; state.rows = [[100, 1], [200, 1]];
+  s.training = state; s.configureRate(100); s.lastShot = 0;
+  gait(s, 12000, 500, 120);
+  assert.equal(state.ends.length, 0);
+  assert.equal(state.resting, false);
+  assert.equal(state.buzzes.length, 0);
+});
+test('Walk-to-collect can be turned off and an already closed end is not buzzed again', () => {
+  const [s, state] = libreWalker();
+  state.walkClose = false;
+  gait(s, 12000, 500, 120);
+  assert.equal(state.ends.length, 0);
+  assert.equal(state.buzzes.length, 0);
+  const [again, closed] = libreWalker();
+  closed.ends = [{id: 1, reason: 'target'}]; closed.resting = true;
+  gait(again, 12000, 500, 120);
+  assert.equal(closed.ends.length, 1);
+  assert.equal(closed.buzzes.length, 0);
+  const pref = training();
+  assert.equal(pref.walkClose, true);
+  pref.act('walkClose', 0);
+  assert.equal(pref.walkClose, false);
+  assert.equal(pref.Application.Storage.getValue('preferences').walkClose, false);
+  pref.restore(null);
+  assert.equal(pref.walkClose, false);
+  pref.act('walkClose', 0);
+  assert.equal(pref.Application.Storage.getValue('preferences').walkClose, true);
+});
+test('A flat step counter delays the close; a rising one confirms the shorter walk', () => {
+  const [flat, flatState] = libreWalker();
+  flat.Toybox.ActivityMonitor = {getInfo: () => ({steps: 20})};
+  gait(flat, 7000, 500, 120);
+  assert.equal(flatState.ends.length, 0, 'six seconds with a flat pedometer');
+  gait(flat, 11000, 500, 120, 7000);
+  assert.equal(flatState.ends.length, 1, 'eight seconds of cadence still closes');
+  const [up, upState] = libreWalker();
+  let steps = 0;
+  up.Toybox.ActivityMonitor = {getInfo() { steps += 5; return {steps}; }};
+  gait(up, 7000, 500, 120);
+  assert.equal(upState.ends.length, 1);
+  assert.equal(upState.ends[0].reason, 'walk');
 });
 process.exitCode=failures?1:0;

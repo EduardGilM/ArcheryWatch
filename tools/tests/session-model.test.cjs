@@ -18,4 +18,10 @@ const replaced=T.apply(repeated,{kind:'state',eid:12,state:{paused:true,shots:[{
 assert.equal(replaced.shots[0].result.value,'X');
 assert.equal(replaced.shots[0].result.impact.x,0.1);
 assert.equal(replaced.paused,true);
+const walked=T.apply(replaced,{kind:'set',eid:13,reason:'walk',state:{resting:true,ends:[{id:replaced.shots[0].set_id,reason:'walk'}],currentSet:replaced.shots[0].set_id,live:true}});
+assert.equal(walked.shots[0].result.value,'X');
+assert.equal(walked.shots[0].result.impact.x,0.1);
+assert.equal(walked.ends.at(-1).reason,'walk');
+assert.equal(walked.resting,true);
+assert.equal(walked.shots.length,replaced.shots.length);
 console.log('Session model: replay, removal, stable sets, close/reopen, split/merge, manual metrics, versions PASS');

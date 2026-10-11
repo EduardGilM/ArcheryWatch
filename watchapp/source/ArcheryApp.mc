@@ -1,3 +1,4 @@
+import Toybox.ActivityMonitor;
 import Toybox.ActivityRecording;
 import Toybox.Application;
 import Toybox.Communications;
@@ -242,6 +243,16 @@ class ArcheryApp extends Application.AppBase {
     private var REFRAC = 1500.0;     // ms refractarios
     private var POST = 1200.0;       // ms de ventana post-suelta (latencia flecha->pantalla)
     private var SETTLE_MG = 300.0;   // umbral de asentamiento
+    // Marcha hacia la diana, solo con el acelerómetro ya muestreado (nada de otro listener).
+    // Umbrales conservadores: validar en campo (muñeca real, FR165, recolocar vs caminar).
+    private var WALK_MG = 180.0;     // pico de la magnitud respecto a la gravedad lenta
+    private var WALK_LO = 380.0;     // periodo mínimo: ~2,6 Hz
+    private var WALK_HI = 700.0;     // periodo máximo: ~1,4 Hz (banda 1,5–2,5 Hz con holgura)
+    private var WALK_N = 10;         // intervalos seguidos dentro de banda
+    private var WALK_MS = 6000.0;    // y al menos 6 s de ese ritmo
+    private var WALK_LONG = 8000.0;  // si el podómetro existe y no sube, exigir 8 s
+    private var WALK_STEPS = 4;      // pasos de ActivityMonitor que confirman antes de los 8 s
+    private var WALK_GAP = 2500.0;   // no cerrar en el follow-through del último tiro
 
     // Ventana causal de 500 ms, dimensionada a la frecuencia del sensor.
     private var gBuf = new [50] as Array<Float>;
@@ -292,6 +303,8 @@ class ArcheryApp extends Application.AppBase {
     private var inShot = false;
     private var tShot = 0.0;
     private var lastShot = -100000.0;
+    // Cadencia de marcha: se actualiza en la rama ya diezmada (~20 Hz), sin sensor extra.
+    private var wSm=0.0, wArmed=false, wTop=0.0, wTopT=0.0, wLast=-1.0, wStart=-1.0, wCount=0, stepMark=-1, stepRead=-1, stepReadAt=-100000.0, walkTried=false;
     private var peak = 0.0, shotBaseline = 1000.0;
     private var settleT = -1.0;
     // snapshot pre-suelta congelado al detectar
@@ -361,6 +374,58 @@ class ArcheryApp extends Application.AppBase {
         gSum=1000.0*gravityN;gbSumX=0.0;gbSumY=0.0;gbSumZ=1000.0*gravityN;
         vx_=0.0;vy_=0.0;vz_=0.0;pxx=0.0;pyy=0.0;pzz=0.0;stillT=0;lastMoveT=-100000.0;basisOk=false;refOk=false;
         gCount=0;gi=0;rn=0;ri=0;dec=0;drawStart=-1.0;drawQuiet=0.0;motionSince=-1.0;motionSteps=0;
+        walkReset();
+    }
+
+    private function walkReset() as Void {
+        wSm=0.0; wArmed=false; wTop=0.0; wTopT=0.0; wLast=-1.0; wStart=-1.0; wCount=0;
+        stepMark=-1; stepRead=-1; stepReadAt=-100000.0; walkTried=false;
+    }
+
+    // El podómetro del sistema, si el FR165 lo expone. Leerlo no enciende un sensor;
+    // si no está, la cadencia del acelerómetro basta. Hay que confirmarlo en el reloj.
+    private function stepsNow() as Number {
+        if (!(Toybox has :ActivityMonitor)) { return -1; }
+        try {
+            var info = Toybox.ActivityMonitor.getInfo();
+            if (info != null && info has :steps && info.steps != null) { return info.steps; }
+        } catch (es instanceof Lang.Exception) { }
+        return -1;
+    }
+
+    private function considerWalk(mag as Float, t as Float) as Void {
+        if (training == null || training.paused || training.calibration || training.resting || inShot) {
+            if (wCount > 0 || wArmed) { walkReset(); }
+            return;
+        }
+        if (wSm < 1.0) { wSm = mag; return; }
+        var hp = mag - wSm;
+        wSm = wSm + 0.15 * (mag - wSm);
+        if (hp > WALK_MG) {
+            if (!wArmed || hp > wTop) { wArmed = true; wTop = hp; wTopT = t; }
+            return;
+        }
+        if (!wArmed) { return; }
+        var peakT = wTopT;
+        wArmed = false; wTop = 0.0;
+        if (wLast < 0.0) { wLast = peakT; return; }
+        var dt = peakT - wLast;
+        wLast = peakT;
+        if (dt >= WALK_LO && dt <= WALK_HI) {
+            if (wCount == 0) { wStart = peakT - dt; stepMark = stepsNow(); }
+            wCount += 1;
+        } else {
+            wCount = 0; wStart = -1.0; stepMark = -1; walkTried = false;
+            return;
+        }
+        if (walkTried || wCount < WALK_N || t - wStart < WALK_MS || t - lastShot < WALK_GAP) { return; }
+        if (training has :walkClose && !training.walkClose) { return; }
+        if (t - stepReadAt >= 1000.0) { stepRead = stepsNow(); stepReadAt = t; }
+        var known = stepMark >= 0 && stepRead >= 0;
+        if (known && stepRead - stepMark < WALK_STEPS && t - wStart < WALK_LONG) { return; }
+        walkTried = true;
+        if (!(training has :close)) { return; }
+        training.close("walk", 0);
     }
 
     public function onStart(state as Dictionary?) as Void {
@@ -703,6 +768,7 @@ class ArcheryApp extends Application.AppBase {
             if (rn < rx.size()) { rn += 1; }
             if (inShot && pn < 24) { postMag[pn] = mag; postX[pn] = x; postY[pn] = y;postTimes[pn]=t-tShot;
                 postPX[pn]=pxx*0.9807;postPY[pn]=pyy*0.9807;postPZ[pn]=pzz*0.9807; pn += 1; }
+            considerWalk(mag, t);
         }
         dec = (dec + 1) % stride;
     }
@@ -755,6 +821,7 @@ class ArcheryApp extends Application.AppBase {
     }
 
     private function trigger(t as Float) as Void {
+        walkReset();  // la suelta no es un paso; la marcha se cuenta desde el siguiente reposo
         // congelar métricas pre-suelta: los anillos aún contienen el apuntado
         var start=drawStart>lastShot+POST?drawStart:lastShot+POST;
         if(motionSince>=0 && t-motionSince<6000){ start=motionSince-200; if(start<0){start=0.0;} }  // la apertura REAL: ultimo episodio de movimiento (colocar flecha no cuenta)
