@@ -37,6 +37,7 @@ class ArcheryView extends WatchUi.View {
         var cy = dc.getHeight() / 2;
         dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_BLACK);
         dc.clear();
+        drawLink(dc);
         if (_app.err != null) {
             dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
             dc.drawText(cx, cy - 30, Graphics.FONT_SMALL, "ERROR", Graphics.TEXT_JUSTIFY_CENTER);
@@ -126,6 +127,12 @@ class ArcheryView extends WatchUi.View {
             dc.setColor(Graphics.COLOR_DK_GRAY, Graphics.COLOR_TRANSPARENT);
             dc.drawText(cx, yTime, Graphics.FONT_MEDIUM, (elapsed / 60).format("%02d") + ":" + (elapsed % 60).format("%02d"), Graphics.TEXT_JUSTIFY_CENTER);
         }
+    }
+
+    // Barra discreta: el móvil confirma con los ack que ya existen. Naranja si no llegan o la cola se llena.
+    private function drawLink(dc as Dc) as Void {
+        dc.setColor(_app.linkHot() ? Graphics.COLOR_ORANGE : Graphics.COLOR_DK_GRAY, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(dc.getWidth() / 2, 4, Graphics.FONT_XTINY, _app.linkLabel(), Graphics.TEXT_JUSTIFY_CENTER);
     }
 
     // Configuración recordada. START arranca; UP abre el cambio de modo y arco.
@@ -263,6 +270,7 @@ class ArcheryApp extends Application.AppBase {
     public var live = true; // false en la pantalla de START; onStart lo baja si no hay sesión a medias
     public var resumed = false;
     public var recoveryStep = null;
+    public var lastAckAt = 0;
     public var notice = null;
     private var noticeAt = 0;
     private var noticeHold = false;
@@ -1005,6 +1013,20 @@ class ArcheryApp extends Application.AppBase {
 
     public function finishPending() { if(inShot){try{finalize();}catch(e instanceof Lang.Exception){note("FIN:"+e.getErrorMessage(), "fin", false);inShot=false;}} }
     public function pending() { return qTail-qHead; }
+    // El ack del móvil (no el del transporte) es la prueba de que está guardando eventos.
+    public function linkFresh() { return lastAckAt > 0 && System.getTimer() - lastAckAt < 20000; }
+    public function linkHot() { var n = pending(); return n >= 15 || (n > 0 && !linkFresh()); }
+    public function linkLabel() {
+        var n = pending();
+        if (n >= 15) { return n.toString() + "/25"; }
+        if (n == 0) { return linkFresh() ? "ok" : "·"; }
+        return linkFresh() ? n.toString() : n.toString() + "!";
+    }
+    public function noteBacklog() {
+        var n = pending();
+        if (n >= 15) { note("Cola " + n.toString() + "/25", "backlog", true); }
+        else { clearNote("backlog"); }
+    }
     public function emit(msg) { msg["sid"]=sid;msg["eid"]=qTail;enqueue({"event"=>msg,"checkpoint"=>training.record()});training.save();flush(); }
     private function sendControl(key as String) as Void { emit({"kind"=>key,"state"=>training.snapshot()}); }
     public function onPhone(message as Communications.PhoneAppMessage) as Void {
@@ -1017,7 +1039,10 @@ class ArcheryApp extends Application.AppBase {
             if(first instanceof Dictionary && first.hasKey("event")){first=first["event"];}
             if(first instanceof Dictionary && first["sid"].equals(m["sid"])) {
                 Application.Storage.setValue("queueIndex",[qHead+1,qTail]);qHead++;Application.Storage.deleteValue("queued"+(qHead-1));sending=false;
+                lastAckAt = System.getTimer();
+                noteBacklog();
                 if(closing && qHead==qTail){exitPending=true;}else{flush();}
+                WatchUi.requestUpdate();
             }
         }
         if(m.hasKey("cid") && m.hasKey("sid")) {
@@ -1043,15 +1068,19 @@ class ArcheryApp extends Application.AppBase {
     }
     private function enqueue(msg as Dictionary) as Void {
         try {
+            var trimmed = false;
             if (qTail - qHead >= 25) {  // sin ACKs del movil la cola no puede crecer sin limite: se conserva lo reciente
                 for (var k = qHead; k < qTail - 10; k++) { Application.Storage.deleteValue("queued" + k); }
                 qHead = qTail - 10;
                 Application.Storage.setValue("queueIndex", [qHead, qTail]);
+                trimmed = true;
             }
             Application.Storage.setValue("queued" + qTail, msg);
             Application.Storage.setValue("queueIndex", [qHead, qTail + 1]);
             qTail += 1;
             clearNote("mem");
+            if (trimmed) { note("Cola recortada", "backlog", false); }
+            else { noteBacklog(); }
         } catch (e instanceof Lang.Exception) { note("Memoria de envio llena", "mem", true); }
     }
 

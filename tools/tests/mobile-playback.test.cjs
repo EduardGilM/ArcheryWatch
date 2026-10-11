@@ -370,6 +370,24 @@ test('history compares two sessions with the score pad metrics and degree traces
   assert.notEqual(p.run('cmpA'), p.run('cmpB'));
 });
 
+test('the link chip shows whether the watch is connected, the last event and the queue', () => {
+  const p = page();
+  assert.deepEqual(JSON.parse(p.run('JSON.stringify(linkLabel(null))')), {state: 'off', text: 'Sin reloj'});
+  const on = JSON.parse(p.run("JSON.stringify(linkLabel({connected:true, status:'Receptor listo', pending:2, commands:1, receivedAt:0}))"));
+  assert.equal(on.state, 'on');
+  assert.match(on.text, /^Reloj/);
+  assert.match(on.text, /3 pend\./);
+  const off = JSON.parse(p.run("JSON.stringify(linkLabel({connected:false, status:'Reloj sin conexión', pending:0, receivedAt:0}))"));
+  assert.equal(off.state, 'off');
+  assert.match(off.text, /Desconectado/);
+  const wait = JSON.parse(p.run("JSON.stringify(linkLabel({status:'Receptor listo', pending:16, commands:0, receivedAt:0}))"));
+  assert.equal(wait.state, 'wait');
+  assert.match(wait.text, /16 pend\./);
+  p.run("window.Native={diagnostics:()=>JSON.stringify({connected:true,status:'Receptor listo',pending:0,commands:0,receivedAt:0})}; refreshLink();");
+  assert.equal(p.elements.get('link').textContent, 'Reloj');
+  assert.equal(p.elements.get('link').dataset.state, 'on');
+});
+
 test('progress shows the current week bar and keeps the goal in awGoals', () => {
   const p = page();
   p.run(`localStorage.setItem('awGoals', JSON.stringify({arrows:10, sessions:null, average:null, stability:null}));

@@ -51,6 +51,11 @@
   header .btn { width:38px; height:38px; border-radius:12px; background:var(--surface); border:1px solid var(--line);
                 color:var(--txt); display:grid; place-items:center; }
   header .btn .ico { width:18px; height:18px; }
+  #link { display:inline-flex; align-items:center; align-self:flex-start; margin:0 16px 8px; max-width:calc(100% - 32px);
+          padding:4px 10px; border-radius:999px; background:var(--surface-2); color:var(--txt-3); font-size:12px; font-weight:500; }
+  #link::before { content:""; width:7px; height:7px; border-radius:50%; background:currentColor; margin-right:7px; flex-shrink:0; }
+  #link[data-state="on"] { color:var(--live); background:rgba(62,207,142,.1); }
+  #link[data-state="wait"] { color:var(--acc); background:var(--acc-soft); }
   #live { display:none; align-self:flex-start; margin:0 16px 10px; padding:4px 10px 4px 8px; border-radius:999px;
           background:rgba(62,207,142,.1); color:var(--live); font-size:12px; font-weight:500; }
   #live::before { content:""; display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--live);
@@ -217,6 +222,7 @@
     <button class="btn" id="next" aria-label="Flecha siguiente"><svg class="ico" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z"/></svg></button>
   </div>
 </header>
+<span id="link" data-state="off">Sin reloj</span>
 <span id="live">En vivo</span>
 <button id="returnCurrent" onclick="backToCurrent()">Volver a la sesión actual</button>
 <main id="vShot">
@@ -409,6 +415,25 @@ function persist() {
 }
 
 // puente desde el APK: el SDK ConnectIQ inyecta tiros del reloj en tiempo real
+function linkLabel(d) {
+  if (!d || typeof d !== 'object') return {state: 'off', text: 'Sin reloj'};
+  const connected = d.connected === true || /listo/i.test(String(d.status || ''));
+  const pending = Number(d.pending), commands = Number(d.commands);
+  const waiting = (Number.isFinite(pending) ? pending : 0) + (Number.isFinite(commands) ? commands : 0);
+  const at = Number(d.receivedAt);
+  const clock = Number.isFinite(at) && at > 0 ? new Date(at).toLocaleTimeString('es', {hour: '2-digit', minute: '2-digit'}) : '';
+  const text = (connected ? 'Reloj' : 'Desconectado') + (clock ? ' · ' + clock : '') + (waiting ? ' · ' + waiting + ' pend.' : '');
+  return {state: !connected ? 'off' : (waiting >= 15 ? 'wait' : 'on'), text};
+}
+function refreshLink() {
+  const el = document.getElementById('link');
+  if (!el) return;
+  let d = null;
+  try { if (window.Native && typeof Native.diagnostics === 'function') d = JSON.parse(Native.diagnostics() || 'null'); } catch (e) { d = null; }
+  const view = linkLabel(d);
+  el.dataset.state = view.state;
+  el.textContent = view.text;
+}
 window.liveStatus = s => {
   const b = document.getElementById('live');
   if (/error|sin garmin|sin conexi|pendiente|guardar|confirmar/i.test(s)) {
@@ -418,9 +443,11 @@ window.liveStatus = s => {
     b.style.display = live && !historyMode ? 'block' : 'none';
     b.textContent = 'En vivo' + (data?.shots.length ? ' · ' + data.shots.length : '');
   }
+  refreshLink();
 };
 // El buffer nativo se consume una vez: conservar las sesiones anteriores.
 window.liveStart = (sid = '') => {
+  refreshLink();
   if (sid && store.list().some(s => s.watchId === sid)) return;
   historyMode = false; histId = 0; cur = 0;
   const L = store.list();
@@ -446,6 +473,7 @@ window.liveEnd = (sid = '') => {
   historyMode = false; histId = 0;
   document.getElementById('live').style.display = 'none';
   show('Session');
+  refreshLink();
 };
 window.liveShot = ev => {
   if (!ev || !['t', 'score', 'peak', 'instab'].every(k => Number.isFinite(ev[k]))) return;
@@ -552,6 +580,9 @@ async function boot() {
   addEventListener('touchcancel', () => tx0 = null, { passive: true });
   if (location.protocol.startsWith('http') && location.hostname!=='127.0.0.1' && 'serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
   show('Session');
+  refreshLink();
+  setInterval(() => { if (document.visibilityState === 'visible') refreshLink(); }, 5000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshLink(); });
   document.fonts?.ready.then(() => { aimDrawnKey = ''; render(); });
 }
 function step(d) { const n = data?.shots.length || 0; if (!n) return; cur = (cur + d + n) % n; scoreFocus = data.shots[cur]?.t_ms ?? null; render(); }
