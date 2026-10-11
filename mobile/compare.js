@@ -105,31 +105,8 @@ const Compare = {
   degreePath(shot) {
     const raw = shot && (shot.yaw_c && shot.yaw_c.length ? shot.yaw_c : shot.yaw_deg) || [];
     if (raw.length < 3 || raw.some(v => !Number.isFinite(v)) || Math.max(...raw) - Math.min(...raw) <= 0.5) return null;
-    const fixed = this.fixYaw(raw.slice());
-    const n = fixed.length;
-    const hn = Math.max(1, Math.floor(n / 5));
-    const anchor = TraceApi.circMean(fixed.slice(n - hn));
-    const pitch = shot.pitch_deg && shot.pitch_deg.length === raw.length ? shot.pitch_deg : null;
-    const pAnchor = pitch ? this.mean(pitch.slice(n - hn)) || 0 : 0;
-    const dt = Number.isFinite(shot.dt) && shot.dt > 0 ? shot.dt : 50;
-    return fixed.map((y, i) => [
-      TraceApi.yawDelta(y, anchor),
-      pitch && Number.isFinite(pitch[i]) ? pitch[i] - pAnchor : 0,
-      shot.trace_t && Number.isFinite(shot.trace_t[i]) ? shot.trace_t[i] : (i - n) * dt
-    ]);
-  },
-  fixYaw(yw) {
-    let j = 0;
-    while (j < yw.length) {
-      let k = j;
-      while (k + 1 < yw.length && yw[k + 1] === yw[j]) k++;
-      if (k - j > 4) {
-        const nv = yw[k + 1] ?? yw[j];
-        for (let q = j; q <= k; q++) yw[q] = nv;
-      }
-      j = k + 1;
-    }
-    return yw;
+    const pts = (TraceApi.view(shot).pts || []).filter(p => p[2] <= 30);
+    return pts.length > 1 ? pts : null;
   },
   arrowPath(session, which) {
     const rows = this.real(session);

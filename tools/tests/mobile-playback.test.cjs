@@ -149,28 +149,15 @@ test('adding a named bow sends its profile and calibration can start from the ph
   p.run("sendCmd('calibrate',0)");assert.equal(p.run('sent.action'),'calibrate');
 });
 
-test('degrees are drawn by default even when the shot includes integrated centimeters', () => {
+test('degrees are drawn even when the shot includes integrated centimeters', () => {
   const p = page();
   const before = p.run('localStorage.getItem("awSessions")');
   p.run('fixture.tilt_x=[0,0,0];fixture.tilt_y=[0,0,0];fixture.yaw_c=[0,90,10];fixture.pitch_deg=[0,0,0];fixture.pos_x=[0,40,5];fixture.pos_y=[0,0,0];fixture.trace_t=[-100,-50,0];aimDrawnKey="";render()');
   const deg = JSON.parse(p.run('JSON.stringify(proj(fixture).pts.map(p=>p[0]))'));
   assert.ok(Math.abs(deg[1] - 80) < 1e-6, JSON.stringify(deg));
-  assert.match(p.elements.get('aimCaption').textContent, /grados/);
-  p.run("setTrace('cm')");
-  const cm = JSON.parse(p.run('JSON.stringify(proj(fixture).pts.map(p=>p[0]))'));
-  const k = p.run('Trace.cmPerDeg(0.65)');
-  assert.ok(Math.abs(cm[1] - 80 * k) < 1e-6, JSON.stringify(cm));
-  assert.match(p.elements.get('aimCaption').textContent, /cm/);
-  assert.match(p.elements.get('aimCaption').textContent, /0\.65 m/);
-  p.run("setArm(1)");
-  const cm1 = JSON.parse(p.run('JSON.stringify(proj(fixture).pts[1][0])'));
-  assert.ok(Math.abs(cm1 - 80 * Math.PI / 180 * 100) < 1e-6, cm1);
-  assert.equal(p.run('Trace.prefs(localStorage).armM'), 1);
-  p.run("setTrace('raw')");
-  const raw = JSON.parse(p.run('JSON.stringify(proj(fixture).pts.map(p=>p[0]))'));
-  assert.ok(Math.abs(raw[1] - 35) < 1e-6, JSON.stringify(raw));
-  assert.match(p.elements.get('aimCaption').textContent, /experimental/);
-  p.run("setTrace('deg')");
+  assert.equal(p.run('proj(fixture).unit'), 'deg');
+  assert.match(p.elements.get('aimCaption').textContent, /Grados/);
+  assert.equal(p.elements.get('tracebar'), undefined);
   assert.equal(p.run('localStorage.getItem("awSessions")'), before);
   assert.equal(p.run('JSON.stringify(fixture.pos_x)'), '[0,40,5]');
 });
@@ -183,12 +170,14 @@ test('a yaw that crosses ±180° is drawn on the short arc', () => {
   assert.ok(xs.every(v => Math.abs(v) < 10), JSON.stringify(xs));
 });
 
-test('cm and raw say so when the shot cannot be drawn that way', () => {
+test('a shot without compass still opens, and stored centimeters are left alone', () => {
   const p = page();
-  p.run("setTrace('cm'); fixture.yaw_c=[]; fixture.yaw_deg=[]; fixture.pitch_deg=[]; aimDrawnKey=''; render()");
-  assert.match(p.elements.get('aimCaption').textContent, /Sin ángulos de brújula/);
-  p.run("setTrace('raw'); fixture.yaw_c=[0,10,0]; fixture.pitch_deg=[0,0,0]; fixture.pos_x=[1,1,1]; fixture.pos_y=[2,2,2]; aimDrawnKey=''; render()");
-  assert.match(p.elements.get('aimCaption').textContent, /Sin posición integrada: orientación en grados/);
+  p.run("fixture.yaw_c=[]; fixture.yaw_deg=[]; fixture.pitch_deg=[]; fixture.pos_x=[1,8,3]; fixture.pos_y=[2,2,9]; aimDrawnKey=''; render()");
+  assert.match(p.elements.get('aimCaption').textContent, /Sin brújula/);
+  assert.equal(p.run('proj(fixture).unit'), 'tilt');
+  p.run("fixture.yaw_c=[0,10,0]; fixture.pitch_deg=[0,0,0]; aimDrawnKey=''; render()");
+  assert.equal(p.run('proj(fixture).unit'), 'deg');
+  assert.equal(p.run('JSON.stringify(fixture.pos_x)'), '[1,8,3]');
 });
 
 test('the drawn trajectory reaches the release point', () => {
@@ -236,7 +225,7 @@ test('recorded calibration candidates show orientation when integrated position 
     p.run(`stopPlayback();cur=${i};render();play()`);
     assert.equal(p.frames.size,1,'candidate '+(i+1)+': '+p.elements.get('tip').textContent);
   }
-  assert.match(p.elements.get('aimCaption').textContent,/Orientación.*individual/);
+  assert.match(p.elements.get('aimCaption').textContent,/Grados.*esta flecha/);
 });
 
 test('calibration bars compare impulse peaks instead of missing stability scores', () => {

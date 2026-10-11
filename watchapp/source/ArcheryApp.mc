@@ -311,6 +311,8 @@ class ArcheryApp extends Application.AppBase {
     private var ryw=new [400] as Array<Float>;  // yaw de brujula (grados) por muestra diezmada
     private var ryw2=new [400] as Array<Float>; // yaw compensado por inclinacion (campo 3 ejes + gravedad)
     private var rpt=new [400] as Array<Float>;  // pitch real de la esfera: asin(y/g) en grados
+    private var rbm=new [400] as Array<Float>;  // |B| en mGauss, para marcar perturbacion magnetica
+    private var holdYaw=0.0, holdPitch=0.0, holdOk=false, bBase=0.0;  // ultima orientacion con |a|~1 g
     public var curMagX=1.0, curMagY=0.0, curMagZ=0.0;  // ultima lectura del magnetometro (alineada por onData)
     private var rrRing=new [90] as Array<Float>; private var rrCount=0;
     // Posicion 3D sin giroscopio: TRIAD (gravedad + mag) da la rotacion por muestra
@@ -340,6 +342,8 @@ class ArcheryApp extends Application.AppBase {
     private var postMag = new [24] as Array<Float>;
     private var postX = new [24] as Array<Float>;
     private var postY = new [24] as Array<Float>;
+    private var postYw = new [24] as Array<Float>;
+    private var postPt = new [24] as Array<Float>;
     private var pn = 0;
     // tiro en curso
     private var inShot = false;
@@ -361,6 +365,7 @@ class ArcheryApp extends Application.AppBase {
     private var snapYw = new [1] as Array<Float>;
     private var snapYw2 = new [1] as Array<Float>;
     private var snapPt = new [1] as Array<Float>;
+    private var snapBm = new [1] as Array<Float>;
     private var postMx = 0.0;
     private var postMy = 0.0;
     private var qHead = 0;
@@ -835,13 +840,23 @@ class ArcheryApp extends Application.AppBase {
             }
             rx[ri] = x; ry[ri] = y; rz[ri]=z;rm[ri] = mag;rt[ri]=t;
             ryw[ri] = Math.atan2(curMagY, curMagX) * 57.2958;
-            ryw2[ri] = magYaw(x, y, z);
+            var yawC = magYaw(x, y, z);
             var pt=mag>1.0?y/mag:0.0;if(pt>1.0){pt=1.0;}else if(pt<-1.0){pt=-1.0;}
-            rpt[ri]=Math.asin(pt)*57.2958;  // pitch real: la aproximacion mG->deg diverge en aperturas grandes
+            var pitch=Math.asin(pt)*57.2958;  // pitch real: la aproximacion mG->deg diverge en aperturas grandes
+            var bmag=Math.sqrt(curMagX*curMagX+curMagY*curMagY+curMagZ*curMagZ);
+            var nearG=mag>820.0 && mag<1180.0;  // fuera de ~1 g la gravedad no es la referencia
+            var magOk=bmag<80.0 || bBase<=50.0 || (bmag>bBase*0.82 && bmag<bBase*1.18);
+            if(nearG && magOk){
+                ryw2[ri]=yawC; rpt[ri]=pitch; holdYaw=yawC; holdPitch=pitch; holdOk=true;
+                if(bmag>80.0){ if(bBase<=50.0){ bBase=bmag; } else { bBase=bBase*0.995+bmag*0.005; } }
+            } else if(holdOk) { ryw2[ri]=holdYaw; rpt[ri]=holdPitch; }
+            else { ryw2[ri]=yawC; rpt[ri]=pitch; }
+            rbm[ri]=bmag;
             rpx[ri]=pxx*0.9807;rpy[ri]=pyy*0.9807;rpz[ri]=pzz*0.9807;  // mG·s² -> cm
             ri = (ri + 1) % rx.size();
             if (rn < rx.size()) { rn += 1; }
             if (inShot && pn < 24) { postMag[pn] = mag; postX[pn] = x; postY[pn] = y;postTimes[pn]=t-tShot;
+                postYw[pn]=ryw2[ri]; postPt[pn]=rpt[ri];
                 postPX[pn]=pxx*0.9807;postPY[pn]=pyy*0.9807;postPZ[pn]=pzz*0.9807; pn += 1; }
             considerWalk(mag, t);
         }
@@ -945,6 +960,7 @@ class ArcheryApp extends Application.AppBase {
         snapYw = new [points] as Array<Float>;
         snapYw2 = new [points] as Array<Float>;
         snapPt = new [points] as Array<Float>;
+        snapBm = new [points] as Array<Float>;
         snapPx = new [points] as Array<Float>;
         snapPy = new [points] as Array<Float>;
         snapPz = new [points] as Array<Float>;
@@ -953,7 +969,7 @@ class ArcheryApp extends Application.AppBase {
             snapTx[i] = rx[k];
             snapTy[i] = ry[k];
             snapMag[i] = rm[k];snapTimes[i]=rt[k]-t;
-            snapYw[i] = ryw[k];snapYw2[i] = ryw2[k];snapPt[i] = rpt[k];
+            snapYw[i] = ryw[k];snapYw2[i] = ryw2[k];snapPt[i] = rpt[k];snapBm[i] = rbm[k];
             snapPx[i] = rpx[k];snapPy[i] = rpy[k];snapPz[i] = rpz[k];
         }
     }
@@ -991,6 +1007,9 @@ class ArcheryApp extends Application.AppBase {
             "yw" => decimate(snapYw, max),
             "yw2" => decimate(snapYw2, max),
             "pt" => decimate(snapPt, max),
+            "bm" => decimate(snapBm, max),
+            "pyw" => subArray(postYw, pn),
+            "ppt" => subArray(postPt, pn),
             "qx" => decimate(snapPx, max),
             "qy" => decimate(snapPy, max),
             "qz" => decimate(snapPz, max),
