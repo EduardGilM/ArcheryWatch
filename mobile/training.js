@@ -79,8 +79,8 @@ function saveSession(s){const L=store.list();const i=L.findIndex(x=>x.id===s.id)
 $('modeSheet').onclick=e=>{const b=e.target.closest('[data-v]');if(!b)return;const s=displayedSession();if(!s||historyMode)return;
   const key=b.dataset.v, tanda=key==='TandaIndoor'||key==='TandaOutdoor';
   const mode=key==='TandaIndoor'?'Indoor':key==='TandaOutdoor'?'Outdoor':key;
-  s.mode=mode;s.tanda=tanda;s.roundDone=false;s.target=mode==='Indoor'?3:mode==='Outdoor'?6:0;
-  saveSession(s);sendCmd('mode',key);closeSheets(null);render();};
+  s.mode=mode;s.tanda=tanda;s.roundDone=Training.roundComplete(s);s.target=mode==='Indoor'?3:mode==='Outdoor'?6:0;
+  saveSession(s);sendCmd('mode',mode);closeSheets(null);render();};
 function gearSheet(listId,sheetId,field,cmd){
   $(sheetId).onclick=e=>{const remove=e.target.closest('[data-delete-bow]');if(remove){deleteBow(remove.dataset.deleteBow);return;}const b=e.target.closest('[data-n]');if(!b)return;const s=displayedSession();if(!s||historyMode)return;
     s[field]=b.dataset.n;saveSession(s);if(cmd)sendCmd(cmd,s[field]);closeSheets(null);render();};

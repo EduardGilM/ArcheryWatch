@@ -26,7 +26,11 @@ const Training = {
     if (e.kind === 'start') { s.build=e.build||null; if(e.recovery)s.recovery=e.recovery; }
     if (e.state) {
       const kept = new Map(s.shots.filter(x => x && x.result).map(x => [x.t_ms, x.result]));
-      Object.assign(s, e.state);
+      const phoneTanda = !!s.tanda;
+      const state = {...e.state};
+      delete state.tanda; delete state.roundDone;
+      Object.assign(s, state);
+      s.tanda = phoneTanda;
       // Un estado tardío puede traer los tiros sin el valor anotado en el móvil.
       if (Array.isArray(e.state.shots) && Array.isArray(s.shots)) s.shots.forEach(x => {
         const prev = x && kept.get(x.t_ms);
@@ -34,6 +38,7 @@ const Training = {
       });
     }
     if (s.finished) s.live=false;
+    s.roundDone = this.roundComplete(s);
     s.lastEvent=e.eid ?? s.lastEvent; s.lastWt=Date.now();
     return s;
   },
@@ -53,6 +58,17 @@ const Training = {
     if (s.mode === 'Outdoor') return 'Tanda aire libre';
     if (s.mode === 'Indoor') return 'Tanda indoor';
     return 'Tanda';
+  },
+  roundComplete(s) {
+    const goal = this.roundGoal(s);
+    if (!goal) return false;
+    const ids = [];
+    for (const shot of s.shots || []) {
+      if (!shot || shot.candidate || !(shot.set_id > 0) || ids.includes(shot.set_id)) continue;
+      ids.push(shot.set_id);
+    }
+    const closed = new Set((s.ends || []).map(e => e && e.id));
+    return ids.filter(id => closed.has(id)).length >= goal;
   },
   summary(shots) {
     const score=shots.map(s=>s.aim_score).filter(Number.isFinite), gaps=shots.slice(1).flatMap((s,i)=>s.set_id===shots[i].set_id?[(s.t_ms-shots[i].t_ms)/1000]:[]);

@@ -445,7 +445,9 @@ test('a tanda keeps set progress and an old session stays free', () => {
   assert.equal(p.run('curSess.tanda'), true);
   assert.equal(p.run('curSess.mode'), 'Indoor');
   assert.equal(p.run('curSess.target'), 3);
-  assert.match(p.run('sent'), /TandaIndoor/);
+  assert.match(p.run('sent'), /"action":"mode"/);
+  assert.match(p.run('sent'), /"value":"Indoor"/);
+  assert.doesNotMatch(p.run('sent'), /Tanda/);
   p.run("curSess.currentSet=1;view='Session';render()");
   assert.equal(p.elements.get('sSets').textContent, '1/10');
   assert.match(p.elements.get('subtitle').textContent, /Tanda indoor · 1\/10/);

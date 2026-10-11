@@ -6,7 +6,7 @@ import Toybox.Attention;
 import Toybox.Lang;
 
 class TrainingState {
-    public var target=3, currentSet=1, resting=false, paused=false, feedback=true, walkClose=true, mode="Indoor", tanda=false, roundDone=false;
+    public var target=3, currentSet=1, resting=false, paused=false, feedback=true, walkClose=true, mode="Indoor";
     public var profile="Recurvo", rows=[], ends=[], started=0, lastCommand=0, commandClient="";
     public var calibration=false, threshold=3200.0, pose=null;
     public var app;
@@ -15,23 +15,15 @@ class TrainingState {
     function total() { var n=0;for(var i=0;i<rows.size();i++){if(rows[i][1]>0){n++;}}return n; }
     function nextId() {var id=currentSet;for(var i=0;i<rows.size();i++){if(rows[i][1]>id){id=rows[i][1];}}return id+1;}
     function displaySet() {var n=0,prev=-1;for(var i=0;i<rows.size();i++){if(rows[i][1]<0){continue;}if(rows[i][1]!=prev){n++;prev=rows[i][1];}if(prev==currentSet){return n;}}return n+1;}
-    function roundGoal() { if(!tanda){return 0;} if(mode.equals("Indoor")){return 10;} if(mode.equals("Outdoor")){return 6;} return 0; }
-    function closedSets() { var n=0; for(var i=0;i<ends.size();i++){ var id=ends[i]["id"]; if(!(id>0)){continue;} var seen=false; for(var j=0;j<i;j++){if(ends[j]["id"]==id){seen=true;}} if(!seen){n++;} } return n; }
-    function settleRound() {
-        var g=roundGoal(); var done=g>0 && closedSets()>=g;
-        if(done && !roundDone){ roundDone=true; if(app has :note){app.note("Tanda "+g+"/"+g, "round", false);} buzzRound(); }
-        else if(!done && roundDone){ roundDone=false; if(app has :clearNote){app.clearNote("round");} }
-    }
-    function buzzRound() { if(feedback && Attention has :vibrate) { Attention.vibrate([new Attention.VibeProfile(50,160), new Attention.VibeProfile(0,90), new Attention.VibeProfile(55,180)]); } }
-    function snapshot() { return {"target"=>target,"currentSet"=>currentSet,"resting"=>resting,"paused"=>paused,"ends"=>ends,"profile"=>profile,"mode"=>mode,"tanda"=>tanda,"roundDone"=>roundDone,"metric"=>2,"calibrating"=>calibration,"calibrationCount"=>rows.size()-total()}; }
+    function snapshot() { return {"target"=>target,"currentSet"=>currentSet,"resting"=>resting,"paused"=>paused,"ends"=>ends,"profile"=>profile,"mode"=>mode,"metric"=>2,"calibrating"=>calibration,"calibrationCount"=>rows.size()-total()}; }
     function record() { return {"sid"=>app.sid,"started"=>started,"state"=>snapshot(),"rows"=>rows,"lastCommand"=>lastCommand,"commandClient"=>commandClient,"feedback"=>feedback,"walkClose"=>walkClose}; }
     function save() { try { Application.Storage.setValue("training",record()); } catch (e instanceof Lang.Exception) {app.note("No se pudo guardar la sesion", "save", false);} }
     function restore(saved) {
         var preferences=Application.Storage.getValue("preferences");
-        if(preferences instanceof Lang.Dictionary){target=preferences["target"];profile=preferences["profile"];feedback=preferences["feedback"];if(preferences.hasKey("mode")){mode=preferences["mode"];}if(preferences.hasKey("walkClose")){walkClose=preferences["walkClose"];}if(preferences.hasKey("tanda")){tanda=preferences["tanda"];}}
+        if(preferences instanceof Lang.Dictionary){target=preferences["target"];profile=preferences["profile"];feedback=preferences["feedback"];if(preferences.hasKey("mode")){mode=preferences["mode"];}if(preferences.hasKey("walkClose")){walkClose=preferences["walkClose"];}}
         if(saved instanceof Lang.Dictionary) {
             app.sid=saved["sid"]; started=saved["started"]; rows=saved["rows"]; lastCommand=saved["lastCommand"];
-            var s=saved["state"] as Lang.Dictionary; target=s["target"];currentSet=s["currentSet"];resting=s["resting"];paused=s["paused"];ends=s["ends"];profile=s["profile"];if(s.hasKey("mode")){mode=s["mode"];}if(s.hasKey("tanda")){tanda=s["tanda"];}if(s.hasKey("roundDone")){roundDone=s["roundDone"];}
+            var s=saved["state"] as Lang.Dictionary; target=s["target"];currentSet=s["currentSet"];resting=s["resting"];paused=s["paused"];ends=s["ends"];profile=s["profile"];if(s.hasKey("mode")){mode=s["mode"];}
             feedback=saved["feedback"];if(saved.hasKey("walkClose")){walkClose=saved["walkClose"];}if(saved.hasKey("commandClient")){commandClient=saved["commandClient"];}
             if(s.hasKey("calibrating")){calibration=s["calibrating"];}
         }
@@ -44,13 +36,9 @@ class TrainingState {
     }
     function readyLine() {
         var arrows=target>0 ? target.toString()+" flechas" : "sin limite";
-        var place=mode;
-        if(tanda && mode.equals("Indoor")){place="Tanda indoor";}
-        if(tanda && mode.equals("Outdoor")){place="Tanda aire libre";}
-        if(tanda && roundGoal()>0){arrows=roundGoal().toString()+" sets · "+arrows;}
         var cal=Application.Storage.getValue("threshold:"+profile);
         var calText=cal!=null ? "Calibrado "+cal.toNumber() : "Sin calibrar";
-        return [place, arrows, profile, calText];
+        return [mode, arrows, profile, calText];
     }
     function quietLaunch() { return app has :live && !app.live; }
     function buzz() { if(feedback && Attention has :vibrate) { Attention.vibrate([new Attention.VibeProfile(45,resting?240:80)]); } }
@@ -64,10 +52,9 @@ class TrainingState {
         for(var i=0;i<rows.size();i++){if(rows[i][1]==id){n++;}}
         for(var j=0;j<ends.size();j++){if(ends[j]["id"]==id){return;}}
         if(n==0 || (target>0 && n<target)){return;}ends.add({"id"=>id,"reason"=>reason});if(id==currentSet){resting=true;}
-        var was=roundDone; settleRound();
         emit("set",{"reason"=>reason});
-        if(reason.equals("walk")){buzzSoft();if(!roundDone && app has :note){app.note("Tanda cerrada", "walk", false);}}
-        else if(was || !roundDone){buzz();}
+        if(reason.equals("walk")){buzzSoft();if(app has :note){app.note("Tanda cerrada", "walk", false);}}
+        else {buzz();}
     }
     function add(msg) {
         var candidate=msg.hasKey("candidate") && msg["candidate"];
@@ -75,8 +62,7 @@ class TrainingState {
         msg["set"]=candidate?-1:currentSet;msg["profile"]=profile;msg["metric"]=2;
         rows.add([msg["t"].toNumber(),msg["set"]]); app.nShots=total();
         if(!candidate && target>0 && count()>=target){ends.add({"id"=>currentSet,"reason"=>"target"});resting=true;}
-        var was=roundDone; settleRound();
-        emit("shot",msg); if(was || !roundDone){buzz();}
+        emit("shot",msg);buzz();
     }
     function validProfile(value) {return value instanceof Lang.String && value.length()>0 && value.length()<=24;}
     function act(action,value) {
@@ -98,12 +84,7 @@ class TrainingState {
         if(action.equals("next")) { if(target>0 && count()<target){return;}if(!resting && count()>0){ends.add({"id"=>currentSet,"reason"=>"manual"});}currentSet=nextId();resting=false;paused=false; }
         if(action.equals("reopen")) {var id=value==0?currentSet:value;for(var i=ends.size()-1;i>=0;i--){if(ends[i]["id"]==id){ends.remove(ends[i]);}}if(id==currentSet){resting=false;} }
         if(action.equals("pause")){paused=!paused;}
-        if(action.equals("mode")) {
-            if(value.equals("TandaIndoor")){mode="Indoor";target=3;tanda=true;}
-            else if(value.equals("TandaOutdoor")){mode="Outdoor";target=6;tanda=true;}
-            else { mode=value;tanda=false;if(value.equals("Indoor")){target=3;}if(value.equals("Outdoor")){target=6;}if(value.equals("Libre")){target=0;} }
-            roundDone=false;
-        }
+        if(action.equals("mode")) { mode=value;if(value.equals("Indoor")){target=3;}if(value.equals("Outdoor")){target=6;}if(value.equals("Libre")){target=0;} }
         if(action.equals("target")){target=value.toNumber();}
         if(action.equals("calibrateShot")) {
             var request=(value instanceof Lang.Dictionary?value:{"peak"=>0.0,"profile"=>"","requestId"=>""}) as Lang.Dictionary;
@@ -145,14 +126,13 @@ class TrainingState {
             var times=action.equals("undo")?(rows.size()>0?[rows[rows.size()-1][0]]:[]):value;
             for(var j=rows.size()-1;j>=0;j--) {for(var k=0;k<times.size();k++) {if(rows[j][0]==times[k]){rows.remove(rows[j]);break;}}}
             if(target>0 && count()<target){resting=false;for(var e=ends.size()-1;e>=0;e--){if(ends[e]["id"]==currentSet){ends.remove(ends[e]);}}}
-            settleRound();
             app.nShots=total();emit("remove",{"times"=>times});return;
         }
         if(action.equals("calibrate")) { calibration=!calibration;if(calibration){paused=false;} }
         if(action.equals("probe")) { app.runSensorProbe();return; }
         if(action.equals("finish")) { app.finishActivity();return; }
         if(action.equals("exit")) {System.exit();return;}
-        if(action.equals("mode") || action.equals("target") || action.equals("profile") || action.equals("deleteProfile") || action.equals("feedback") || action.equals("walkClose")){Application.Storage.setValue("preferences",{"target"=>target,"profile"=>profile,"feedback"=>feedback,"walkClose"=>walkClose,"mode"=>mode,"tanda"=>tanda});}
+        if(action.equals("mode") || action.equals("target") || action.equals("profile") || action.equals("deleteProfile") || action.equals("feedback") || action.equals("walkClose")){Application.Storage.setValue("preferences",{"target"=>target,"profile"=>profile,"feedback"=>feedback,"walkClose"=>walkClose,"mode"=>mode});}
         if(quietLaunch()){WatchUi.requestUpdate();return;}
         emit("state",{});
     }
@@ -189,7 +169,6 @@ function openMoreMenu() {
     var t=Application.getApp().training;
     var items=[["Anadir flecha manual","manual",0],["Reabrir tanda","reopen",0],
         ["Modo Indoor (3 flechas)","mode","Indoor"],["Modo Outdoor (6 flechas)","mode","Outdoor"],["Modo libre","mode","Libre"],
-        ["Tanda indoor (10 sets)","mode","TandaIndoor"],["Tanda aire libre (6 sets)","mode","TandaOutdoor"],
         ["Recurvo","profile","Recurvo"],["Compuesto","profile","Compuesto"],
         ["Vibracion: "+(t.feedback?"si":"no"),"feedback",0],["Cerrar al recoger: "+(t.walkClose?"si":"no"),"walkClose",0],["Diagnostico sensores","probe",0],[t.calibration?"Salir calibracion":"Calibrar desde movil","calibrate",0]];
     pushMenu(items);
