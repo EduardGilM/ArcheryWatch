@@ -9,4 +9,13 @@ T.split(s,90000);assert.notEqual(s.shots[0].set_id,s.shots[1].set_id);T.merge(s,
 s=T.apply(s,{...shot,manual:true,eid:8,t:100000});assert.equal(s.shots.at(-1).aim_score,null);
 assert.equal(T.summary(s.shots).score,80);assert.notEqual(T.key(s),T.key({...s,metric:1}));
 s=T.apply(s,{kind:'end',eid:9});s=T.apply(s,{...shot,eid:10,t:110000});assert.equal(s.live,false);
+s.shots[0].result={value:'X',impact:{x:0.1,y:-0.2}};
+const repeated=T.apply(s,{...shot,eid:11,t:s.shots[0].t_ms,score:1});
+assert.equal(repeated.shots[0].result.value,'X');
+assert.equal(repeated.shots[0].result.impact.y,-0.2);
+assert.equal(repeated.shots.length,s.shots.length);
+const replaced=T.apply(repeated,{kind:'state',eid:12,state:{paused:true,shots:[{t_ms:repeated.shots[0].t_ms,aim_score:5}]}});
+assert.equal(replaced.shots[0].result.value,'X');
+assert.equal(replaced.shots[0].result.impact.x,0.1);
+assert.equal(replaced.paused,true);
 console.log('Session model: replay, removal, stable sets, close/reopen, split/merge, manual metrics, versions PASS');

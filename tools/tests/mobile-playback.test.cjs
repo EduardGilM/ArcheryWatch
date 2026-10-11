@@ -31,6 +31,7 @@ function page() {
   run(fs.readFileSync(path.join(root, 'mobile/session-model.js'), 'utf8'));
   run(fs.readFileSync(path.join(root, 'mobile/trace-geom.js'), 'utf8'));
   run(fs.readFileSync(path.join(root, 'mobile/backup.js'), 'utf8'));
+  run(fs.readFileSync(path.join(root, 'mobile/score.js'), 'utf8'));
   const html = fs.readFileSync(path.join(root, 'mobile/index.html'), 'utf8');
   const scripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map(m => m[1]).filter(s => s.trim());
   scripts.forEach(s => new vm.Script(s));
@@ -322,4 +323,25 @@ test('export packs the aw* storage for Android and reports a failed download', (
   const downloaded = p.run("document.getElementById('notice').hidden=true; document.getElementById('notice').textContent=''; window.Native=undefined; const files=[]; Blob=function(parts){this.parts=parts}; URL={createObjectURL(blob){files.push(blob.parts[0]); return 'blob:aw'}, revokeObjectURL(){}}; exportBackup(); files[0]");
   assert.equal(JSON.parse(downloaded).storage.awReceipt, '4');
   assert.equal(p.run("document.getElementById('notice').textContent"), '');
+});
+
+test('scoring the set stores the value and a repeated watch event leaves it', () => {
+  const p = page();
+  p.run(`fixture.draw_ms=3000;fixture.settle_ms=180;fixture.hr_bpm=90;fixture.set_id=1;
+    const second={...fixture,t_ms:2000,aim_score:70,draw_ms:2800};const third={...fixture,t_ms:3000,aim_score:60,draw_ms:5000};
+    curSess.watchId='test';curSess.lastEvent=1;curSess.shots=[fixture,second,third];data={shots:curSess.shots};store.save([curSess]);
+    scoreArrow(1000,'X');scoreArrow(2000,'9');scoreArrow(3000,'M');view='Set';cur=0;render()`);
+  assert.match(p.elements.get('setScore').innerHTML, /data-score="X"/);
+  assert.match(p.elements.get('setScore').innerHTML, />X</);
+  assert.match(p.elements.get('subtitle').textContent, /19 puntos/);
+  p.run("liveEvent({sid:'test',kind:'shot',eid:4,t:1000,set:1,score:11,peak:1000,instab:10,dt:50})");
+  const kept = p.run("store.list()[0].shots.find(s=>s.t_ms===1000).result.value");
+  assert.equal(kept, 'X');
+  p.run("view='Session';render()");
+  assert.match(p.elements.get('sessionScoreLine').textContent, /19 puntos · media 6\.3 · 1 X · 0 dieces/);
+  assert.match(p.elements.get('sessionScoreInsight').textContent, /al menos 4/);
+  p.run("scoreArrow(1000,null)");
+  assert.equal(p.run("store.list()[0].shots.find(s=>s.t_ms===1000).result"), undefined);
+  p.run("historyMode=true;histId=curSess.id;curSess=null;scoreArrow(2000,'8')");
+  assert.equal(p.run("historyMode && store.list()[0].shots.find(s=>s.t_ms===2000).result.value"), '8');
 });

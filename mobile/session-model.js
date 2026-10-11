@@ -5,7 +5,7 @@ const Training = {
     const s = JSON.parse(JSON.stringify(original));
     if (Number.isFinite(e.eid) && e.eid <= (s.lastEvent ?? -1)) return s;
     s.ends ||= []; s.removed ||= [];
-    if (e.kind === 'shot' && !s.shots.some(x=>x.t_ms===Math.round(e.t)) && !s.removed.includes(Math.round(e.t))) {
+    if (e.kind === 'shot' && !s.removed.includes(Math.round(e.t)) && !s.shots.some(x=>x.t_ms===Math.round(e.t))) {
       const a = v => Array.isArray(v) ? v.filter(Number.isFinite) : [];
       const pre=a(e.mp),post=a(e.mq);
       const dt = Number.isFinite(e.dt) && e.dt > 0 ? e.dt : 50;
@@ -24,7 +24,15 @@ const Training = {
     if (e.kind === 'label') { s.labels ||= []; s.labels.push({from_ms:e.from,t_ms:e.t,label:e.label,peak:e.peak}); }
     if (e.kind === 'calibration') { s.calibration=e.result; }
     if (e.kind === 'start') { s.build=e.build||null; if(e.recovery)s.recovery=e.recovery; }
-    if (e.state) Object.assign(s, e.state);
+    if (e.state) {
+      const kept = new Map(s.shots.filter(x => x && x.result).map(x => [x.t_ms, x.result]));
+      Object.assign(s, e.state);
+      // Un estado tardío puede traer los tiros sin el valor anotado en el móvil.
+      if (Array.isArray(e.state.shots) && Array.isArray(s.shots)) s.shots.forEach(x => {
+        const prev = x && kept.get(x.t_ms);
+        if (prev) x.result = {...prev, ...(x.result || {})};
+      });
+    }
     if (s.finished) s.live=false;
     s.lastEvent=e.eid ?? s.lastEvent; s.lastWt=Date.now();
     return s;

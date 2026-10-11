@@ -9,9 +9,9 @@ CIQ="$ROOT/tools/ciq/mobile/aar/classes.jar"      # SDK ConnectIQ (com.garmin.an
 CIQCLS="$ROOT/tools/ciq/mobile/classes"           # mismo jar extraido, para el dex
 KS="$ROOT/tools/android/archery.keystore"
 cd "$ROOT"
-node --test tools/tests/mobile-playback.test.cjs tools/tests/session-model.test.cjs tools/tests/trace-geom.test.cjs tools/tests/backup.test.cjs
+node --test tools/tests/mobile-playback.test.cjs tools/tests/session-model.test.cjs tools/tests/trace-geom.test.cjs tools/tests/backup.test.cjs tools/tests/score.test.cjs
 rm -rf android/build && mkdir -p android/build/gen android/build/classes android/build/assets
-cp mobile/session-model.js mobile/trace-geom.js mobile/backup.js mobile/training.js mobile/index.html mobile/icon-192.png mobile/icon-512.png mobile/manifest.json mobile/sw.js android/build/assets/ && cp -r mobile/fonts android/build/assets/
+cp mobile/session-model.js mobile/trace-geom.js mobile/backup.js mobile/score.js mobile/training.js mobile/index.html mobile/icon-192.png mobile/icon-512.png mobile/manifest.json mobile/sw.js android/build/assets/ && cp -r mobile/fonts android/build/assets/
 "$BT/aapt2.exe" compile --dir android/res -o android/build/res.zip
 "$BT/aapt2.exe" link -o android/build/base.apk -I "$JAR" --manifest android/AndroidManifest.xml \
   -A android/build/assets android/build/res.zip --java android/build/gen --auto-add-overlay
