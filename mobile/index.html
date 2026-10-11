@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
+<meta name="aw-version" content="4.13">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#0c0d10">
 <link rel="manifest" href="manifest.json">
@@ -242,6 +243,7 @@
 </main>
 <main id="vHistory" style="display:none">
   <div class="card list" id="histList"></div>
+  <button type="button" class="btnSecondary" id="exportData" onclick="exportBackup()">Exportar datos</button>
 </main>
 <main id="vSet" style="display:none">
   <div class="empty emptyState"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M172,76a44,44,0,1,0-44,44A44.05,44.05,0,0,0,172,76Zm-44,28a28,28,0,1,1,28-28A28,28,0,0,1,128,104Zm60,24a44,44,0,1,0,44,44A44.05,44.05,0,0,0,188,128Zm0,72a28,28,0,1,1,28-28A28,28,0,0,1,188,200ZM68,128a44,44,0,1,0,44,44A44.05,44.05,0,0,0,68,128Zm0,72a28,28,0,1,1,28-28A28,28,0,0,1,68,200Z"/></svg><b>Sin sets todavía</b>Los sets se forman solos con las flechas del reloj.</div>
@@ -261,6 +263,7 @@
 <div class="askBtns"><button id="askNo">Cancelar</button><button id="askYes">Confirmar</button></div></div></div>
 <script src="session-model.js"></script>
 <script src="trace-geom.js"></script>
+<script src="backup.js"></script>
 <script>
 const GAP_MS = 60000, ACOLORS = ['#5ab0f0', '#ff7a1a', '#b58cf0', '#3ecf8e', '#e8c14e', '#ef5a5a'];
 const C = {txt:'#eceef1', txt2:'#a0a4ad', txt3:'#6f747d', grid:'rgba(255,255,255,.06)', acc:'#ff7a1a', prev:'#5d6571', aim:'#e6e8eb', rel:'#ef5a5a', ref:'#5ab0f0'};
@@ -656,6 +659,21 @@ function renderProgress() {
     document.getElementById('legend2').innerHTML =
       `<span><i style="background:${C.acc}"></i>Estabilidad</span><span><i style="background:${C.ref}"></i>Temblor</span>`;
     if (sessions.length > 1) drawProgress(sessions);
+  }
+}
+function exportBackup() {
+  try {
+    const app = document.querySelector?.('meta[name="aw-version"]')?.content || null;
+    const json = Backup.json(localStorage, {app});
+    if (typeof window.Native?.export === 'function') { window.Native.export(json); return; }
+    const blob = new Blob([json], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'ArcheryWatch-backup.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL?.(url), 1500);
+  } catch (e) {
+    if (typeof notice === 'function') notice('No se pudo exportar la copia' + (e && e.message ? ': ' + e.message : ''));
   }
 }
 function renderHistory() {

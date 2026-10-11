@@ -38,7 +38,7 @@ public class MainActivity extends Activity {
         s.setBlockNetworkLoads(true);
         WebView.setWebContentsDebuggingEnabled((getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0);
         wv.setWebViewClient(new WebViewClient() {
-            @Override public void onPageFinished(WebView v, String url) { pageReady = true; drain(); }
+            @Override public void onPageFinished(WebView v, String url) { pageReady = true; deliverExportError(); drain(); }
             @Override public boolean shouldOverrideUrlLoading(WebView v, android.webkit.WebResourceRequest request) { return true; }
         });
         wv.addJavascriptInterface(new Bridge(), "Native");
@@ -95,33 +95,83 @@ public class MainActivity extends Activity {
         } });
     }
 
-    private String exportData;
+    private final Object exportLock = new Object();
+    private String exportError;
+    private java.io.File exportFile() { return new java.io.File(getFilesDir(), "export-pending.json"); }
+    // El selector de documentos puede recrear la actividad: el JSON no cabe en el estado guardado.
+    private void discardExport() {
+        java.io.File file = exportFile();
+        if (file.exists() && !file.delete()) file.deleteOnExit();
+    }
+    private void noticeExport(String message) { runOnUiThread(() -> { exportError = message; deliverExportError(); }); }
+    // Si el selector recrea la actividad, la página aún no está lista y el aviso se perdería.
+    private void deliverExportError() {
+        if (!pageReady || exportError == null) return;
+        String message = exportError;
+        exportError = null;
+        push("notice(" + org.json.JSONObject.quote(message) + ")");
+    }
     public class Bridge {
         @android.webkit.JavascriptInterface public String diagnostics() { return LiveService.diagnostics(); }
         @android.webkit.JavascriptInterface public String command(String json) {
             try { LiveService.command(json); return ""; } catch(Exception e) { return e.getMessage(); }
         }
         @android.webkit.JavascriptInterface public void export(String json) {
-            runOnUiThread(() -> { exportData=json; startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT).setType("application/json").addCategory(Intent.CATEGORY_OPENABLE).putExtra(Intent.EXTRA_TITLE,"ArcheryWatch-backup.json"), 20); });
+            if (json == null) { noticeExport("No se pudo preparar la copia"); return; }
+            synchronized (exportLock) {
+                try (java.io.Writer writer = new java.io.OutputStreamWriter(new java.io.FileOutputStream(exportFile()), java.nio.charset.StandardCharsets.UTF_8)) {
+                    final int step = 16384;
+                    for (int i = 0; i < json.length(); i += step) writer.write(json, i, Math.min(step, json.length() - i));
+                } catch (Exception e) {
+                    discardExport();
+                    noticeExport("No se pudo preparar la copia");
+                    return;
+                }
+            }
+            runOnUiThread(() -> {
+                try {
+                    if (isFinishing()) { synchronized (exportLock) { discardExport(); } return; }
+                    startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT).setType("application/json").addCategory(Intent.CATEGORY_OPENABLE).putExtra(Intent.EXTRA_TITLE, "ArcheryWatch-backup.json"), 20);
+                } catch (Exception e) {
+                    synchronized (exportLock) { discardExport(); }
+                    noticeExport("No se pudo abrir el selector de archivos");
+                }
+            });
         }
         @android.webkit.JavascriptInterface public void restore() {
             runOnUiThread(() -> startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("application/json").addCategory(Intent.CATEGORY_OPENABLE), 21));
         }
     }
+    private void finishExport(int result, Intent intent) {
+        synchronized (exportLock) {
+            if (result != RESULT_OK || intent == null || intent.getData() == null) { discardExport(); return; }
+            java.io.File file = exportFile();
+            android.net.Uri uri = intent.getData();
+            if (!file.isFile()) { noticeExport("No se pudo guardar la copia"); return; }
+            try {
+                java.io.OutputStream opened = getContentResolver().openOutputStream(uri);
+                if (opened == null) throw new java.io.IOException("sin destino");
+                try (java.io.InputStream in = new java.io.FileInputStream(file); java.io.OutputStream out = opened) {
+                    byte[] buffer = new byte[8192]; int n;
+                    while ((n = in.read(buffer)) != -1) out.write(buffer, 0, n);
+                }
+                discardExport();
+            } catch (Exception e) {
+                discardExport();
+                try { android.provider.DocumentsContract.deleteDocument(getContentResolver(), uri); } catch (Exception ignored) {}
+                noticeExport("No se pudo guardar la copia");
+            }
+        }
+    }
     @Override protected void onActivityResult(int request, int result, Intent intent) {
         super.onActivityResult(request,result,intent);
-        if(result != RESULT_OK || intent == null || intent.getData() == null) return;
-        try {
-            if(request==20 && exportData!=null) {
-                try(java.io.OutputStream stream=getContentResolver().openOutputStream(intent.getData())) { stream.write(exportData.getBytes(java.nio.charset.StandardCharsets.UTF_8)); }
-                exportData=null;
-            } else if(request==21) {
-                try(java.io.InputStream stream=getContentResolver().openInputStream(intent.getData())) {
-                    java.io.ByteArrayOutputStream bytes=new java.io.ByteArrayOutputStream(); byte[] buffer=new byte[8192]; int n;
-                    while((n=stream.read(buffer))!=-1) { if(bytes.size()+n>20*1024*1024) throw new IllegalArgumentException("Copia demasiado grande"); bytes.write(buffer,0,n); }
-                    push("restoreBackup("+org.json.JSONObject.quote(bytes.toString("UTF-8"))+")");
-                }
-            }
+        if (request == 20) { finishExport(result, intent); return; }
+        if (request != 21 || result != RESULT_OK || intent == null || intent.getData() == null) return;
+        try (java.io.InputStream stream = getContentResolver().openInputStream(intent.getData())) {
+            if (stream == null) throw new java.io.IOException("sin origen");
+            java.io.ByteArrayOutputStream bytes=new java.io.ByteArrayOutputStream(); byte[] buffer=new byte[8192]; int n;
+            while((n=stream.read(buffer))!=-1) { if(bytes.size()+n>20*1024*1024) throw new IllegalArgumentException("Copia demasiado grande"); bytes.write(buffer,0,n); }
+            push("restoreBackup("+org.json.JSONObject.quote(bytes.toString("UTF-8"))+")");
         } catch(Exception e) { push("notice("+org.json.JSONObject.quote("No se pudo guardar o abrir la copia")+")"); }
     }
 

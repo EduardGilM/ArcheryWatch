@@ -15,20 +15,22 @@ function page() {
     });
     return {style: {}, dataset: {}, width: 320, height: 320, clientWidth: 320, textContent: '', value: '', hidden: false,
       classList: {toggle() {}}, setAttribute() {}, insertAdjacentHTML() {}, appendChild() {}, addEventListener() {},
-      querySelectorAll: () => [], querySelector: () => element(), classList: {toggle() {}, add() {}, remove() {}}, getContext: () => context, parentElement: {style: {}}};
+      querySelectorAll: () => [], querySelector: () => element(), classList: {toggle() {}, add() {}, remove() {}}, getContext: () => context, parentElement: {style: {}}, click() {}, remove() {}};
   };
   const document = {getElementById: id => {
     if (!elements.has(id)) elements.set(id, element());
     return elements.get(id);
   }, createElement: () => {const e=element();created.push(e);return e;}, head: element(), body: element(), visibilityState: 'visible'};
   const sandbox = {document, console, devicePixelRatio: 1, performance: {now: () => 0},
-    localStorage: {getItem: k => storage.get(k) ?? null, setItem: (k, v) => storage.set(k, String(v)), removeItem: k => storage.delete(k)},
+    localStorage: {getItem: k => storage.get(k) ?? null, setItem: (k, v) => storage.set(k, String(v)), removeItem: k => storage.delete(k),
+      key: i => [...storage.keys()][i] ?? null, get length() { return storage.size; }},
     addEventListener() {}, setTimeout: () => 1, clearTimeout() {},
     requestAnimationFrame: f => {frames.set(++frameId, f); return frameId;}, cancelAnimationFrame: id => frames.delete(id)};
   sandbox.window = sandbox;
   const ctx = vm.createContext(sandbox), run = script => vm.runInContext(script, ctx);
   run(fs.readFileSync(path.join(root, 'mobile/session-model.js'), 'utf8'));
   run(fs.readFileSync(path.join(root, 'mobile/trace-geom.js'), 'utf8'));
+  run(fs.readFileSync(path.join(root, 'mobile/backup.js'), 'utf8'));
   const html = fs.readFileSync(path.join(root, 'mobile/index.html'), 'utf8');
   const scripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map(m => m[1]).filter(s => s.trim());
   scripts.forEach(s => new vm.Script(s));
@@ -302,4 +304,22 @@ test('playback pauses at the marked release before drawing follow-through and th
     assert.ok(followed,'missing follow-through after pause');
     assert.equal(p.frames.size,0);assert.equal(p.elements.get('play').textContent,'Reproducir');
   }
+});
+
+test('export packs the aw* storage for Android and reports a failed download', () => {
+  const p = page();
+  p.run("localStorage.setItem('awGear', JSON.stringify({bows:['Recurvo'],arrows:[]})); localStorage.setItem('awReceipt','4'); localStorage.setItem('theme','dark')");
+  const sent = p.run("let captured; window.Native={export(json){captured=json}}; exportBackup(); captured");
+  const copy = JSON.parse(sent);
+  assert.equal(copy.format, 1);
+  assert.equal(copy.app, null);
+  assert.equal(copy.storage.awSessions[0].id, 1);
+  assert.equal(copy.storage.awGear.bows[0], 'Recurvo');
+  assert.equal(copy.storage.awCalibration, undefined);
+  assert.equal(copy.storage.awReceipt, '4');
+  assert.equal(Object.hasOwn(copy.storage, 'theme'), false);
+  assert.equal(p.run("window.Native={}; exportBackup(); document.getElementById('notice').textContent"), 'No se pudo exportar la copia: Blob is not defined');
+  const downloaded = p.run("document.getElementById('notice').hidden=true; document.getElementById('notice').textContent=''; window.Native=undefined; const files=[]; Blob=function(parts){this.parts=parts}; URL={createObjectURL(blob){files.push(blob.parts[0]); return 'blob:aw'}, revokeObjectURL(){}}; exportBackup(); files[0]");
+  assert.equal(JSON.parse(downloaded).storage.awReceipt, '4');
+  assert.equal(p.run("document.getElementById('notice').textContent"), '');
 });
