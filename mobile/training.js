@@ -33,6 +33,8 @@ $('sessionHero').insertAdjacentHTML('afterend',`<section class="training" id="tr
 <button data-v="Indoor">Indoor<span>3 flechas</span></button>
 <button data-v="Outdoor">Outdoor<span>6 flechas</span></button>
 <button data-v="Libre">Libre<span>sin tope</span></button>
+<button data-v="TandaIndoor">Tanda indoor<span>10 sets</span></button>
+<button data-v="TandaOutdoor">Tanda aire libre<span>6 sets</span></button>
 </div></div>
 <div class="picker" id="bowPicker">
 <button class="pickRow" id="bowRow"><span>Arco</span><b id="bowVal">–</b></button>
@@ -75,7 +77,10 @@ function renderCalibration(s) {
 }
 function saveSession(s){const L=store.list();const i=L.findIndex(x=>x.id===s.id);if(i>=0)L[i]=s;else L.push(s);store.save(L);if(curSess?.id===s.id)curSess=s;}
 $('modeSheet').onclick=e=>{const b=e.target.closest('[data-v]');if(!b)return;const s=displayedSession();if(!s||historyMode)return;
-  s.mode=b.dataset.v;s.target=b.dataset.v==='Indoor'?3:b.dataset.v==='Outdoor'?6:0;saveSession(s);sendCmd('mode',s.mode);closeSheets(null);render();};
+  const key=b.dataset.v, tanda=key==='TandaIndoor'||key==='TandaOutdoor';
+  const mode=key==='TandaIndoor'?'Indoor':key==='TandaOutdoor'?'Outdoor':key;
+  s.mode=mode;s.tanda=tanda;s.roundDone=false;s.target=mode==='Indoor'?3:mode==='Outdoor'?6:0;
+  saveSession(s);sendCmd('mode',key);closeSheets(null);render();};
 function gearSheet(listId,sheetId,field,cmd){
   $(sheetId).onclick=e=>{const remove=e.target.closest('[data-delete-bow]');if(remove){deleteBow(remove.dataset.deleteBow);return;}const b=e.target.closest('[data-n]');if(!b)return;const s=displayedSession();if(!s||historyMode)return;
     s[field]=b.dataset.n;saveSession(s);if(cmd)sendCmd(cmd,s[field]);closeSheets(null);render();};
@@ -115,7 +120,7 @@ window.liveEvent = e => {
   const L=store.list();let i=L.findIndex(s=>s.watchId===e.sid);
   if(i<0) { const epoch=Number(e.sid.split('-')[0])*1000;L.push(Training.create(e,Number.isFinite(epoch)&&epoch>1e12?epoch:Math.max(Date.now(),...L.map(s=>s.id+1))));i=L.length-1; }
   if(e.eid<=(L[i].lastEvent??-1))return;
-  const openEnds=new Set((L[i].ends||[]).map(x=>x.id));
+  const openEnds=new Set((L[i].ends||[]).map(x=>x.id)), beforeDone=!!L[i].roundDone;
   if(e.kind==='start')L.forEach((s,j)=>{if(i!==j)s.live=false;});
   const follow=!data?.shots.length||cur===data.shots.length-1, s=Training.apply(L[i],e);L[i]=s;store.save(L);
   if(e.kind==='calibration')notice(e.result);  // se calibra desde el reloj; aqui solo informamos
@@ -125,6 +130,11 @@ window.liveEvent = e => {
   } else if(histId===s.id) {data={shots:s.shots};}
   liveStatus('');
   if(offerEndScore(s, openEnds)) show('Set');
+  else if(!beforeDone && s.roundDone && !historyMode){
+    const pts=Score.totals((s.shots||[]).filter(x=>!x.candidate));
+    notice(`${Training.roundLabel(s)} ${Training.roundGoal(s)}/${Training.roundGoal(s)}${pts.scored?' · '+pts.score+' pts':''}`);
+    render();
+  }
   else if(!historyMode && (e.kind==='start'||e.kind==='end'))show('Session');
   else render();
 };
@@ -137,7 +147,8 @@ function offerEndScore(s, openEnds) {
   cur=idx;
   const blank=s.shots.find(x=>x.set_id===id && !x.candidate && Score.points(x.result?.value)==null);
   scoreFocus=(blank||s.shots[idx]).t_ms;
-  notice('Tanda cerrada. Anota el valor de las flechas.');
+  const goal=Training.roundGoal(s);
+  notice(goal && s.roundDone ? `${Training.roundLabel(s)} ${goal}/${goal}. Anota el valor.` : 'Tanda cerrada. Anota el valor de las flechas.');
   return true;
 }
 const originalRemove=removeSelection;
@@ -162,17 +173,31 @@ const originalRender=render;
 render=function() {
   originalRender();const s=displayedSession(), shot=data?.shots[cur];
   const groups=s?sets(s.shots).filter(g=>!s.shots[g[0]].candidate):[], ordinal=groups.findIndex(g=>s.shots[g[0]].set_id===s.currentSet);
-  const setNumber=ordinal>=0?ordinal+1:groups.length+1;
+  const setNumber=ordinal>=0?ordinal+1:(s?.currentSet==null?Math.max(1,groups.length):groups.length+1);
+  const goal=Training.roundGoal(s);
   $('trainingPanel').hidden=!!historyMode;
-  $('trainingStatus').textContent=s?`${s.mode?s.mode+' · ':''}${s.paused?'Pausa':s.resting?'Descanso':'Set '+setNumber} · ${s.shots.filter(x=>x.set_id===(s.currentSet??1)).length}${s.target?'/'+s.target:''}`:'Equipo';
+  if(s && goal){
+    const n=s.roundDone?goal:Math.min(setNumber, goal);
+    const arrows=s.shots.filter(x=>!x.candidate && x.set_id===(s.currentSet??1)).length;
+    const pts=Score.totals(s.shots.filter(x=>!x.candidate));
+    const head=s.paused?'Pausa · ':s.resting&&!s.roundDone?'Descanso · ':'';
+    const tail=s.roundDone?(pts.scored?pts.score+' pts':''):(arrows+(s.target?'/'+s.target:''));
+    $('trainingStatus').textContent=`${head}${Training.roundLabel(s)} · ${n}/${goal}${tail?' · '+tail:''}`;
+    if(view==='Session' && data?.shots?.length){
+      $('sSets').textContent=`${n}/${goal}`;
+      const line=`${Training.roundLabel(s)} · ${n}/${goal}${pts.scored?' · '+pts.score+' pts':''}`;
+      $('subtitle').textContent=historyMode?`${line} · ${fmtDate(histId)}`:line;
+    }
+  } else $('trainingStatus').textContent=s?`${s.mode?s.mode+' · ':''}${s.paused?'Pausa':s.resting?'Descanso':'Set '+setNumber} · ${s.shots.filter(x=>x.set_id===(s.currentSet??1)).length}${s.target?'/'+s.target:''}`:'Equipo';
   if(!historyMode && s?.calibrating)$('trainingStatus').textContent=`Calibración · ${s.calibrationCount||0}`;
   $('calibrationMode').hidden=historyMode||!s?.live||!s.watchId||!window.Native?.command;
   $('calibrationMode').textContent=s?.calibrating?'Salir de calibración':'Iniciar calibración';
   ['modePicker','bowPicker','arrowPicker'].forEach(id=>$(id).hidden=historyMode);
-  $('modeVal').textContent=s?.mode||'–';
+  $('modeVal').textContent=s?(Training.roundLabel(s)||'–'):'–';
   $('bowVal').textContent=s?.bow||s?.profile||'–';
   $('arrowVal').textContent=s?.arrows||'–';
-  $('modeSheet').querySelectorAll('[data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===(s?.mode||'')));
+  const modeKey=s?.tanda&&s.mode==='Indoor'?'TandaIndoor':s?.tanda&&s.mode==='Outdoor'?'TandaOutdoor':(s?.mode||'');
+  $('modeSheet').querySelectorAll('[data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===modeKey));
   const g=gear.get();
   $('bowList').innerHTML=g.bows.map(n=>`<div class="gearRow"><button data-n="${escapeText(n)}"${n===(s?.bow||s?.profile)?' class="on"':''}>${escapeText(n)}<span>‹</span></button><button class="deleteGear" data-delete-bow="${escapeText(n)}" aria-label="Eliminar preset ${escapeText(n)}">${TRASH}</button></div>`).join('');
   $('arrowList').innerHTML=g.arrows.map(n=>`<button data-n="${escapeText(n)}"${n===s?.arrows?' class="on"':''}>${escapeText(n)}<span>‹</span></button>`).join('')||'';

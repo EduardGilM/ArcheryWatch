@@ -42,6 +42,18 @@ const Training = {
   split(s, t) { const i=s.shots.findIndex(x=>x.t_ms===t); if(i<0)return; const old=s.shots[i].set_id; s.shots.slice(i).forEach(x=>{if(x.set_id===old)x.set_id=t;}); },
   merge(s, id) { const i=s.shots.findIndex(x=>x.set_id===id); if(i<=0)return; const previous=s.shots[i-1].set_id; s.shots.forEach(x=>{if(x.set_id===id)x.set_id=previous;}); s.ends=(s.ends||[]).filter(e=>e.id!==id); },
   key(s) { return (s.profile||'Sin equipo')+' · v'+(s.metric||1); },
+  roundGoal(s) {
+    if (!s || !s.tanda) return 0;
+    if (s.mode === 'Indoor') return 10;
+    if (s.mode === 'Outdoor') return 6;
+    return 0;
+  },
+  roundLabel(s) {
+    if (!s || !s.tanda) return s?.mode || '';
+    if (s.mode === 'Outdoor') return 'Tanda aire libre';
+    if (s.mode === 'Indoor') return 'Tanda indoor';
+    return 'Tanda';
+  },
   summary(shots) {
     const score=shots.map(s=>s.aim_score).filter(Number.isFinite), gaps=shots.slice(1).flatMap((s,i)=>s.set_id===shots[i].set_id?[(s.t_ms-shots[i].t_ms)/1000]:[]);
     const median=a=>{a=[...a].sort((a,b)=>a-b);return a.length?(a[Math.floor((a.length-1)/2)]+a[Math.floor(a.length/2)])/2:null;};

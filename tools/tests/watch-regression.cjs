@@ -30,7 +30,7 @@ function load(file,klass,names){
   return env;
 }
 const watch=()=>load('watchapp/source/ArcheryApp.mc','ArcheryApp',['configureRate','walkReset','stepsNow','considerWalk','onData','sample','magYaw','rememberRR','rrRmssd','preStable','trigger','finalize','finalizeBody','mark','note','clearNote','noticeLive','decimate','subArray','diffArray','mean','pstdev','clamp','shouldResume']);
-const training=()=>{const s=load('watchapp/source/Training.mc','TrainingState',['count','total','nextId','snapshot','close','buzzSoft','validProfile','add','act','restore','readyLine','quietLaunch']);s.app={mark(){}};s.events=[];s.buzzes=[];s.emit=(kind,payload)=>s.events.push({kind,...payload});s.buzz=()=>s.buzzes.push('hard');s.buzzSoft=()=>s.buzzes.push('soft');return s;};
+const training=()=>{const s=load('watchapp/source/Training.mc','TrainingState',['count','total','nextId','snapshot','close','buzzSoft','validProfile','add','act','restore','readyLine','quietLaunch','roundGoal','closedSets','settleRound','buzzRound']);s.app={mark(){}};s.events=[];s.notes=[];s.buzzes=[];s.app.note=t=>s.notes.push(t);s.emit=(kind,payload)=>s.events.push({kind,...payload});s.buzz=()=>s.buzzes.push('hard');s.buzzSoft=()=>s.buzzes.push('soft');s.buzzRound=()=>s.buzzes.push('round');return s;};
 let failures=0;
 function test(name,run){try{run();console.log('PASS',name);}catch(e){failures++;console.error('FAIL',name,e.message);}}
 test('Sensor batches preserve 10 ms intervals after days of watch uptime',()=>{
@@ -373,6 +373,55 @@ test('A fresh launch keeps the last setup and does not count an arrow before STA
   assert.equal(s.readyLine()[3], 'Calibrado 700');
   s.act('mode', 'Libre');
   assert.equal(s.readyLine()[1], 'sin limite');
+});
+test('An indoor round is ten sets and finishes once, without changing a free session', () => {
+  const s = training();
+  s.act('mode', 'TandaIndoor');
+  assert.equal(s.mode, 'Indoor');
+  assert.equal(s.tanda, true);
+  assert.equal(s.target, 3);
+  assert.equal(s.roundGoal(), 10);
+  assert.equal(s.Application.Storage.getValue('preferences').tanda, true);
+  assert.deepEqual(s.readyLine().slice(0, 2), ['Tanda indoor', '10 sets · 3 flechas']);
+  for (let i = 0; i < 29; i++) s.add({t: 1000 + i * 1000, score: 80, peak: 1, instab: 1, settle: 1});
+  assert.equal(s.roundDone, false);
+  assert.equal(s.closedSets(), 9);
+  assert.equal(s.notes.length, 0);
+  s.add({t: 40000, score: 80, peak: 1, instab: 1, settle: 1});
+  assert.equal(s.roundDone, true);
+  assert.equal(s.closedSets(), 10);
+  assert.equal(s.notes.at(-1), 'Tanda 10/10');
+  assert.equal(s.buzzes.at(-1), 'round');
+  assert.equal(s.snapshot().roundDone, true);
+  const noted = s.notes.length;
+  s.add({t: 50000, score: 80, peak: 1, instab: 1, settle: 1});
+  assert.equal(s.roundDone, true);
+  assert.equal(s.notes.length, noted);
+  s.act('undo', 0);
+  assert.equal(s.roundDone, true);
+  const fresh = training();
+  fresh.act('mode', 'TandaIndoor');
+  for (let i = 0; i < 30; i++) fresh.add({t: 1000 + i * 1000, score: 80, peak: 1, instab: 1, settle: 1});
+  assert.equal(fresh.roundDone, true);
+  fresh.act('undo', 0);
+  assert.equal(fresh.roundDone, false);
+  assert.equal(fresh.resting, false);
+  fresh.act('mode', 'Libre');
+  assert.equal(fresh.tanda, false);
+  assert.equal(fresh.target, 0);
+  fresh.restore(null);
+  assert.equal(fresh.tanda, false);
+  const outdoor = training();
+  outdoor.act('mode', 'TandaOutdoor');
+  assert.equal(outdoor.roundGoal(), 6);
+  assert.equal(outdoor.target, 6);
+  assert.equal(outdoor.readyLine()[0], 'Tanda aire libre');
+  for (let i = 0; i < 6; i++) outdoor.add({t: 1000 + i * 1000, score: 70, peak: 1, instab: 1, settle: 1});
+  assert.equal(outdoor.closedSets(), 1);
+  assert.equal(outdoor.roundDone, false);
+  outdoor.act('mode', 'Indoor');
+  assert.equal(outdoor.tanda, false);
+  assert.equal(outdoor.target, 3);
 });
 test('A half session resumes and a watch without one stays on the launcher', () => {
   const s = watch();

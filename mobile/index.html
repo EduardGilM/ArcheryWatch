@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="aw-version" content="4.19">
+<meta name="aw-version" content="4.20">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#000000">
 <link rel="manifest" href="manifest.json">
@@ -146,6 +146,7 @@
   .kv .num { font-size:clamp(26px,8vw,34px); display:block; margin-top:5px; }
   .mrow, .top3 { display:grid; background:var(--surface); border:1px solid var(--line); border-radius:18px; min-width:0; }
   .mrow { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .mrow.quad { grid-template-columns:repeat(4,minmax(0,1fr)); }
   .top3 { grid-template-columns:minmax(0,1.25fr) minmax(0,1fr) minmax(0,1fr); }
   .mrow > div, .top3 > div { padding:12px 12px; min-width:0; }
   .mrow > div + div, .top3 > div + div { border-left:1px solid var(--line); }
@@ -223,8 +224,12 @@
   #setList details { background:var(--surface); border:1px solid var(--line); border-radius:16px; overflow:hidden; position:relative; }
   #setList details[open] { border-color:var(--line-2); }
   #setList details[open]::before { content:""; position:absolute; left:0; top:14px; width:2px; height:28px; border-radius:0 2px 2px 0; background:var(--acc); }
-  #setList summary { list-style:none; cursor:pointer; border:0; display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) auto 16px; align-items:center; gap:8px; padding:11px 14px; min-height:52px; }
-  .setVal .chip { display:block; margin-top:4px; font:600 11px var(--font); }
+  #setList summary { list-style:none; cursor:pointer; border:0; display:grid; grid-template-columns:minmax(46px,.7fr) minmax(28px,1fr) 70px 42px 14px; align-items:center; gap:8px; padding:0 14px; min-height:56px; }
+  .setPts { display:flex; align-items:baseline; justify-content:flex-end; gap:3px; font:600 22px/1 var(--num); color:var(--txt-3); }
+  .setPts b { font:inherit; }
+  .setPts small { font:500 11px/1 var(--font); letter-spacing:.04em; color:var(--txt-3); }
+  .setPts.on { color:var(--acc); }
+  .setPts.on small { color:var(--txt-2); }
   #setList summary::-webkit-details-marker { display:none; }
   #setList summary .r::after { transform:rotate(90deg); }
   #setList details[open] summary .r::after { transform:rotate(-90deg); }
@@ -271,6 +276,11 @@
   #askYes { background:#fff; border:none; color:#000; border-radius:12px; min-height:46px; font-size:14px; font-weight:600; }
   .info { margin-top:8px; }
   .info summary { list-style:none; cursor:pointer; width:28px; height:28px; display:grid; place-items:center; color:var(--txt-3); font-size:13px; border-radius:50%; }
+  #sessionScoreMore summary { width:auto; height:auto; display:inline-flex; font-size:12px; letter-spacing:.08em; text-transform:uppercase; }
+  #sessionScore .cardTitle { margin-bottom:0; }
+  #sessionScoreFace { margin-top:12px; background:none; border:0; border-radius:0; }
+  #sessionScoreFace > div { padding:2px 8px 0; }
+  #sessionScoreFace > div + div { border-left:1px solid var(--line); }
   .info summary::-webkit-details-marker { display:none; }
   .info p { font-size:12px; color:var(--txt-3); line-height:1.4; margin-top:4px; }
   .sessbars { display:grid; grid-template-columns:repeat(auto-fit,minmax(36px,1fr)); gap:8px; align-items:end; height:120px; margin-top:12px; }
@@ -352,8 +362,13 @@
   </div>
   <section class="card" id="sessionScore" hidden>
     <div class="cardTitle">Valor<small id="sessionScoreCount"></small></div>
-    <p id="sessionScoreLine" class="scoreNote"></p>
-    <details class="info"><summary aria-label="Detalle">ⓘ</summary><div id="sessionScoreGroups" class="scoreGroups"></div><p id="sessionScoreInsight"></p></details>
+    <div class="mrow quad" id="sessionScoreFace">
+      <div><span class="lbl">Total</span><b class="num" id="scoreTotal">–</b></div>
+      <div><span class="lbl">Media</span><b class="num" id="scoreAvg">–</b></div>
+      <div><span class="lbl">X</span><b class="num" id="scoreX">–</b></div>
+      <div><span class="lbl">10</span><b class="num" id="scoreTen">–</b></div>
+    </div>
+    <details class="info" id="sessionScoreMore"><summary>Detalle</summary><div id="sessionScoreGroups" class="scoreGroups"></div><p id="sessionScoreInsight"></p></details>
   </section>
   <div id="setList"></div>
   <div id="trend" hidden></div>
@@ -395,6 +410,7 @@
       <button type="button" onclick="cmpQuick('today')">Hoy</button>
       <button type="button" onclick="cmpQuick('score')">Mejor valor</button>
       <button type="button" onclick="cmpQuick('aim')">Mejor estabilidad</button>
+      <button type="button" onclick="cmpQuick('tanda')">Tandas</button>
     </div>
     <div class="cmpTable" id="cmpTable"></div>
     <div class="cmpGear" id="cmpGear"></div>
@@ -817,9 +833,15 @@ function renderSession(S) {
   const sessionBox = document.getElementById('sessionScore');
   sessionBox.hidden = false;
   document.getElementById('sessionScoreCount').textContent = sessionTotals.scored ? sessionTotals.scored + '/' + sessionTotals.arrows : '';
-  document.getElementById('sessionScoreLine').textContent = Score.totalsLine(sessionTotals) || 'Sin valores';
-  document.getElementById('sessionScoreGroups').innerHTML = Score.groups(sessionShots).map(Score.groupLine).filter(Boolean).map(line => `<div>${line}</div>`).join('');
-  document.getElementById('sessionScoreInsight').textContent = Score.insight(sessionShots).text;
+  document.getElementById('scoreTotal').textContent = sessionTotals.scored ? sessionTotals.score : '–';
+  document.getElementById('scoreAvg').textContent = sessionTotals.scored ? esNum(sessionTotals.avg, 1) : '–';
+  document.getElementById('scoreX').textContent = sessionTotals.scored ? sessionTotals.x : '–';
+  document.getElementById('scoreTen').textContent = sessionTotals.scored ? sessionTotals.ten : '–';
+  const groupHtml = Score.groups(sessionShots).map(Score.groupLine).filter(Boolean).map(line => `<div>${line}</div>`).join('');
+  const insight = Score.insight(sessionShots).text;
+  document.getElementById('sessionScoreGroups').innerHTML = groupHtml;
+  document.getElementById('sessionScoreInsight').textContent = insight;
+  document.getElementById('sessionScoreMore').hidden = !groupHtml && !insight;
   drawTrend(S);
 }
 
@@ -957,7 +979,9 @@ function renderProgress() {
       bars.innerHTML = shown.map((s, i) => {
         const v = base[i], last = i === shown.length - 1;
         const h = Math.round(8 + ((v - floor) / span) * 72);
-        return `<div><b style="${last ? 'color:var(--acc)' : ''}">${v}</b><i class="${last ? 'last' : ''}" style="height:${h}px"></i><small>${fmtDate(s.id).split(',')[0]}</small></div>`;
+        const pts = Score.totals(s.shots);
+        const cap = fmtDate(s.id).split(',')[0] + (s.tanda ? (pts.scored ? ' · ' + pts.score : ' · T') : '');
+        return `<div><b style="${last ? 'color:var(--acc)' : ''}">${v}</b><i class="${last ? 'last' : ''}" style="height:${h}px"></i><small>${cap}</small></div>`;
       }).join('');
     } else if (bars) bars.innerHTML = '';
   } else if (bars) bars.innerHTML = '';
@@ -982,7 +1006,7 @@ function renderHistory() {
   document.getElementById('histList').innerHTML = L.length ? L.map(s => {
     const a = Math.round(avg(s.shots.map(x => x.aim_score)));
     const pts = Score.totals(s.shots);
-    const meta = [pts.scored ? pts.score + ' pts' : '', s.mode, s.bow, s.arrows].filter(Boolean).map(escapeText).join(' · ');
+    const meta = [pts.scored ? pts.score + ' pts' : '', Training.roundLabel(s), s.bow, s.arrows].filter(Boolean).map(escapeText).join(' · ');
     return `<div class="setline" data-sess="${s.id}"><div class="rowMain"><b>${fmtDate(s.id)}</b>` +
       `<span class="m">${[`${s.shots.length} flecha${s.shots.length > 1 ? 's' : ''}`, meta].filter(Boolean).join(' · ')}</span></div>` +
       `<span class="chip" style="--c:${grade(a)[0]}">${Number.isFinite(a)?a:'–'}</span><span class="r"></span>` +
@@ -1028,7 +1052,7 @@ function cmpSide(side, value) {
 function cmpQuick(kind) {
   const pick = Compare.pick(store.list(), kind, cmpA);
   if (!pick) {
-    notice(kind === 'score' ? 'Ninguna otra sesión tiene puntuación.' : 'No hay otra sesión para comparar.');
+    notice(kind === 'score' ? 'Ninguna otra sesión tiene puntuación.' : kind === 'tanda' ? 'No hay otra tanda del mismo modo.' : 'No hay otra sesión para comparar.');
     return;
   }
   cmpA = pick[0]; cmpB = pick[1]; cmpOpen = true;
@@ -1038,7 +1062,8 @@ function cmpMetricSet(metric) { cmpMetric = metric === 'score' ? 'score' : 'aim'
 function cmpArrowSet(value) { cmpArrow = value === 'mean' ? 'mean' : String(Number(value)); renderCompare(Compare.usable(store.list())); }
 function cmpOptionLabel(s) {
   const n = Compare.real(s).length;
-  return fmtDate(s.id) + ' · ' + n + (n === 1 ? ' flecha' : ' flechas');
+  const kind = Training.roundLabel(s);
+  return fmtDate(s.id) + (kind ? ' · ' + kind : '') + ' · ' + n + (n === 1 ? ' flecha' : ' flechas');
 }
 function renderCompare(sessions) {
   const rows = sessions || Compare.usable(store.list());
@@ -1565,9 +1590,9 @@ function drawTrend(S) {
   list.innerHTML=S.map((g,i)=>{
     const sa=Math.round(avg(g.map(j=>data.shots[j].aim_score))), key=(historyMode?histId:curSess?.id)+'_'+encodeURIComponent(data.shots[g[0]].set_id);
     const pts=Score.totals(g.map(j => data.shots[j]));
-    const points=pts.scored ? `<span class="chip" style="--c:var(--acc)">${pts.score} pts</span>` : '';
+    const points=`<span class="setPts${pts.scored?' on':''}"><b>${pts.scored?pts.score:'–'}</b><small>pts</small></span>`;
     const mini=g.map(j=>{const v=data.shots[j].aim_score;const h=Number.isFinite(v)?Math.max(3,(Math.min(100,v)-40)/60*22):3;return `<i style="height:${h}px;background:${barOf(v)}"></i>`;}).join('');
-    return `<details data-set="${key}" ${opened.has(key)?'open':''}><summary class="setline"><b>${setLabel(S,i)}</b><span class="mini">${mini}</span><span class="setVal" style="color:${numOf(sa)}">${Number.isFinite(sa)?sa:'–'}${points}</span><span class="r"></span></summary>${rows[i]}</details>`;
+    return `<details data-set="${key}" ${opened.has(key)?'open':''}><summary class="setline"><b>${setLabel(S,i)}</b><span class="mini">${mini}</span>${points}<span class="setVal" style="color:${numOf(sa)}">${Number.isFinite(sa)?sa:'–'}</span><span class="r"></span></summary>${rows[i]}</details>`;
   }).join('');
   c.onclick=list.onclick=e=>{const i=e.target.closest('[data-shot]')?.dataset.shot;if(i!=null){cur=+i;show('Shot');}};
 }

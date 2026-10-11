@@ -108,7 +108,13 @@ class ArcheryView extends WatchUi.View {
         dc.drawLine(cx - 48, yLbl, cx - 48, yLine2 - 6);
         dc.drawLine(cx + 48, yLbl, cx + 48, yLine2 - 6);
         dc.setColor(Graphics.COLOR_ORANGE, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(cx - 96, yLbl, Graphics.FONT_XTINY, "SET " + t.displaySet(), Graphics.TEXT_JUSTIFY_CENTER);
+        var setName = "SET " + t.displaySet();
+        if (t.tanda && t.roundGoal() > 0) {
+            var shown = t.displaySet();
+            if (t.roundDone && shown > t.roundGoal()) { shown = t.roundGoal(); }
+            setName = shown.toString() + "/" + t.roundGoal();
+        }
+        dc.drawText(cx - 96, yLbl, Graphics.FONT_XTINY, setName, Graphics.TEXT_JUSTIFY_CENTER);
         dc.setColor(Graphics.COLOR_DK_GRAY, Graphics.COLOR_TRANSPARENT);
         dc.drawText(cx, yLbl, Graphics.FONT_XTINY, "TOTAL", Graphics.TEXT_JUSTIFY_CENTER);
         dc.drawText(cx + 96, yLbl, Graphics.FONT_XTINY, "PPM", Graphics.TEXT_JUSTIFY_CENTER);
@@ -186,6 +192,8 @@ function openLaunchMenu() {
     menu.addItem(new WatchUi.MenuItem("Indoor (3 flechas)",null,["mode","Indoor"],null));
     menu.addItem(new WatchUi.MenuItem("Outdoor (6 flechas)",null,["mode","Outdoor"],null));
     menu.addItem(new WatchUi.MenuItem("Libre",null,["mode","Libre"],null));
+    menu.addItem(new WatchUi.MenuItem("Tanda indoor (10 sets)",null,["mode","TandaIndoor"],null));
+    menu.addItem(new WatchUi.MenuItem("Tanda aire libre (6 sets)",null,["mode","TandaOutdoor"],null));
     menu.addItem(new WatchUi.MenuItem("Recurvo",null,["profile","Recurvo"],null));
     menu.addItem(new WatchUi.MenuItem("Compuesto",null,["profile","Compuesto"],null));
     WatchUi.pushView(menu,new ModeMenuDelegate(),WatchUi.SLIDE_UP);

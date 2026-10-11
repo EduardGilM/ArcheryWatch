@@ -23,7 +23,8 @@ const Compare = {
   summary(session) {
     const shots = this.real(session);
     const totals = ScoreApi.totals(shots);
-    const gear = [session && session.mode, session && (session.bow || session.profile), session && session.arrows].filter(Boolean).join(' · ');
+    const place = !session || !session.tanda ? (session && session.mode) : session.mode === 'Outdoor' ? 'Tanda aire libre' : session.mode === 'Indoor' ? 'Tanda indoor' : 'Tanda';
+    const gear = [place, session && (session.bow || session.profile), session && session.arrows].filter(Boolean).join(' · ');
     return {
       arrows: shots.length,
       score: totals.score,
@@ -93,6 +94,13 @@ const Compare = {
       });
       const best = ranked.find(s => s.id !== left.id);
       return best ? [left.id, best.id] : null;
+    }
+    if (kind === 'tanda') {
+      const pool = rows.filter(s => s.tanda);
+      const anchor = left && left.tanda ? left : [...pool].sort((a, b) => b.id - a.id)[0];
+      if (!anchor) return null;
+      const other = pool.filter(s => s.id !== anchor.id && s.mode === anchor.mode).sort((a, b) => b.id - a.id)[0];
+      return other ? [anchor.id, other.id] : null;
     }
     if (kind === 'aim') {
       const ranked = rows.filter(s => Number.isFinite(this.summary(s).aim)).sort((a, b) => this.summary(b).aim - this.summary(a).aim || b.id - a.id);

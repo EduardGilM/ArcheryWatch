@@ -407,10 +407,14 @@ test('scoring the set stores the value and a repeated watch event leaves it', ()
   const kept = p.run("store.list()[0].shots.find(s=>s.t_ms===1000).result.value");
   assert.equal(kept, 'X');
   p.run("view='Session';render()");
-  assert.match(p.elements.get('sessionScoreLine').textContent, /19 puntos · media 6,3 · 1 X · 0 dieces/);
+  assert.equal(String(p.elements.get('scoreTotal').textContent), '19');
+  assert.equal(p.elements.get('scoreAvg').textContent, '6,3');
+  assert.equal(String(p.elements.get('scoreX').textContent), '1');
+  assert.equal(String(p.elements.get('scoreTen').textContent), '0');
   assert.match(p.elements.get('sessionScoreInsight').textContent, /al menos 4/);
   assert.match(p.elements.get('setList').innerHTML, /<details/);
-  assert.match(p.elements.get('setList').innerHTML, /19 pts/);
+  assert.match(p.elements.get('setList').innerHTML, /class="setPts on"><b>19<\/b><small>pts<\/small>/);
+  assert.doesNotMatch(p.elements.get('setList').innerHTML, /class="chip"/);
   assert.match(p.elements.get('trend').innerHTML, /class="trendScore"[^>]*>X</);
   assert.match(p.elements.get('trend').innerHTML, /class="trendScore"[^>]*>9</);
   assert.match(p.elements.get('trend').innerHTML, /class="trendScore"[^>]*>M</);
@@ -432,6 +436,28 @@ test('the session view stays hidden under other tabs and visible when it is empt
   assert.equal(session.style.display, 'none');
   p.run("data={shots:[]};show('Session')");
   assert.equal(session.style.display, 'flex');
+});
+
+test('a tanda keeps set progress and an old session stays free', () => {
+  const p = page();
+  p.run(`window.Native={command:v=>{window.sent=v;return '';}};
+    document.getElementById('modeSheet').onclick({target:{closest:s=>s==='[data-v]'?{dataset:{v:'TandaIndoor'}}:null}});`);
+  assert.equal(p.run('curSess.tanda'), true);
+  assert.equal(p.run('curSess.mode'), 'Indoor');
+  assert.equal(p.run('curSess.target'), 3);
+  assert.match(p.run('sent'), /TandaIndoor/);
+  p.run("curSess.currentSet=1;view='Session';render()");
+  assert.equal(p.elements.get('sSets').textContent, '1/10');
+  assert.match(p.elements.get('subtitle').textContent, /Tanda indoor · 1\/10/);
+  assert.match(p.elements.get('setList').innerHTML, /class="setPts"/);
+  p.run("document.getElementById('modeSheet').onclick({target:{closest:s=>s==='[data-v]'?{dataset:{v:'Libre'}}:null}});");
+  assert.equal(p.run('curSess.tanda'), false);
+  assert.equal(p.run('curSess.target'), 0);
+  p.run("view='Session';render()");
+  assert.equal(String(p.elements.get('sSets').textContent), '1');
+  p.run("const old={id:9,mode:'Indoor',shots:[{t_ms:1,set_id:1,aim_score:70}]};store.save([old]);data={shots:old.shots};historyMode=true;histId=9;curSess=null;show('History');");
+  assert.match(p.elements.get('histList').innerHTML, /Indoor/);
+  assert.doesNotMatch(p.elements.get('histList').innerHTML, /Tanda/);
 });
 
 test('a stretched aim box is stored as a square bitmap', () => {

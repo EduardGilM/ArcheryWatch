@@ -36,6 +36,18 @@ test('summary faces score, stability, timing and gear, and the delta is the seco
   assert.equal(Compare.rows(older, bare).find(r => r.key === 'score').d, '–');
 });
 
+test('two rounds of the same mode can be compared and a free session is not one', () => {
+  const shot = (t, score, value, set) => ({t_ms: t, set_id: set, aim_score: score, result: value ? {value} : undefined});
+  const a = {id: 1, mode: 'Indoor', tanda: true, bow: 'Recurvo', shots: [shot(1, 80, '9', 1)]};
+  const b = {id: 2, mode: 'Indoor', tanda: true, bow: 'Recurvo', shots: [shot(1, 90, 'X', 1)]};
+  const free = {id: 3, mode: 'Indoor', shots: [shot(1, 70, '8', 1)]};
+  assert.match(Compare.summary(a).gear, /Tanda indoor/);
+  assert.equal(Compare.summary(free).gear.startsWith('Indoor'), true);
+  assert.deepEqual(Compare.pick([free, a, b], 'tanda', 3), [2, 1]);
+  assert.deepEqual(Compare.pick([a, b], 'tanda', 1), [1, 2]);
+  assert.equal(Compare.pick([a, free], 'tanda', 1), null);
+});
+
 test('per-set series keep each end and skip candidates', () => {
   const s = {id: 1, shots: [shot(1000, 80, {value: '9'}), shot(2000, 60, {value: '7'}), {...shot(2500, 10), candidate: true}, shot(4000, 90, {set_id: 2, value: 'X'})]};
   const series = Compare.setSeries(s);
