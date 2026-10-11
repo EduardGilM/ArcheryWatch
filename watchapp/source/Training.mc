@@ -34,9 +34,19 @@ class TrainingState {
         var value=Application.Storage.getValue("threshold:"+profile); if(value!=null){threshold=value;}
         pose=Application.Storage.getValue("pose:"+profile);
     }
+    function readyLine() {
+        var arrows=target>0 ? target.toString()+" flechas" : "sin limite";
+        var cal=Application.Storage.getValue("threshold:"+profile);
+        var calText=cal!=null ? "Calibrado "+cal.toNumber() : "Sin calibrar";
+        return [mode, arrows, profile, calText];
+    }
+    function quietLaunch() { return app has :live && !app.live; }
     function buzz() { if(feedback && Attention has :vibrate) { Attention.vibrate([new Attention.VibeProfile(45,resting?240:80)]); } }
     function buzzSoft() { if(feedback && Attention has :vibrate) { Attention.vibrate([new Attention.VibeProfile(25,120)]); } }
-    function emit(kind, payload) { payload["kind"]=kind; payload["state"]=snapshot(); app.emit(payload); WatchUi.requestUpdate(); }
+    function emit(kind, payload) {
+        if(quietLaunch() && !kind.equals("calibration")){WatchUi.requestUpdate();return;}
+        payload["kind"]=kind; payload["state"]=snapshot(); app.emit(payload); WatchUi.requestUpdate();
+    }
     function close(reason,id) {
         if(id==0){id=currentSet;}var n=0;
         for(var i=0;i<rows.size();i++){if(rows[i][1]==id){n++;}}
@@ -56,6 +66,7 @@ class TrainingState {
     }
     function validProfile(value) {return value instanceof Lang.String && value.length()>0 && value.length()<=24;}
     function act(action,value) {
+        if(quietLaunch() && (action.equals("manual") || action.equals("undo") || action.equals("remove") || action.equals("close") || action.equals("next") || action.equals("pause") || action.equals("split") || action.equals("merge") || action.equals("reopen") || action.equals("finish") || action.equals("calibrate") || action.equals("probe") || action.equals("exit"))){return;}
         if(action.equals("split") || action.equals("merge")) {
             var index=-1;
             for(var p=0;p<rows.size();p++){if((action.equals("split") && rows[p][0]==value) || (action.equals("merge") && rows[p][1]==value)){index=p;break;}}
@@ -122,6 +133,7 @@ class TrainingState {
         if(action.equals("finish")) { app.finishActivity();return; }
         if(action.equals("exit")) {System.exit();return;}
         if(action.equals("mode") || action.equals("target") || action.equals("profile") || action.equals("deleteProfile") || action.equals("feedback") || action.equals("walkClose")){Application.Storage.setValue("preferences",{"target"=>target,"profile"=>profile,"feedback"=>feedback,"walkClose"=>walkClose,"mode"=>mode});}
+        if(quietLaunch()){WatchUi.requestUpdate();return;}
         emit("state",{});
     }
 }

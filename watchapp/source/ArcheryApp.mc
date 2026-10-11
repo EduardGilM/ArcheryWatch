@@ -15,18 +15,9 @@ import Toybox.WatchUi;
 class ArcheryView extends WatchUi.View {
     private var _app as ArcheryApp;
 
-    private var askedMode = false;
-
     public function initialize() {
         View.initialize();
         _app = Application.getApp() as ArcheryApp;
-    }
-
-    public function onShow() as Void {
-        if (!askedMode) {
-            askedMode = true;
-            try { openModeMenu(); } catch (e instanceof Lang.Exception) { _app.note("SHOW:" + e.getErrorMessage(), "ui", false); }
-        }
     }
 
     public function onUpdate(dc as Dc) as Void {
@@ -54,6 +45,7 @@ class ArcheryView extends WatchUi.View {
         }
         var t = _app.training;
         if (t == null) { return; }
+        if (!_app.live) { drawReady(dc); return; }
         if (_app.probeReport.size() > 0) {
             dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
             var lh = dc.getFontHeight(Graphics.FONT_XTINY) + 5;
@@ -135,6 +127,41 @@ class ArcheryView extends WatchUi.View {
             dc.drawText(cx, yTime, Graphics.FONT_MEDIUM, (elapsed / 60).format("%02d") + ":" + (elapsed % 60).format("%02d"), Graphics.TEXT_JUSTIFY_CENTER);
         }
     }
+
+    // Configuración recordada. START arranca; UP abre el cambio de modo y arco.
+    private function drawReady(dc as Dc) as Void {
+        var cx = dc.getWidth() / 2;
+        var t = _app.training;
+        var lines = t.readyLine();
+        var y = 28;
+        var hX = dc.getFontHeight(Graphics.FONT_XTINY);
+        var hS = dc.getFontHeight(Graphics.FONT_SMALL);
+        var hM = dc.getFontHeight(Graphics.FONT_MEDIUM);
+        dc.setColor(Graphics.COLOR_DK_GRAY, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(cx, y, Graphics.FONT_XTINY, "ARCHERYWATCH", Graphics.TEXT_JUSTIFY_CENTER);
+        y += hX + 10;
+        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(cx, y, Graphics.FONT_MEDIUM, lines[0], Graphics.TEXT_JUSTIFY_CENTER);
+        y += hM + 4;
+        dc.setColor(Graphics.COLOR_DK_GRAY, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(cx, y, Graphics.FONT_SMALL, lines[1], Graphics.TEXT_JUSTIFY_CENTER);
+        y += hS + 8;
+        dc.setColor(Graphics.COLOR_ORANGE, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(cx, y, Graphics.FONT_SMALL, lines[2], Graphics.TEXT_JUSTIFY_CENTER);
+        y += hS + 4;
+        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(cx, y, Graphics.FONT_XTINY, lines[3], Graphics.TEXT_JUSTIFY_CENTER);
+        if (_app.discardInfo != null) {
+            y += hX + 8;
+            dc.setColor(Graphics.COLOR_ORANGE, Graphics.COLOR_TRANSPARENT);
+            dc.drawText(cx, y, Graphics.FONT_XTINY, _app.discardInfo, Graphics.TEXT_JUSTIFY_CENTER);
+        }
+        var foot = dc.getHeight() - hX - 18;
+        dc.setColor(Graphics.COLOR_DK_GRAY, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(cx, foot, Graphics.FONT_XTINY, "UP cambia", Graphics.TEXT_JUSTIFY_CENTER);
+        dc.setColor(Graphics.COLOR_ORANGE, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(cx, foot - hM - 6, Graphics.FONT_MEDIUM, "START", Graphics.TEXT_JUSTIFY_CENTER);
+    }
 }
 
 class ModeMenuDelegate extends WatchUi.Menu2InputDelegate {
@@ -147,11 +174,13 @@ class ModeMenuDelegate extends WatchUi.Menu2InputDelegate {
         } catch(e instanceof Lang.Exception){a.note("SEL2:"+e.getErrorMessage(), "ui", false);}
     }
 }
-function openModeMenu() {
-    var menu=new WatchUi.Menu2({:title=>"Modo de tiro"});
+function openLaunchMenu() {
+    var menu=new WatchUi.Menu2({:title=>"Cambiar"});
     menu.addItem(new WatchUi.MenuItem("Indoor (3 flechas)",null,["mode","Indoor"],null));
     menu.addItem(new WatchUi.MenuItem("Outdoor (6 flechas)",null,["mode","Outdoor"],null));
     menu.addItem(new WatchUi.MenuItem("Libre",null,["mode","Libre"],null));
+    menu.addItem(new WatchUi.MenuItem("Recurvo",null,["profile","Recurvo"],null));
+    menu.addItem(new WatchUi.MenuItem("Compuesto",null,["profile","Compuesto"],null));
     WatchUi.pushView(menu,new ModeMenuDelegate(),WatchUi.SLIDE_UP);
 }
 class ArcheryDelegate extends WatchUi.BehaviorDelegate {
@@ -165,6 +194,7 @@ class ArcheryDelegate extends WatchUi.BehaviorDelegate {
     public function onSelect() as Boolean {
         try {
             if(_app.probeReport.size() > 0){_app.probeReport = new [0];_app.probeScroll=0;WatchUi.requestUpdate();return true;}
+            if(!_app.live){_app.begin();return true;}
             if(_app.closing){openTrainingMenu();return true;}
             _app.finishPending();
             _app.training.act(_app.training.paused ? "pause" : (_app.training.resting ? "next" : "close"),0);
@@ -181,10 +211,11 @@ class ArcheryDelegate extends WatchUi.BehaviorDelegate {
         } catch(ex instanceof Lang.Exception){_app.note("SWP:"+ex.getErrorMessage(), "ui", false);}
         return false;
     }
-    public function onMenu() as Boolean { try{openTrainingMenu();}catch(e instanceof Lang.Exception){_app.note("MENU:"+e.getErrorMessage(), "ui", false);} return true; }
-    public function onBack() as Boolean { try{openTrainingMenu();}catch(e instanceof Lang.Exception){_app.note("MENU:"+e.getErrorMessage(), "ui", false);} return true; }
+    public function onMenu() as Boolean { try{if(!_app.live){openLaunchMenu();}else{openTrainingMenu();}}catch(e instanceof Lang.Exception){_app.note("MENU:"+e.getErrorMessage(), "ui", false);} return true; }
+    public function onBack() as Boolean { if(!_app.live){return false;} try{openTrainingMenu();}catch(e instanceof Lang.Exception){_app.note("MENU:"+e.getErrorMessage(), "ui", false);} return true; }
     public function onNextPage() as Boolean {
         if(_app.probeReport.size() > 0){ _app.probeScroll += 1; WatchUi.requestUpdate(); return true; }
+        if(!_app.live){try{openLaunchMenu();}catch(e instanceof Lang.Exception){_app.note("MENU:"+e.getErrorMessage(), "ui", false);} return true;}
         try{openTrainingMenu();}catch(e instanceof Lang.Exception){_app.note("MENU:"+e.getErrorMessage(), "ui", false);}
         return true;
     }
@@ -229,6 +260,9 @@ class ArcheryApp extends Application.AppBase {
     public var lastHr = 0;
     public var t0 = 0;
     public var err = null;  // solo arranque: bloquea la pantalla porque la app no puede funcionar
+    public var live = true; // false en la pantalla de START; onStart lo baja si no hay sesión a medias
+    public var resumed = false;
+    public var recoveryStep = null;
     public var notice = null;
     private var noticeAt = 0;
     private var noticeHold = false;
@@ -428,10 +462,27 @@ class ArcheryApp extends Application.AppBase {
         training.close("walk", 0);
     }
 
+    // Una sesión a medias (flechas, tanda, calibración o sid ya emitido) se reanuda.
+    // Sin eso, la pantalla de START usa la última configuración y no enciende sensores.
+    public function shouldResume(checkpoint) {
+        if (!(checkpoint instanceof Lang.Dictionary)) { return false; }
+        var rows = checkpoint["rows"];
+        if (rows instanceof Lang.Array && rows.size() > 0) { return true; }
+        var state = checkpoint["state"];
+        if (state instanceof Lang.Dictionary) {
+            if (state.hasKey("calibrating") && state["calibrating"]) { return true; }
+            var ends = state["ends"];
+            if (ends instanceof Lang.Array && ends.size() > 0) { return true; }
+        }
+        var sidSaved = checkpoint["sid"];
+        return sidSaved instanceof Lang.String && sidSaved.length() > 0;
+    }
+
     public function onStart(state as Dictionary?) as Void {
         var cut = null;
         try { cut = Application.Storage.getValue("step"); } catch (ec instanceof Lang.Exception) { }
         mark("INI");  // primera marca: un kill durante el arranque deja esta miga
+        recoveryStep = cut;
         if (cut != null) { discardInfo = "CORTE EN " + cut; }  // la ejecucion anterior murio en medio de una operacion
         try {
             var meta = Application.Storage.getValue("queueIndex");
@@ -450,8 +501,23 @@ class ArcheryApp extends Application.AppBase {
                 else {checkpoint=null;Application.Storage.deleteValue("training");}
             }
             training.restore(checkpoint);nShots=training.total();
-
             Communications.registerForPhoneAppMessages(method(:onPhone));
+            timer.start(method(:flushTimer), 5000, true);  // la cola antigua se vacía sin muestrear sensores
+            resumed = shouldResume(checkpoint);
+            live = resumed;
+            if (live) { begin(); }
+            else { mark(null); }
+        } catch (e instanceof Lang.Exception) {
+            err = e.getErrorMessage();
+        }
+    }
+
+    // START, o la reanudación: a partir de aquí hay sensores y evento de inicio.
+    public function begin() as Void {
+        if (session != null || training == null) { return; }
+        try {
+            live = true;
+            if (!resumed) { training.started = Time.now().value(); }
             var logger = new SensorLogging.SensorLogger({:accelerometer => {:enabled => true}});
             session = ActivityRecording.createSession({
                 :sport => ActivityRecording.SPORT_GENERIC,
@@ -471,11 +537,12 @@ class ArcheryApp extends Application.AppBase {
                 :magnetometer => { :enabled => true, :sampleRate => 25 },
                 :heartBeatIntervals => { :enabled => true }
             });
-            timer.start(method(:flushTimer), 5000, true);
             t0 = System.getTimer()-(Time.now().value()-training.started)*1000;
-            emit({"kind"=>"start","state"=>training.snapshot(),"build"=>66,"recovery"=>cut});
+            emit({"kind"=>"start","state"=>training.snapshot(),"build"=>67,"recovery"=>recoveryStep});
             mark(null);
+            WatchUi.requestUpdate();
         } catch (e instanceof Lang.Exception) {
+            live = false;
             err = e.getErrorMessage();
         }
     }
@@ -483,7 +550,7 @@ class ArcheryApp extends Application.AppBase {
     public function onStop(state as Dictionary?) as Void {
         mark("STOP");
         try { if (inShot) { finalize(); }
-            if(training!=null && !closing) {finishActivity();}
+            if(live && training!=null && !closing) {finishActivity();}
         } catch(e instanceof Lang.Exception){}
         try {
             timer.stop();
@@ -956,7 +1023,10 @@ class ArcheryApp extends Application.AppBase {
         if(m.hasKey("cid") && m.hasKey("sid")) {
             var knownSid = m["sid"].equals(sid);
             var isThreshold = m.hasKey("action") && (m["action"] instanceof String) && (m["action"].equals("threshold") || m["action"].equals("calibrateShot") || m["action"].equals("deleteProfile"));  // ajustes de equipo: valen aunque la sesion cambiara
-            if(closing || (!knownSid && !isThreshold)) {Communications.transmit({"commandAck"=>m["cid"],"client"=>m["client"],"error"=>"Actividad terminada"},null,new CommandListener());return;}
+            var gear = m.hasKey("action") && (m["action"] instanceof String) && (m["action"].equals("profile") || m["action"].equals("mode") || m["action"].equals("target") || m["action"].equals("feedback") || m["action"].equals("walkClose"));
+            if(closing) {Communications.transmit({"commandAck"=>m["cid"],"client"=>m["client"],"error"=>"Actividad terminada"},null,new CommandListener());return;}
+            if(!live && !isThreshold && !gear) {Communications.transmit({"commandAck"=>m["cid"],"client"=>m["client"],"error"=>"Pulsa START en el reloj"},null,new CommandListener());return;}
+            if(live && !knownSid && !isThreshold) {Communications.transmit({"commandAck"=>m["cid"],"client"=>m["client"],"error"=>"Actividad terminada"},null,new CommandListener());return;}
             if(m.hasKey("client") && !m["client"].equals(training.commandClient)){training.commandClient=m["client"];training.lastCommand=0;}
             if(m["cid"]>training.lastCommand) {
                 finishPending();var previous=training.lastCommand;training.lastCommand=m["cid"];

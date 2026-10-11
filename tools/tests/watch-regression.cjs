@@ -29,8 +29,8 @@ function load(file,klass,names){
   }
   return env;
 }
-const watch=()=>load('watchapp/source/ArcheryApp.mc','ArcheryApp',['configureRate','walkReset','stepsNow','considerWalk','onData','sample','magYaw','rememberRR','rrRmssd','preStable','trigger','finalize','finalizeBody','mark','note','clearNote','noticeLive','decimate','subArray','diffArray','mean','pstdev','clamp']);
-const training=()=>{const s=load('watchapp/source/Training.mc','TrainingState',['count','total','nextId','snapshot','close','buzzSoft','validProfile','add','act','restore']);s.app={mark(){}};s.events=[];s.buzzes=[];s.emit=(kind,payload)=>s.events.push({kind,...payload});s.buzz=()=>s.buzzes.push('hard');s.buzzSoft=()=>s.buzzes.push('soft');return s;};
+const watch=()=>load('watchapp/source/ArcheryApp.mc','ArcheryApp',['configureRate','walkReset','stepsNow','considerWalk','onData','sample','magYaw','rememberRR','rrRmssd','preStable','trigger','finalize','finalizeBody','mark','note','clearNote','noticeLive','decimate','subArray','diffArray','mean','pstdev','clamp','shouldResume']);
+const training=()=>{const s=load('watchapp/source/Training.mc','TrainingState',['count','total','nextId','snapshot','close','buzzSoft','validProfile','add','act','restore','readyLine','quietLaunch']);s.app={mark(){}};s.events=[];s.buzzes=[];s.emit=(kind,payload)=>s.events.push({kind,...payload});s.buzz=()=>s.buzzes.push('hard');s.buzzSoft=()=>s.buzzes.push('soft');return s;};
 let failures=0;
 function test(name,run){try{run();console.log('PASS',name);}catch(e){failures++;console.error('FAIL',name,e.message);}}
 test('Sensor batches preserve 10 ms intervals after days of watch uptime',()=>{
@@ -350,5 +350,61 @@ test('A flat step counter delays the close; a rising one confirms the shorter wa
   gait(up, 7000, 500, 120);
   assert.equal(upState.ends.length, 1);
   assert.equal(upState.ends[0].reason, 'walk');
+});
+test('A fresh launch keeps the last setup and does not count an arrow before START', () => {
+  const s = training();
+  s.app.live = false;
+  s.act('mode', 'Outdoor');
+  s.act('profile', 'Compuesto');
+  s.act('manual', 0);
+  assert.equal(s.events.length, 0);
+  assert.equal(s.rows.length, 0);
+  assert.equal(s.mode, 'Outdoor');
+  assert.equal(s.target, 6);
+  assert.equal(s.profile, 'Compuesto');
+  assert.equal(s.Application.Storage.getValue('preferences').mode, 'Outdoor');
+  assert.equal(s.Application.Storage.getValue('preferences').profile, 'Compuesto');
+  s.restore(null);
+  assert.equal(s.mode, 'Outdoor');
+  assert.equal(s.profile, 'Compuesto');
+  assert.deepEqual(s.readyLine().slice(0, 3), ['Outdoor', '6 flechas', 'Compuesto']);
+  assert.equal(s.readyLine()[3], 'Sin calibrar');
+  s.Application.Storage.setValue('threshold:Compuesto', 700);
+  assert.equal(s.readyLine()[3], 'Calibrado 700');
+  s.act('mode', 'Libre');
+  assert.equal(s.readyLine()[1], 'sin limite');
+});
+test('A half session resumes and a watch without one stays on the launcher', () => {
+  const s = watch();
+  assert.equal(s.shouldResume(null), false);
+  assert.equal(s.shouldResume({}), false);
+  assert.equal(s.shouldResume({sid: '', rows: [], state: {ends: [], calibrating: false}}), false);
+  assert.equal(s.shouldResume({sid: '9', rows: [], state: {ends: [], calibrating: false}}), true);
+  assert.equal(s.shouldResume({sid: '9', rows: [[10, 1]], state: {ends: []}}), true);
+  assert.equal(s.shouldResume({rows: [], state: {calibrating: true, ends: []}}), true);
+  assert.equal(s.shouldResume({rows: [], state: {ends: [{id: 1}], calibrating: false}}), true);
+});
+test('Before START the phone can set the bow and a shot command waits', () => {
+  const s = load('watchapp/source/ArcheryApp.mc', 'ArcheryApp', ['onPhone', 'note', 'clearNote']);
+  const state = training();
+  const replies = [];
+  state.app.live = false;
+  state.save = () => {};
+  Object.assign(s, {live: false, Dictionary: Dict, String: Text, CommandListener: function() {}, Communications: {transmit: r => replies.push(r)}, finishPending() {}, training: state, sid: 'pending'});
+  s.onPhone({data: {sid: 'other', cid: 1, client: 'phone', action: 'profile', value: 'Olímpico 38'}});
+  assert.equal(state.profile, 'Olímpico 38');
+  assert.equal(state.events.length, 0);
+  assert.equal(state.Application.Storage.getValue('preferences').profile, 'Olímpico 38');
+  assert.equal(replies[0].commandAck, 1);
+  assert.equal(replies[0].error, undefined);
+  s.onPhone({data: {sid: 'other', cid: 2, client: 'phone', action: 'manual', value: 0}});
+  assert.equal(state.rows.length, 0);
+  assert.equal(replies[1].error, 'Pulsa START en el reloj');
+  state.app.live = true;
+  s.live = true;
+  s.onPhone({data: {sid: 'pending', cid: 3, client: 'phone', action: 'mode', value: 'Indoor'}});
+  assert.equal(state.mode, 'Indoor');
+  assert.equal(state.target, 3);
+  assert.equal(state.events.at(-1).kind, 'state');
 });
 process.exitCode=failures?1:0;
