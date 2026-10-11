@@ -71,6 +71,11 @@
   .aimwrap { display:flex; justify-content:center; position:relative; }
   #aim, #aimSet { width:min(82vw,330px); height:min(82vw,330px); }
   .caption { text-align:center; font-size:11.5px; color:var(--txt-3); margin-top:8px; }
+  .tracebar { display:flex; gap:6px; justify-content:center; flex-wrap:wrap; margin-top:10px; }
+  .tracebar button { background:var(--surface-2); color:var(--txt-2); border:1px solid var(--line); border-radius:999px; font-size:12.5px; padding:6px 12px; }
+  .tracebar button.sel { background:var(--acc-soft); color:var(--acc); border-color:rgba(255,122,26,.3); font-weight:600; }
+  #armRow { display:flex; align-items:center; justify-content:center; gap:8px; margin-top:8px; font-size:12.5px; color:var(--txt-2); }
+  #armLength { width:72px; background:var(--surface-2); border:1px solid var(--line-2); border-radius:10px; padding:6px 8px; font-family:var(--mono); font-size:13px; text-align:center; }
 
   /* Botones */
   .btnPrimary, #play { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; min-height:46px;
@@ -183,7 +188,17 @@
 <button id="returnCurrent" onclick="backToCurrent()">Volver a la sesión actual</button>
 <main id="vShot">
   <div class="empty emptyState"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M232,120h-8.34A96.14,96.14,0,0,0,136,32.34V24a8,8,0,0,0-16,0v8.34A96.14,96.14,0,0,0,32.34,120H24a8,8,0,0,0,0,16h8.34A96.14,96.14,0,0,0,120,223.66V232a8,8,0,0,0,16,0v-8.34A96.14,96.14,0,0,0,223.66,136H232a8,8,0,0,0,0-16Zm-96,87.6V200a8,8,0,0,0-16,0v7.6A80.15,80.15,0,0,1,48.4,136H56a8,8,0,0,0,0-16H48.4A80.15,80.15,0,0,1,120,48.4V56a8,8,0,0,0,16,0V48.4A80.15,80.15,0,0,1,207.6,120H200a8,8,0,0,0,0,16h7.6A80.15,80.15,0,0,1,136,207.6ZM128,88a40,40,0,1,0,40,40A40,40,0,0,0,128,88Zm0,64a24,24,0,1,1,24-24A24,24,0,0,1,128,152Z"/></svg><b>Esperando flechas</b>Abre ArcheryWatch en el reloj y tira: cada flecha aparecerá aquí.</div>
-  <div class="card"><div class="aimwrap"><canvas id="aim"></canvas></div><div class="caption" id="aimCaption">Movimiento relativo, escala común del set</div></div>
+  <div class="card"><div class="aimwrap"><canvas id="aim"></canvas></div>
+    <div class="tracebar" id="tracebar" role="group" aria-label="Unidades de la trayectoria">
+      <button type="button" data-trace="deg">Grados</button>
+      <button type="button" data-trace="cm">cm</button>
+      <button type="button" data-trace="raw">cm reloj</button>
+    </div>
+    <label id="armRow" hidden>Longitud del brazo
+      <input id="armLength" type="number" min="0.3" max="1.2" step="0.05" value="0.65" inputmode="decimal" aria-label="Longitud del brazo en metros">
+      <span>m</span>
+    </label>
+    <div class="caption" id="aimCaption">Orientación de la muñeca en grados</div></div>
   <button id="play">Reproducir</button>
   <div class="metrics">
     <div class="metric"><b id="mScore">–</b><span>Estabilidad</span></div>
@@ -245,6 +260,7 @@
 <div id="askModal" hidden role="dialog" aria-modal="true"><div class="ask"><p id="askMsg"></p>
 <div class="askBtns"><button id="askNo">Cancelar</button><button id="askYes">Confirmar</button></div></div></div>
 <script src="session-model.js"></script>
+<script src="trace-geom.js"></script>
 <script>
 const GAP_MS = 60000, ACOLORS = ['#5ab0f0', '#ff7a1a', '#b58cf0', '#3ecf8e', '#e8c14e', '#ef5a5a'];
 const C = {txt:'#eceef1', txt2:'#a0a4ad', txt3:'#6f747d', grid:'rgba(255,255,255,.06)', acc:'#ff7a1a', prev:'#5d6571', aim:'#e6e8eb', rel:'#ef5a5a', ref:'#5ab0f0'};
@@ -429,6 +445,9 @@ async function boot() {
   document.getElementById('nSession').onclick = () => historyMode ? backToCurrent() : show('Session');
   ['Shot', 'Progress', 'Set', 'History'].forEach(v => document.getElementById('n' + v).onclick = () => show(v));
   document.getElementById('play').onclick = play;
+  document.getElementById('tracebar').onclick = e => { const mode = e.target.closest('[data-trace]')?.dataset.trace; if (mode) setTrace(mode); };
+  document.getElementById('armLength').onchange = e => setArm(e.target.value);
+  syncTraceUi();
   // tocar una barra del grafico -> abrir esa flecha
   document.getElementById('trend').addEventListener('pointerdown', e => {
     const r = e.target.getBoundingClientRect();
@@ -539,6 +558,7 @@ function renderSession(S) {
 function renderShot(S, si) {
   const s = data.shots[cur], [gc, gl] = grade(s.aim_score);
   const mS = document.getElementById('mScore');
+  syncTraceUi();
   renderCalibration(s);
   document.getElementById('play').disabled = proj(s).pts.filter(p => p[2] <= 0).length < 2;
   setMetric('mScore', s.candidate ? '–' : Number.isFinite(s.aim_score) ? s.aim_score : 'Manual', Number.isFinite(s.aim_score) ? '/100' : '');
@@ -722,7 +742,9 @@ function renderSet(S, si) {
   bar.innerHTML = S.length > 1 ? S.map((g, i) => `<button class="${i === si ? 'sel' : ''}" data-set="${i}">${setLabel(S,i)}</button>`).join('') : '';
   bar.onclick = e => { const i = e.target.dataset?.set; if (i) { cur = S[+i][0]; render(); } };
   const g = S[si];
-  document.getElementById('legend').innerHTML = g.map((j, k) =>
+  const shown = proj(data.shots[g[0]]);
+  const unitName = {deg:'Grados', cm:`Centímetros · brazo ${shown.armM.toFixed(2)} m`, raw:'cm del reloj (experimental)', tilt:'Inclinación'}[shown.unit] || '';
+  document.getElementById('legend').innerHTML = `<span>Unidad: ${unitName}</span>` + g.map((j, k) =>
     `<span><i style="background:${ACOLORS[k % 6]}"></i>Flecha ${k + 1}</span>`).join('');
   document.getElementById('setArrows').innerHTML = g.map((j, k) => {
     const s = data.shots[j];
@@ -769,8 +791,10 @@ const fixYaw = yw0 => {  // tramos congelados (lotes de brujula cortos): rellena
   return yw;
 };
 function proj(s, reference=s) {
-  // ancla: media del reposo final (la fase de apunte). Con brujula, el eje horizontal es
-  // yaw REAL en grados; el vertical, inclinacion convertida a grados. Sin brujula, mG relativos.
+  // Por defecto, yaw compensado + pitch, en grados, aunque el tiro traiga qx/qy.
+  // "cm" convierte esos ángulos con un brazo rígido (L·Δrad). "raw" es la doble
+  // integración del reloj y solo se usa si el usuario la pide: deriva demasiado.
+  const prefs = Trace.prefs(localStorage);
   const bx=s.tilt_x||[], by=s.tilt_y||[], n=bx.length, comp=hasCompass(s);
   const pd=s.pitch_deg||[], useP=pd.length===n;
   const hn=Math.max(1,Math.floor(n/5)); let hx=0,hy=0;
@@ -779,36 +803,43 @@ function proj(s, reference=s) {
   const yw0=yawOf(s); let hyaw=0;
   if(comp){
     const yw=fixYaw(yw0);
-    for(let i=Math.max(0,yw.length-hn);i<yw.length;i++){hyaw+=yw[i]||0;} hyaw/=hn;
+    hyaw=Trace.circMean(yw.slice(Math.max(0, yw.length-hn)));
     var yawOK=yw;
   }
   const VK=1/17.45;  // mG de inclinacion -> grados (aprox angulo pequeno en plano 1g)
-  const qx=s.pos_x||[], qy=s.pos_y||[], usePos=!s.candidate && qx.length===n && qy.length===n && (qx.some(v=>v!==qx[0])||qy.some(v=>v!==qy[0]));
-  let hqx=0,hqy=0; if(usePos){for(let i=Math.max(0,n-hn);i<n;i++){hqx+=qx[i]||0;hqy+=qy[i]||0;} hqx/=hn;hqy/=hn;}
-  const before=usePos
-    ? qx.map((v,i)=>[v-hqx,(qy[i]||0)-hqy,s.trace_t?.[i]??(i-n)*(s.dt||50)])
-    : bx.map((x,i)=>[comp?(((yawOK?.[i]??hyaw)-hyaw+540)%360)-180:(x-hx),useP?pd[i]-hpd:(by[i]-hy)*VK,s.trace_t?.[i]??(i-n)*(s.dt||50)]);
-  const after=usePos
-    ? (s.posp_x||[]).map((v,i)=>[v-hqx,(s.posp_y?.[i]??0)-hqy,s.post_t?.[i]??i*(s.dt||50)])
-    : (s.traj_x||[]).map((x,i)=>[comp?0:(x-hx),((s.traj_y?.[i]??0)-hy)*VK,s.post_t?.[i]??i*(s.dt||50)]);
-  const pts=[...before,...after].filter(p=>p.every(Number.isFinite));
+  const qx=s.pos_x||[], qy=s.pos_y||[], rawOk=!s.candidate && qx.length===n && qy.length===n && (qx.some(v=>v!==qx[0])||qy.some(v=>v!==qy[0]));
+  let hqx=0,hqy=0; if(rawOk){for(let i=Math.max(0,n-hn);i<n;i++){hqx+=qx[i]||0;hqy+=qy[i]||0;} hqx/=hn;hqy/=hn;}
+  let unit = comp ? 'deg' : 'tilt';
+  let before = bx.map((x,i)=>[comp?Trace.yawDelta(yawOK?.[i]??hyaw, hyaw):(x-hx),useP?pd[i]-hpd:(by[i]-hy)*VK,s.trace_t?.[i]??(i-n)*(s.dt||50)]);
+  let after = (s.traj_x||[]).map((x,i)=>[comp?0:(x-hx),((s.traj_y?.[i]??0)-hy)*VK,s.post_t?.[i]??i*(s.dt||50)]);
   const group=reference.candidate?[reference]:(sets(data.shots).find(g=>g.includes(cur)) || [cur]).map(i=>data.shots[i]);
-  const esc = usePos
-    ? Math.max(10, ...group.flatMap(g => { const gx = g.pos_x || [], gy = g.pos_y || [], gn = Math.min(gx.length, gy.length), ahn = Math.max(1, Math.floor(gn / 5));
-        const mx = avg(gx.slice(-ahn)) || 0, my = avg(gy.slice(-ahn)) || 0;
-        return [...gx.map(v => Math.abs(v - mx)), ...gy.map(v => Math.abs(v - my))].filter(Number.isFinite); }))
-    : comp
+  let esc = comp
     ? (() => {  // percentil 90 de las desviaciones ancladas al reposo: un barrido de apertura no aplasta el apunte
         const vals = group.flatMap(g => { const yy = fixYaw(yawOf(g)), tt = g.pitch_deg?.length ? g.pitch_deg : (g.tilt_y || []).map(v => v / 17.45);
-          const hn = Math.max(1, Math.floor(Math.min(yy.length, tt.length) / 5));
-          const my = yy.length ? avg(yy.slice(-hn)) : 0, mt = tt.length ? avg(tt.slice(-hn)) : 0;
-          return [...yy.map(v => Math.abs((((v - my) + 540) % 360) - 180)), ...tt.map(v => Math.abs(v - mt))].filter(Number.isFinite); });
+          const ahn = Math.max(1, Math.floor(Math.min(yy.length, tt.length) / 5));
+          const my = yy.length ? Trace.circMean(yy.slice(-ahn)) : 0, mt = tt.length ? avg(tt.slice(-ahn)) : 0;
+          return [...yy.map(v => Math.abs(Trace.yawDelta(v, my))), ...tt.map(v => Math.abs(v - mt))].filter(Number.isFinite); });
         vals.sort((a, b) => a - b);
         return Math.max(1, (vals[Math.floor(vals.length * 0.9)] || 1) * 1.3); })()
     : Math.max(150, ...group.flatMap(g=>[...(g.tilt_x||[]),...(g.tilt_y||[]),...(g.traj_x||[])].filter(Number.isFinite).map(Math.abs)));
+  if (prefs.trace === 'raw' && rawOk) {
+    unit = 'raw';
+    before = qx.map((v,i)=>[v-hqx,(qy[i]||0)-hqy,s.trace_t?.[i]??(i-n)*(s.dt||50)]);
+    after = (s.posp_x||[]).map((v,i)=>[v-hqx,(s.posp_y?.[i]??0)-hqy,s.post_t?.[i]??i*(s.dt||50)]);
+    esc = Math.max(10, ...group.flatMap(g => { const gx = g.pos_x || [], gy = g.pos_y || [], gn = Math.min(gx.length, gy.length), ahn = Math.max(1, Math.floor(gn / 5));
+      const mx = avg(gx.slice(-ahn)) || 0, my = avg(gy.slice(-ahn)) || 0;
+      return [...gx.map(v => Math.abs(v - mx)), ...gy.map(v => Math.abs(v - my))].filter(Number.isFinite); }));
+  } else if (prefs.trace === 'cm' && comp) {
+    const k = Trace.cmPerDeg(prefs.armM);
+    unit = 'cm';
+    before = before.map(p => [p[0] * k, p[1] * k, p[2]]);
+    after = after.map(p => [p[0] * k, p[1] * k, p[2]]);
+    esc *= k;
+  }
+  const pts=[...before,...after].filter(p=>p.every(Number.isFinite));
   const sz = document.getElementById('aim').clientWidth || 300;
   const cl = v => Math.max(-1, Math.min(1, v / esc));  // nada fuera del canvas: salto de brujula -> borde
-  return { pts, position:usePos, P: p => [sz / 2 + cl(p[0]) * sz * .45, sz / 2 + cl(p[1]) * sz * .45] };
+  return { pts, unit, armM: prefs.armM, position: unit === 'raw', P: p => [sz / 2 + cl(p[0]) * sz * .45, sz / 2 + cl(p[1]) * sz * .45] };
 }
 const aimColor=(t,hold,release)=>t>=release?C.acc:t>=-hold?C.aim:C.prev;
 const releasePoint=(pts,t)=>pts.reduce((a,b)=>Math.abs(b[2]-t)<Math.abs(a[2]-t)?b:a);
@@ -853,7 +884,40 @@ function cross(x, sz) {
 }
 let aimDrawnKey = '', c0 = 0, playbackKey = '';
 function shotViewKey() {
-  return JSON.stringify([historyMode ? histId : curSess?.id, cur, data?.shots.length, data?.shots[cur], document.getElementById('aim').clientWidth, devicePixelRatio]);
+  const p = Trace.prefs(localStorage);
+  return JSON.stringify([historyMode ? histId : curSess?.id, cur, data?.shots.length, data?.shots[cur], document.getElementById('aim').clientWidth, devicePixelRatio, p.trace, p.armM]);
+}
+function aimCaptionText(s, view) {
+  const scale = s.candidate ? 'escala individual' : 'escala común del set';
+  const asked = Trace.prefs(localStorage).trace;
+  let body = view.unit === 'cm' ? `Desplazamiento del arco en cm · brazo ${view.armM.toFixed(2)} m`
+    : view.unit === 'raw' ? 'Posición integrada del reloj en cm (experimental)'
+    : view.unit === 'deg' ? 'Orientación de la muñeca en grados'
+    : 'Orientación de la muñeca';
+  if (asked === 'cm' && view.unit !== 'cm') body = 'Sin ángulos de brújula: inclinación de la muñeca';
+  if (asked === 'raw' && view.unit !== 'raw') body = view.unit === 'deg' ? 'Sin posición integrada: orientación en grados' : 'Sin posición integrada: inclinación de la muñeca';
+  return `${body} · ${scale}. Punto rojo: suelta estimada. Naranja: follow-through.`;
+}
+function syncTraceUi() {
+  const p = Trace.prefs(localStorage);
+  document.getElementById('tracebar')?.querySelectorAll('[data-trace]').forEach(b => b.classList.toggle('sel', b.dataset.trace === p.trace));
+  const row = document.getElementById('armRow');
+  if (row) row.hidden = p.trace !== 'cm';
+  const input = document.getElementById('armLength');
+  if (input && document.activeElement !== input) input.value = p.armM.toFixed(2);
+}
+function setTrace(mode) {
+  Trace.save(localStorage, {...Trace.prefs(localStorage), trace: mode});
+  aimDrawnKey = '';
+  if (anim != null) stopPlayback();
+  syncTraceUi();
+  if (data) render();
+}
+function setArm(meters) {
+  Trace.save(localStorage, {...Trace.prefs(localStorage), armM: meters});
+  aimDrawnKey = '';
+  syncTraceUi();
+  if (data) render();
 }
 function drawAim(s) {
   if (anim != null) return;  // durante la reproduccion el canvas es del animador: repintar aqui produce parpadeo
@@ -864,8 +928,8 @@ function drawAim(s) {
   const c = document.getElementById('aim');
   const [x, sz] = canvasFit(c, null);
   ringBase(x, sz);
-  const { pts:raw, P, position } = proj(s), releaseAt=0, pts=releasePath(raw,releaseAt);
-  document.getElementById('aimCaption').textContent=(position?'Desplazamiento estimado':'Orientación de la muñeca')+(s.candidate?' · escala individual':' · escala común del set')+'. Punto rojo: suelta estimada. Naranja: follow-through.';
+  const view = proj(s), releaseAt=0, pts=releasePath(view.pts,releaseAt), P=view.P;
+  document.getElementById('aimCaption').textContent=aimCaptionText(s, view);
   if (!pts.length) return;
   aimPath(x,pts,P,aimTime(s)||0,releaseAt);
   cross(x, sz);

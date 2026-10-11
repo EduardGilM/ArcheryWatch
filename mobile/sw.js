@@ -1,7 +1,7 @@
 // ArcheryWatch service worker: app shell cache-first, sesiones network-first.
-const C = 'aw-v70';
+const C = 'aw-v71';
 self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(caches.open(C).then(c =>
-  c.addAll(['./', './index.html', './session-model.js', './training.js', './manifest.json', './icon-192.png', './icon-512.png', './fonts/Geist-Variable.woff2', './fonts/GeistMono-Variable.woff2']))); });
+  c.addAll(['./', './index.html', './session-model.js', './trace-geom.js', './training.js', './manifest.json', './icon-192.png', './icon-512.png', './fonts/Geist-Variable.woff2', './fonts/GeistMono-Variable.woff2']))); });
 self.addEventListener('activate', e => e.waitUntil(caches.keys().then(ks =>
   Promise.all(ks.filter(k => k !== C).map(k => caches.delete(k))))));
 self.addEventListener('fetch', e => e.respondWith(
