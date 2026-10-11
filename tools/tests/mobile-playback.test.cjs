@@ -278,8 +278,8 @@ test('an impulse sampled at zero cannot move the labelled aiming point or change
   const before=p.run('JSON.stringify(fixture)'), expected=JSON.parse(p.run('JSON.stringify((()=>{const {pts,P}=proj(fixture);return P(pts.filter(p=>p[2]<0).at(-1))})())'));
   calls.length=0;p.run("aimDrawnKey='';drawAim(fixture)");
   assert.deepEqual(calls.filter(c=>c[0]==='arc'&&c[3]===5).at(-1).slice(1,3),expected);
-  assert.ok(calls.some(c=>c[0]==='fillText'&&c[1]==='Suelta estimada'));
-  assert.match(p.elements.get('aimCaption').textContent,/Punto rojo: suelta estimada/);
+  assert.ok(calls.some(c=>c[0]==='arc'&&c[3]===7.5),'marcador de suelta');
+  assert.doesNotMatch(p.elements.get('aimCaption').textContent,/Punto rojo|Suelta estimada|ocupa la diana/);
   assert.equal(p.run('JSON.stringify(fixture)'),before);
 });
 
@@ -292,7 +292,7 @@ test('playback pauses at the marked release before drawing follow-through and th
     for(let time=0;p.frames.size&&time<=11000;time+=50){
       calls.length=0;const [id,callback]=p.frames.entries().next().value;p.frames.delete(id);callback(time);
       followed=p.created.some(e=>e.getContext('2d').calls.some(c=>c[0]==='stroke'&&c[1]===orange));
-      if(!followed&&calls.some(c=>c[0]==='fillText'&&c[1]==='Suelta estimada'))paused.push(time);
+      if(!followed&&calls.some(c=>c[0]==='arc'&&c[3]===5))paused.push(time);
     }
     assert.ok(paused.at(-1)-paused[0]>=500,'arrow '+(i+1)+': '+JSON.stringify(paused));
     assert.ok(followed,'missing follow-through after pause');

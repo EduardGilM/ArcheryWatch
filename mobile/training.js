@@ -26,7 +26,7 @@ document.head.insertAdjacentHTML('beforeend',`<style>
 #comparison:empty,#setState:empty,#volume:empty{display:none}
 #notice{position:fixed;bottom:84px;left:16px;right:16px;z-index:20;padding:12px 14px;background:var(--surface-3);border:1px solid var(--line-2);color:var(--txt);border-radius:12px;font-size:13px;box-shadow:0 12px 30px rgba(0,0,0,.4)}
 </style>`);
-$('vSession').insertAdjacentHTML('afterbegin',`<section class="training" id="trainingPanel"><div id="trainingStatus">Prepara tu entrenamiento</div>
+$('sessionHero').insertAdjacentHTML('afterend',`<section class="training" id="trainingPanel"><div id="trainingStatus">Equipo</div>
 <div class="picker" id="modePicker">
 <button class="pickRow" id="modeRow"><span>Modo</span><b id="modeVal">–</b></button>
 <div class="sheet" id="modeSheet" hidden>
@@ -45,8 +45,8 @@ $('vSession').insertAdjacentHTML('afterbegin',`<section class="training" id="tra
 <div class="addItem"><input id="arrowName" placeholder="Nombre de las flechas" maxlength="24"><button id="arrowAdd">Añadir</button></div></div>
 </div><button class="btnSecondary" id="calibrationMode" onclick="sendCmd('calibrate',0)">Iniciar calibración</button></section>`);
 $('vSet').querySelector('.deleteAction').insertAdjacentHTML('beforebegin',`<section class="training"><div id="setState"></div></section>`);
-$('vShot').querySelector('.deleteAction').insertAdjacentHTML('beforebegin',`<section class="training card"><div id="shotContext"></div><label>Comparar con <select id="compareShot" onchange="render()"><option value="">Ninguna</option></select></label><div id="comparison"></div></section>`);
-$('vProgress').insertAdjacentHTML('afterbegin',`<section class="training card"><label>Equipo y métrica <select id="progressProfile" onchange="renderProgress()"></select></label><div id="volume"></div></section>`);
+$('vShot').querySelector('.deleteAction').insertAdjacentHTML('beforebegin',`<section class="training card"><div id="shotContext"></div><label>Comparar <select id="compareShot" onchange="render()"><option value="">Ninguna</option></select></label><div id="comparison"></div></section>`);
+$('vProgress').insertAdjacentHTML('afterbegin',`<section class="training card"><label>Equipo <select id="progressProfile" onchange="renderProgress()"></select></label><div id="volume"></div></section>`);
 document.body.insertAdjacentHTML('beforeend','<div id="notice" role="status" hidden></div>');
 const gear={get:()=>{try{const g=JSON.parse(localStorage.getItem('awGear'));return {bows:Array.isArray(g?.bows)?g.bows:[],arrows:Array.isArray(g?.arrows)?g.arrows:[]};}catch(e){return {bows:[],arrows:[]};}},
   save:g=>localStorage.setItem('awGear',JSON.stringify(g))};
@@ -62,7 +62,7 @@ function renderCalibration(s) {
   const valid = validCalibrationShot(s), session = displayedSession(), select = $('calibrationProfile');
   $('calibrationPanel').hidden = !valid;
   if (!valid) return;
-  $('calibrationInfo').textContent = `${s.candidate?'Candidato sin puntuar. ':''}Pico ${Math.round(s.peak_mg)} mG. Elige solo una suelta real como referencia.`;
+  $('calibrationInfo').textContent = `${s.candidate?'Candidato sin puntuar. ':''}${Math.round(s.peak_mg)} mG`;
   const bows = [...new Set(gear.get().bows)];
   if (!bows.length) bows.push('Recurvo', 'Compuesto');
   const keep = select.value;
@@ -163,23 +163,24 @@ render=function() {
   originalRender();const s=displayedSession(), shot=data?.shots[cur];
   const groups=s?sets(s.shots).filter(g=>!s.shots[g[0]].candidate):[], ordinal=groups.findIndex(g=>s.shots[g[0]].set_id===s.currentSet);
   const setNumber=ordinal>=0?ordinal+1:groups.length+1;
-  $('trainingStatus').textContent=historyMode?'Sesión guardada':s?`${s.mode?s.mode+' · ':''}${s.paused?'Pausa':s.resting?'Descanso':'Set '+setNumber} · ${s.shots.filter(x=>x.set_id===(s.currentSet??1)).length}${s.target?'/'+s.target:''} flechas`:'Prepara tu entrenamiento';
-  if(!historyMode && s?.calibrating)$('trainingStatus').textContent=`Calibración · ${s.calibrationCount||0} candidatos · elige una flecha en Tiro`;
+  $('trainingStatus').textContent=historyMode?'Guardada':s?`${s.mode?s.mode+' · ':''}${s.paused?'Pausa':s.resting?'Descanso':'Set '+setNumber} · ${s.shots.filter(x=>x.set_id===(s.currentSet??1)).length}${s.target?'/'+s.target:''}`:'Equipo';
+  if(!historyMode && s?.calibrating)$('trainingStatus').textContent=`Calibración · ${s.calibrationCount||0}`;
   $('calibrationMode').hidden=historyMode||!s?.live||!s.watchId||!window.Native?.command;
   $('calibrationMode').textContent=s?.calibrating?'Salir de calibración':'Iniciar calibración';
   ['modePicker','bowPicker','arrowPicker'].forEach(id=>$(id).hidden=historyMode);
   $('modeVal').textContent=s?.mode||'–';
-  $('bowVal').textContent=s?.bow||s?.profile||'sin definir';
-  $('arrowVal').textContent=s?.arrows||'sin definir';
+  $('bowVal').textContent=s?.bow||s?.profile||'–';
+  $('arrowVal').textContent=s?.arrows||'–';
   $('modeSheet').querySelectorAll('[data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===(s?.mode||'')));
   const g=gear.get();
   $('bowList').innerHTML=g.bows.map(n=>`<div class="gearRow"><button data-n="${escapeText(n)}"${n===(s?.bow||s?.profile)?' class="on"':''}>${escapeText(n)}<span>‹</span></button><button class="deleteGear" data-delete-bow="${escapeText(n)}" aria-label="Eliminar preset ${escapeText(n)}">${TRASH}</button></div>`).join('');
   $('arrowList').innerHTML=g.arrows.map(n=>`<button data-n="${escapeText(n)}"${n===s?.arrows?' class="on"':''}>${escapeText(n)}<span>‹</span></button>`).join('')||'';
   if(shot) {
-    $('setState').textContent=(s?.ends||[]).some(e=>e.id===shot.set_id)?'Set cerrado':'Set abierto';
+    $('setState').textContent=(s?.ends||[]).some(e=>e.id===shot.set_id)?'Cerrado':'Abierto';
     const group=sets(data.shots).find(g=>g.includes(cur)), stats=Training.summary(group.map(i=>data.shots[i]));
     const eq=[...new Set([shot.profile,s?.profile,s?.bow,s?.arrows].filter(Boolean))].join(' · ');
-    $('shotContext').textContent=`${shot.candidate?'Candidato de calibración · confirma que fue una flecha':shot.manual?'Flecha manual':eq||'Sin equipo'} · apunte ${aimTime(shot)==null?'–':(aimTime(shot)/1000).toFixed(1)+' s'} · radio ${aimRadius(shot)==null?'–':aimRadius(shot).toFixed(1)+aimUnit(shot)} · pulso ${shot.hr_bpm??'–'} ppm · ${shot.rmssd!=null?'RMSSD '+shot.rmssd.toFixed(0)+' ms':'RMSSD –'} · ritmo ${stats.rhythm==null?'–':stats.rhythm.toFixed(1)+' s'}`;
+    const rhythm=stats.rhythm==null?'':` · ${stats.rhythm.toFixed(1)} s`;
+    $('shotContext').textContent=`${shot.candidate?'Candidato':shot.manual?'Manual':eq||'–'}${rhythm}`;
     const select=$('compareShot'), selected=select.value;
     select.innerHTML='<option value="">Ninguna</option>'+group.filter(i=>i!==cur).map(i=>`<option value="${i}">Flecha ${group.indexOf(i)+1}</option>`).join('');select.value=selected;
     $('comparison').textContent='';
@@ -187,7 +188,7 @@ render=function() {
       const other=data.shots[+select.value], c=$('aim'), x=c.getContext('2d'), {pts,P}=proj(other,shot);
       x.strokeStyle=C.ref;x.lineWidth=1.5;x.setLineDash([4,4]);x.beginPath();pts.forEach((p,i)=>i?x.lineTo(...P(p)):x.moveTo(...P(p)));x.stroke();x.setLineDash([]);
       const delta=Number.isFinite(shot.aim_score)&&Number.isFinite(other.aim_score)?shot.aim_score-other.aim_score:null;
-      $('comparison').textContent=`Referencia en azul · ${delta==null?'sin comparación de estabilidad':(delta>0?'+':'')+delta+' de estabilidad'} · misma escala`;
+      $('comparison').textContent=delta==null?'':(delta>0?'+':'')+delta;
     }
   }
   ['sAvg','sSd'].forEach(id=>{if($(''+id).textContent==='NaN')$(id).textContent='–';});
@@ -199,6 +200,6 @@ renderProgress=function() {
   select.innerHTML=keys.map(k=>`<option value="${escapeText(k)}">${escapeText(PROFILE_LABELS[k]||k)}</option>`).join('');if(keys.includes(old))select.value=old;
   const filtered=L.map(s=>({...s,shots:s.shots.filter(a=>Training.key({profile:a.profile||s.profile,metric:a.metric||s.metric})===select.value)}));
   const week=filtered.filter(s=>s.id>=Date.now()-7*864e5).reduce((n,s)=>n+s.shots.filter(a=>!a.candidate).length,0), total=filtered.reduce((n,s)=>n+s.shots.filter(a=>!a.candidate).length,0);
-  $('volume').textContent=`${week} flechas en 7 días · ${total} en este perfil`;
+  $('volume').textContent=`${week} · 7 d · ${total}`;
   const list=store.list;try {store.list=()=>filtered.map(s=>({...s,shots:s.shots.filter(a=>Number.isFinite(a.aim_score))}));originalProgress();}finally{store.list=list;}
 };

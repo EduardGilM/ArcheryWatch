@@ -35,7 +35,8 @@ async () => {
     store.save([]); render();
     check(!document.getElementById('progSum').textContent && document.getElementById('progress').style.display === 'none', 'Progreso vacío no conserva resumen ni gráfica');
     data = {shots:Array.from({length:200},(_,i)=>({...sample,t_ms:i*2000}))}; show('Session');
-    check(document.querySelectorAll('#trend [data-shot]').length === 200 && [...document.querySelectorAll('#trend .trendRow')].every(b=>b.offsetHeight>=44), 'Sesiones largas conservan una fila legible por flecha');
+    document.querySelectorAll('#setList details').forEach(d => { d.open = true; });
+    check(document.querySelectorAll('#setList .trendRow').length === 200 && [...document.querySelectorAll('#setList .trendRow')].every(b=>b.offsetHeight>=44), 'Sesiones largas conservan una fila legible por flecha');
     check(!document.querySelectorAll('[id="aimwrap"]').length, 'Sin identificadores duplicados de la diana');
     reset(); liveShot(shot(1000)); liveShot(shot(3000)); liveShot(shot(70001));
     removeSelection('shot');

@@ -2,9 +2,9 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="aw-version" content="4.17">
+<meta name="aw-version" content="4.18">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<meta name="theme-color" content="#0c0d10">
+<meta name="theme-color" content="#000000">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
 <title>ArcheryWatch</title>
@@ -13,13 +13,15 @@
   /* Tokens. Radios: tarjetas 16, controles 12, chips en pastilla. Un solo acento (naranja de marca). */
   @font-face { font-family:'Geist'; src:url('fonts/Geist-Variable.woff2') format('woff2'); font-weight:100 900; font-display:swap; }
   @font-face { font-family:'Geist Mono'; src:url('fonts/GeistMono-Variable.woff2') format('woff2'); font-weight:100 900; font-display:swap; }
+  @font-face { font-family:'Barlow Condensed'; src:url('fonts/BarlowCondensed-600.woff2') format('woff2'); font-weight:600; font-style:normal; font-display:swap; }
   :root {
-    --bg:#0c0d10; --surface:#15171b; --surface-2:#1c1f24; --surface-3:#25282e;
-    --line:#22252b; --line-2:#30343b;
-    --txt:#eceef1; --txt-2:#a0a4ad; --txt-3:#6f747d;
-    --acc:#ff7a1a; --acc-ink:#1b0f05; --acc-soft:rgba(255,122,26,.12);
-    --danger:#ef5a5a; --live:#3ecf8e;
-    --font:'Geist',system-ui,-apple-system,sans-serif; --mono:'Geist Mono',ui-monospace,monospace;
+    --bg:#000; --surface:#0b0b0d; --surface-2:#131316; --surface-3:#1a1a1e;
+    --line:rgba(255,255,255,.07); --line-2:rgba(255,255,255,.12);
+    --txt:#fff; --txt-2:#9a9aa2; --txt-3:#5c5c64;
+    --acc:#FF8A1F; --acc2:#FFC15E; --glow:rgba(255,138,31,.28); --acc-ink:#1b0f05; --acc-soft:rgba(255,138,31,.12);
+    --low:#F0506E; --danger:#F0506E;
+    --font:'Geist',system-ui,-apple-system,sans-serif; --mono:'Geist Mono',ui-monospace,monospace; --num:'Barlow Condensed',sans-serif;
+    --grad:linear-gradient(90deg,var(--acc),var(--acc2));
     --panel:var(--surface); --panel2:var(--surface-2); --dim:var(--txt-2);
     --i-play:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256' fill='currentColor'%3E%3Cpath d='M232.4,114.49,88.32,26.35a16,16,0,0,0-16.2-.3A15.86,15.86,0,0,0,64,39.87V216.13A15.94,15.94,0,0,0,80,232a16.07,16.07,0,0,0,8.36-2.35L232.4,141.51a15.81,15.81,0,0,0,0-27ZM80,215.94V40l143.83,88Z'/%3E%3C/svg%3E");
     --i-stop:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256' fill='currentColor'%3E%3Cpath d='M200,40H56A16,16,0,0,0,40,56V200a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V56A16,16,0,0,0,200,40Zm0,160H56V56H200V200Z'/%3E%3C/svg%3E");
@@ -42,23 +44,24 @@
     -webkit-mask:var(--icon) center/contain no-repeat; mask:var(--icon) center/contain no-repeat; }
 
   /* Cabecera */
-  header { display:flex; align-items:center; gap:12px; padding:16px 16px 10px; flex-shrink:0; }
-  header h1 { flex:1; min-width:0; font-size:22px; font-weight:600; letter-spacing:-.02em; line-height:1.15; }
+  header { display:flex; align-items:center; gap:12px; padding:8px 18px 6px; flex-shrink:0; }
+  header h1 { flex:1; min-width:0; display:flex; flex-direction:column; font-size:28px; font-weight:400; letter-spacing:-.03em; line-height:1; }
   header h1 span { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  header h1 small { display:block; font-size:12.5px; color:var(--txt-2); font-weight:400; letter-spacing:0; margin-top:3px; }
+  header h1 small { order:-1; display:block; font-size:11px; font-weight:500; letter-spacing:.14em; text-transform:uppercase; color:var(--txt-2); margin-top:0; margin-bottom:6px; }
   header h1 small:empty { display:none; }
-  .stepper { display:flex; gap:6px; }
-  header .btn { width:38px; height:38px; border-radius:12px; background:var(--surface); border:1px solid var(--line);
+  .stepper { display:flex; gap:8px; }
+  header .btn { width:42px; height:42px; border-radius:50%; background:transparent; border:1px solid var(--line-2);
                 color:var(--txt); display:grid; place-items:center; }
   header .btn .ico { width:18px; height:18px; }
-  #link { display:inline-flex; align-items:center; align-self:flex-start; margin:0 16px 8px; max-width:calc(100% - 32px);
-          padding:4px 10px; border-radius:999px; background:var(--surface-2); color:var(--txt-3); font-size:12px; font-weight:500; }
-  #link::before { content:""; width:7px; height:7px; border-radius:50%; background:currentColor; margin-right:7px; flex-shrink:0; }
-  #link[data-state="on"] { color:var(--live); background:rgba(62,207,142,.1); }
-  #link[data-state="wait"] { color:var(--acc); background:var(--acc-soft); }
+  #link { display:inline-flex; align-items:center; align-self:flex-start; margin:0 18px 4px; max-width:calc(100% - 36px);
+          padding:0; border-radius:0; background:none; color:var(--txt-3); font-size:11px; font-weight:500; letter-spacing:.08em; text-transform:uppercase; }
+  #link::before { content:""; width:6px; height:6px; border-radius:50%; background:currentColor; margin-right:7px; flex-shrink:0; }
+  #link[data-state="on"] { color:var(--txt-2); }
+  #link[data-state="on"]::before { background:var(--acc); box-shadow:0 0 8px var(--glow); }
+  #link[data-state="wait"] { color:var(--acc); }
   #live { display:none; align-self:flex-start; margin:0 16px 10px; padding:4px 10px 4px 8px; border-radius:999px;
-          background:rgba(62,207,142,.1); color:var(--live); font-size:12px; font-weight:500; }
-  #live::before { content:""; display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--live);
+          background:var(--acc-soft); color:var(--txt-2); font-size:12px; font-weight:500; }
+  #live::before { content:""; display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--acc); box-shadow:0 0 8px var(--glow);
                   margin-right:7px; vertical-align:1px; }
   @media (prefers-reduced-motion:no-preference) { #live::before { animation:pulse 2s ease-in-out infinite; } }
   @keyframes pulse { 50% { opacity:.35; } }
@@ -69,14 +72,31 @@
     -webkit-mask:var(--icon) center/contain no-repeat; mask:var(--icon) center/contain no-repeat; }
 
   /* Contenido */
-  main { flex:1; min-height:0; display:flex; flex-direction:column; gap:12px; padding:2px 16px 20px; overflow:auto; }
-  main > * { flex-shrink:0; }
-  .card { background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:14px; }
+  main { flex:1; min-height:0; display:flex; flex-direction:column; gap:10px; padding:4px 18px 24px; overflow:auto; }
+  main > * { flex-shrink:0; min-width:0; }
+  .card { background:var(--surface); border:1px solid var(--line); border-radius:20px; padding:16px; }
+  .lbl { font:500 10.5px/1.2 var(--font); letter-spacing:.13em; text-transform:uppercase; color:var(--txt-2); }
+  .num { font-family:var(--num); font-weight:600; letter-spacing:-.005em; line-height:.9; font-variant-numeric:tabular-nums; }
+  .lowDot { display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--low); margin-left:6px; vertical-align:1px; }
+  .lowDot[hidden] { display:none; }
   .cardTitle { display:flex; align-items:baseline; justify-content:space-between; gap:8px; font-size:14px; font-weight:600; margin-bottom:10px; }
   .cardTitle small { font-size:12px; font-weight:400; color:var(--txt-3); }
   .aimwrap { display:flex; justify-content:center; position:relative; }
-  #aim, #aimSet { width:min(82vw,330px); height:min(82vw,330px); }
-  .caption { text-align:center; font-size:11.5px; color:var(--txt-3); margin-top:8px; }
+  #aim, #aimSet, #cmpAim { width:100%; height:auto; aspect-ratio:1; max-height:min(78vw,340px); }
+  .target { position:relative; background:var(--surface); border:1px solid var(--line); border-radius:20px; padding:8px 8px 4px; }
+  .tclock { position:absolute; left:16px; top:12px; font:500 11px/1 var(--font); letter-spacing:.12em; text-transform:uppercase; color:var(--txt-2); }
+  .tlClock { position:absolute; right:16px; top:10px; font:600 15px/1 var(--num); color:var(--acc); letter-spacing:.02em; }
+  .tlClock:empty { display:none; }
+  .tl { position:relative; height:32px; margin:2px 8px 6px; }
+  .tl .track { position:absolute; left:0; right:0; top:8px; height:3px; background:rgba(255,255,255,.1); border-radius:2px; }
+  .tl .fill { position:absolute; left:0; top:8px; height:3px; width:0; background:var(--grad); border-radius:2px; box-shadow:0 0 10px var(--glow); }
+  .tl .rel { position:absolute; top:3px; left:83.33%; width:1.5px; height:13px; background:#fff; }
+  .tl span { position:absolute; top:18px; font:500 9.5px/1 var(--font); letter-spacing:.08em; text-transform:uppercase; color:var(--txt-3); transform:translateX(-50%); white-space:nowrap; }
+  .tl .tlA { left:0; transform:none; }
+  .tl .tlB { left:41.67%; }
+  .tl .tlC { left:83.33%; }
+  .tl .tlD { left:auto; right:0; transform:none; }
+  .caption { text-align:center; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--txt-3); margin-top:8px; }
   .scoreSlots { display:flex; gap:6px; margin-bottom:8px; }
   .scoreSlots button { flex:1; min-width:0; min-height:48px; border-radius:12px; background:var(--surface-2); border:1px solid var(--line); color:var(--txt-2); font-size:11px; font-weight:500; }
   .scoreSlots button b { display:block; font-family:var(--mono); font-size:16px; color:var(--txt); font-weight:600; margin-top:1px; }
@@ -84,7 +104,7 @@
   .scoreSlots button.on b { color:var(--acc); }
   .scorepad { display:grid; grid-template-columns:repeat(6, minmax(0,1fr)); gap:6px; }
   .scorepad button { min-height:44px; border-radius:12px; background:var(--surface-2); border:1px solid var(--line); color:var(--txt); font-family:var(--mono); font-size:15px; font-weight:600; padding:0; }
-  .scorepad button.on { background:var(--acc); color:var(--acc-ink); border-color:transparent; }
+  .scorepad button.on { background:transparent; color:var(--acc); border-color:rgba(255,138,31,.55); }
   .scorepad button.clear { grid-column:span 6; font-family:var(--font); font-size:13px; font-weight:500; color:var(--txt-2); }
   .scoreNote { margin-top:8px; font-size:12.5px; color:var(--txt-2); line-height:1.45; }
   .scoreNote:empty { display:none; }
@@ -95,10 +115,10 @@
   .tracebar button.sel { background:var(--acc-soft); color:var(--acc); border-color:rgba(255,122,26,.3); font-weight:600; }
 
   /* Botones */
-  .btnPrimary, #play { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; min-height:46px;
-    background:var(--acc); color:var(--acc-ink); border:none; border-radius:12px; font-size:14.5px; font-weight:600; }
+  .btnPrimary, #play { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; min-height:52px;
+    background:#fff; color:#000; border:none; border-radius:26px; font-size:15px; font-weight:500; letter-spacing:-.005em; }
   #play { --icon:var(--i-play); }
-  #play.playing { --icon:var(--i-stop); background:var(--surface-2); color:var(--txt); border:1px solid var(--line-2); }
+  #play.playing { --icon:var(--i-stop); background:var(--surface-2); color:var(--acc); border:1px solid var(--line-2); box-shadow:none; }
   #play::before { content:""; width:15px; height:15px; background:currentColor; -webkit-mask:var(--icon) center/contain no-repeat; mask:var(--icon) center/contain no-repeat; }
   .btnSecondary, #calib { display:flex; align-items:center; justify-content:center; width:100%; min-height:44px; background:var(--acc-soft);
     color:var(--acc); border:1px solid rgba(255,122,26,.28); border-radius:12px; font-size:14px; font-weight:600; }
@@ -113,8 +133,25 @@
   .metric:nth-child(odd) { border-right:1px solid var(--line); }
   .metric:nth-child(-n+2) { border-bottom:1px solid var(--line); }
   .metric span { font-size:12px; color:var(--txt-2); }
-  .metric b { font-family:var(--mono); font-size:22px; font-weight:500; letter-spacing:-.02em; line-height:1.1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .metric b small { font-family:var(--font); font-size:13px; font-weight:400; color:var(--txt-2); margin-left:3px; letter-spacing:0; }
+  .metric b, .top3 .num, .mrow .num, .kv .num, .gauge .num { font-family:var(--num); font-weight:600; letter-spacing:-.005em; line-height:.9; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .metric b { font-size:28px; }
+  .metric b small, .top3 .num small, .mrow .num small, .kv .num small, .gauge .num small { font-family:var(--font); font-size:12px; font-weight:500; color:var(--txt-3); margin-left:3px; letter-spacing:0; }
+  .heroS { display:grid; grid-template-columns:minmax(108px,42vw) minmax(0,1fr); gap:12px; align-items:center; }
+  .gauge { position:relative; width:100%; aspect-ratio:1; max-width:150px; }
+  .gauge svg { width:100%; height:100%; display:block; }
+  .gauge .c { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .gauge .num { font-size:clamp(40px,12vw,64px); }
+  .gauge .lbl { margin-top:6px; }
+  .kv { display:grid; grid-template-columns:1fr 1fr; gap:14px 8px; min-width:0; }
+  .kv .num { font-size:clamp(26px,8vw,34px); display:block; margin-top:5px; }
+  .mrow, .top3 { display:grid; background:var(--surface); border:1px solid var(--line); border-radius:18px; min-width:0; }
+  .mrow { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .top3 { grid-template-columns:minmax(0,1.25fr) minmax(0,1fr) minmax(0,1fr); }
+  .mrow > div, .top3 > div { padding:12px 12px; min-width:0; }
+  .mrow > div + div, .top3 > div + div { border-left:1px solid var(--line); }
+  .mrow .num { font-size:clamp(22px,6.5vw,27px); display:block; margin-top:6px; }
+  .top3 .num { font-size:clamp(24px,7vw,30px); display:block; margin-top:7px; }
+  .top3 .big { font-size:clamp(40px,13vw,52px); }
 
   /* Calibración */
   #calibrationPanel[hidden] { display:none; }
@@ -148,8 +185,8 @@
   .goalRow > span { display:flex; justify-content:space-between; gap:8px; font-size:13px; }
   .goalRow > span b:last-child { font-family:var(--mono); font-weight:500; }
   .goalBar { height:8px; border-radius:999px; background:var(--surface-3); margin-top:6px; overflow:hidden; }
-  .goalBar i { display:block; height:100%; width:0; background:var(--acc); border-radius:999px; }
-  .goalBar.met i { background:var(--live); }
+  .goalBar i { display:block; height:100%; width:0; background:rgba(255,255,255,.85); border-radius:999px; }
+  .goalBar.met i { background:var(--grad); box-shadow:0 0 12px var(--glow); }
   #tLegend .hr { margin-left:auto; color:var(--txt); font-family:var(--mono); font-size:12px; }
   #tLegend .hr svg { width:13px; height:13px; color:var(--danger); }
   #tip { display:flex; gap:10px; align-items:flex-start; background:var(--surface); border:1px solid var(--line); border-radius:12px;
@@ -182,29 +219,39 @@
 
   /* Sesión */
   .hero { display:flex; align-items:center; gap:16px; }
-  #setList details:not(:last-child), #setList details[open] summary { border-bottom:1px solid var(--line); }
-  #setList summary { list-style:none; cursor:pointer; border:0; }
+  #setList { display:grid; gap:7px; padding:0; background:none; border:0; }
+  #setList details { background:var(--surface); border:1px solid var(--line); border-radius:16px; overflow:hidden; position:relative; }
+  #setList details[open] { border-color:var(--line-2); }
+  #setList details[open]::before { content:""; position:absolute; left:0; top:14px; width:2px; height:28px; border-radius:0 2px 2px 0; background:var(--acc); }
+  #setList summary { list-style:none; cursor:pointer; border:0; display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) auto 16px; align-items:center; gap:8px; padding:11px 14px; min-height:52px; }
+  .setVal .chip { display:block; margin-top:4px; font:600 11px var(--font); }
   #setList summary::-webkit-details-marker { display:none; }
-  #setList details[open] summary .r::after { transform:rotate(90deg); }
-  .trendRow { width:100%; display:grid; grid-template-columns:minmax(80px, max-content) minmax(0,1fr) 44px; gap:10px; align-items:center; min-height:56px; padding:8px 0; background:none; border:0; border-bottom:1px solid var(--line); text-align:left; }
+  #setList summary .r::after { transform:rotate(90deg); }
+  #setList details[open] summary .r::after { transform:rotate(-90deg); }
+  .mini { display:flex; gap:3px; align-items:flex-end; height:22px; min-width:0; }
+  .mini i { width:7px; border-radius:2px; background:rgba(255,255,255,.28); }
+  .setVal { font:600 28px/1 var(--num); text-align:right; }
+  .trendRow { width:100%; display:grid; grid-template-columns:minmax(52px,max-content) minmax(0,1fr) auto 44px; gap:8px; align-items:center; min-height:48px; padding:10px 14px; background:none; border:0; border-top:1px solid var(--line); text-align:left; }
   .trendRow:last-child { border-bottom:0; }
   .trendLabel { font-size:13px; }
   .trendLabel small { display:block; color:var(--txt-3); font-size:11px; }
-  .trendScore { margin-left:6px; font-family:var(--mono); font-size:13px; font-weight:600; color:var(--acc); }
-  .trendRow[aria-current="true"] .trendLabel { color:var(--acc); }
-  .trendBar { height:10px; overflow:hidden; border-radius:5px; background:var(--surface-3); }
+  .trendScore { font-family:var(--num); font-size:16px; font-weight:600; color:var(--acc); }
+  .trendMeta { font:400 11.5px var(--font); color:var(--txt-3); text-align:right; white-space:nowrap; }
+  .trendRow[aria-current="true"] .trendLabel { color:var(--txt); }
+  .trendBar { height:4px; overflow:hidden; border-radius:2px; background:rgba(255,255,255,.08); }
   .trendBar span { display:block; height:100%; border-radius:inherit; background:var(--c); }
-  .trendValue { text-align:right; font:13px var(--mono); color:var(--c); }
+  .trendValue { text-align:right; font:600 26px/1 var(--num); color:var(--n, var(--txt)); }
   #progress { width:100%; height:140px; display:block; }
   #progSum { font-size:13px; color:var(--txt-2); margin-bottom:10px; }
   #progSum b { font-family:var(--mono); color:var(--txt); font-weight:500; }
 
   /* Navegación */
-  nav { display:flex; flex-shrink:0; border-top:1px solid var(--line); background:var(--surface); padding:6px 6px max(8px,env(safe-area-inset-bottom)); }
-  nav button { flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; gap:3px; background:none; border:none;
-               color:var(--txt-3); font-size:11px; font-weight:500; padding:6px 0 4px; min-height:52px; }
+  nav { display:flex; flex-shrink:0; border-top:1px solid var(--line); background:#000; padding:8px 4px max(10px,env(safe-area-inset-bottom)); }
+  nav button { flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; gap:5px; background:none; border:none;
+               color:var(--txt-3); font-size:10.5px; font-weight:500; padding:8px 0 4px; min-height:52px; position:relative; }
   nav button svg { width:22px; height:22px; }
-  nav button.sel { color:var(--acc); }
+  nav button.sel { color:var(--txt); }
+  nav button.sel::before { content:""; position:absolute; top:0; left:28%; right:28%; height:2px; border-radius:0 0 2px 2px; background:var(--acc); }
 
   /* Estados */
   .empty { padding:36px 12px; text-align:center; color:var(--txt-2); font-size:13.5px; line-height:1.6; }
@@ -221,7 +268,23 @@
   #askMsg { font-size:14.5px; line-height:1.55; color:var(--txt); margin:0 0 18px; }
   .askBtns { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
   #askNo { background:var(--surface-2); border:1px solid var(--line-2); color:var(--txt); border-radius:12px; min-height:46px; font-size:14px; font-weight:500; }
-  #askYes { background:var(--acc); border:none; color:var(--acc-ink); border-radius:12px; min-height:46px; font-size:14px; font-weight:600; }
+  #askYes { background:#fff; border:none; color:#000; border-radius:12px; min-height:46px; font-size:14px; font-weight:600; }
+  .info { margin-top:8px; }
+  .info summary { list-style:none; cursor:pointer; width:28px; height:28px; display:grid; place-items:center; color:var(--txt-3); font-size:13px; border-radius:50%; }
+  .info summary::-webkit-details-marker { display:none; }
+  .info p { font-size:12px; color:var(--txt-3); line-height:1.4; margin-top:4px; }
+  .sessbars { display:grid; grid-template-columns:repeat(auto-fit,minmax(36px,1fr)); gap:8px; align-items:end; height:120px; margin-top:12px; }
+  .sessbars div { display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; min-width:0; }
+  .sessbars b { font:600 18px/1 var(--num); margin-bottom:6px; }
+  .sessbars i { width:100%; background:rgba(255,255,255,.1); border-radius:6px 6px 2px 2px; }
+  .sessbars i.last { background:linear-gradient(180deg,var(--acc2),var(--acc)); box-shadow:0 0 18px var(--glow); }
+  .sessbars small { font:500 10px/1 var(--font); letter-spacing:.06em; color:var(--txt-3); margin-top:6px; text-transform:uppercase; max-width:100%; overflow:hidden; text-overflow:ellipsis; }
+  @media (max-width:340px) {
+    main { padding-left:12px; padding-right:12px; }
+    header { padding-left:12px; padding-right:12px; }
+    header h1 { font-size:24px; }
+    .mrow > div, .top3 > div { padding:10px 8px; }
+  }
 </style>
 </head>
 <body>
@@ -234,48 +297,66 @@
 </header>
 <span id="link" data-state="off">Sin reloj</span>
 <span id="live">En vivo</span>
-<button id="returnCurrent" onclick="backToCurrent()">Volver a la sesión actual</button>
+<button id="returnCurrent" onclick="backToCurrent()">Actual</button>
 <main id="vShot">
-  <div class="empty emptyState"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M232,120h-8.34A96.14,96.14,0,0,0,136,32.34V24a8,8,0,0,0-16,0v8.34A96.14,96.14,0,0,0,32.34,120H24a8,8,0,0,0,0,16h8.34A96.14,96.14,0,0,0,120,223.66V232a8,8,0,0,0,16,0v-8.34A96.14,96.14,0,0,0,223.66,136H232a8,8,0,0,0,0-16Zm-96,87.6V200a8,8,0,0,0-16,0v7.6A80.15,80.15,0,0,1,48.4,136H56a8,8,0,0,0,0-16H48.4A80.15,80.15,0,0,1,120,48.4V56a8,8,0,0,0,16,0V48.4A80.15,80.15,0,0,1,207.6,120H200a8,8,0,0,0,0,16h7.6A80.15,80.15,0,0,1,136,207.6ZM128,88a40,40,0,1,0,40,40A40,40,0,0,0,128,88Zm0,64a24,24,0,1,1,24-24A24,24,0,0,1,128,152Z"/></svg><b>Esperando flechas</b>Abre ArcheryWatch en el reloj y tira: cada flecha aparecerá aquí.</div>
-  <div class="card"><div class="aimwrap"><canvas id="aim"></canvas></div>
-    <div class="caption" id="aimCaption">Grados · el apunte ocupa la diana</div></div>
+  <div class="empty emptyState"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M232,120h-8.34A96.14,96.14,0,0,0,136,32.34V24a8,8,0,0,0-16,0v8.34A96.14,96.14,0,0,0,32.34,120H24a8,8,0,0,0,0,16h8.34A96.14,96.14,0,0,0,120,223.66V232a8,8,0,0,0,16,0v-8.34A96.14,96.14,0,0,0,223.66,136H232a8,8,0,0,0,0-16Zm-96,87.6V200a8,8,0,0,0-16,0v7.6A80.15,80.15,0,0,1,48.4,136H56a8,8,0,0,0,0-16H48.4A80.15,80.15,0,0,1,120,48.4V56a8,8,0,0,0,16,0V48.4A80.15,80.15,0,0,1,207.6,120H200a8,8,0,0,0,0,16h7.6A80.15,80.15,0,0,1,136,207.6ZM128,88a40,40,0,1,0,40,40A40,40,0,0,0,128,88Zm0,64a24,24,0,1,1,24-24A24,24,0,0,1,128,152Z"/></svg><b>Sin flechas</b></div>
+  <div class="top3">
+    <div><span class="lbl">Estabilidad<i id="mScoreDot" class="lowDot" hidden></i></span><b id="mScore" class="num big">–</b></div>
+    <div><span class="lbl">Tiro</span><b id="mPeak" class="num">–</b></div>
+    <div><span class="lbl">Radio</span><b id="mInstab" class="num">–</b></div>
+  </div>
+  <div class="target">
+    <div class="aimwrap"><canvas id="aim"></canvas></div>
+    <span class="tclock" id="aimCaption">Grados</span>
+    <span class="tlClock" id="aimClock"></span>
+    <div class="tl" id="timeline">
+      <div class="track"></div><div class="fill" id="tlFill"></div><div class="rel"></div>
+      <span class="tlA">−6 s</span><span class="tlB">−3 s</span><span class="tlC">Suelta</span><span class="tlD">+1,2</span>
+    </div>
+  </div>
   <button id="play">Reproducir</button>
-  <div class="metrics">
-    <div class="metric"><b id="mScore">–</b><span>Estabilidad</span></div>
-    <div class="metric"><b id="mPeak">–</b><span>Tiempo de tiro</span></div>
-    <div class="metric"><b id="mSettle">–</b><span>Estabilización</span></div>
-    <div class="metric"><b id="mInstab">–</b><span>Radio de apunte</span></div>
+  <div class="mrow">
+    <div><span class="lbl">Estabiliz.</span><b id="mSettle" class="num">–</b></div>
+    <div><span class="lbl">Pulso</span><b id="mHr" class="num">–</b></div>
+    <div><span class="lbl">Impulso</span><b id="mG" class="num">–</b></div>
   </div>
   <section class="card" id="shotScore"></section>
   <div class="card">
-    <div class="cardTitle">Señal del tiro<small>escala log</small></div>
+    <div class="cardTitle">Señal</div>
     <canvas id="trace"></canvas>
-    <div id="tLegend"></div>
+    <div id="tLegend" hidden></div>
   </div>
   <div id="tip"></div>
   <section id="calibrationPanel" class="card" hidden>
     <p id="calibrationInfo" class="muted"></p>
     <label for="calibrationProfile">Arco
       <select id="calibrationProfile" onchange="renderCalibration(data.shots[cur])"></select></label>
-    <button id="calib" onclick="calibrateFromShot()">Calibrar con esta flecha</button>
+    <button id="calib" onclick="calibrateFromShot()">Calibrar</button>
   </section>
   <button class="deleteAction" onclick="removeSelection('shot')">Eliminar flecha</button>
 </main>
 <main id="vSession" style="display:none">
-  <div class="metrics">
-    <div class="metric"><b id="sTotal">–</b><span>Flechas</span></div>
-    <div class="metric"><b id="sSets">–</b><span>Sets</span></div>
-    <div class="metric"><b id="sAvg">–</b><span>Estabilidad media</span></div>
-    <div class="metric"><b id="sSd">–</b><span>Radio medio</span></div>
+  <section class="card heroS" id="sessionHero">
+    <div class="gauge"><div id="stabGauge"></div><div class="c"><b class="num" id="sAvg">–</b><span class="lbl">Estabilidad<i id="sAvgDot" class="lowDot" hidden></i></span></div></div>
+    <div class="kv">
+      <div><span class="lbl">Flechas</span><b class="num" id="sTotal">–</b></div>
+      <div><span class="lbl">Sets</span><b class="num" id="sSets">–</b></div>
+      <div><span class="lbl">Radio</span><b class="num" id="sSd">–</b></div>
+      <div><span class="lbl">Tiro</span><b class="num" id="sShot">–</b></div>
+    </div>
+  </section>
+  <div class="mrow">
+    <div><span class="lbl">Mejor</span><b class="num" id="sBest">–</b></div>
+    <div><span class="lbl">Pulso</span><b class="num" id="sHr">–</b></div>
+    <div><span class="lbl">Estabiliz.</span><b class="num" id="sSettle">–</b></div>
   </div>
   <section class="card" id="sessionScore" hidden>
-    <div class="cardTitle">Puntuación<small id="sessionScoreCount"></small></div>
+    <div class="cardTitle">Valor<small id="sessionScoreCount"></small></div>
     <p id="sessionScoreLine" class="scoreNote"></p>
-    <div id="sessionScoreGroups" class="scoreGroups"></div>
-    <p id="sessionScoreInsight" class="scoreNote"></p>
+    <details class="info"><summary aria-label="Detalle">ⓘ</summary><div id="sessionScoreGroups" class="scoreGroups"></div><p id="sessionScoreInsight"></p></details>
   </section>
-  <div class="card list" id="setList"></div>
-  <div class="card"><div class="cardTitle"><span id="trendTitle">Estabilidad por flecha</span><small id="trendHelp">toca una flecha</small></div><div id="trend"></div></div>
+  <div id="setList"></div>
+  <div id="trend" hidden></div>
   <button class="deleteAction" id="deleteCurrent" onclick="removeSelection('session')">Eliminar sesión</button>
 </main>
 <main id="vProgress" style="display:none">
@@ -284,35 +365,36 @@
     <div id="goalBars"></div>
     <p id="goalStreak" class="scoreNote"></p>
     <form id="goalForm" onsubmit="return false">
-      <label>Flechas por semana <input id="goalArrows" inputmode="numeric" enterkeyhint="done" aria-label="Flechas por semana" placeholder="30"></label>
-      <label>Sesiones por semana <input id="goalSessions" inputmode="numeric" enterkeyhint="done" aria-label="Sesiones por semana" placeholder="3"></label>
-      <label>Media por flecha <input id="goalAverage" inputmode="decimal" enterkeyhint="done" aria-label="Media por flecha" placeholder="8,5"></label>
-      <label>Estabilidad mínima <input id="goalStability" inputmode="numeric" enterkeyhint="done" aria-label="Estabilidad mínima" placeholder="75"></label>
-      <button type="button" class="btnSecondary" onclick="saveGoals()">Guardar objetivos</button>
+      <label>Flechas <input id="goalArrows" inputmode="numeric" enterkeyhint="done" aria-label="Flechas por semana" placeholder="30"></label>
+      <label>Sesiones <input id="goalSessions" inputmode="numeric" enterkeyhint="done" aria-label="Sesiones por semana" placeholder="3"></label>
+      <label>Media <input id="goalAverage" inputmode="decimal" enterkeyhint="done" aria-label="Media por flecha" placeholder="8,5"></label>
+      <label>Estabilidad <input id="goalStability" inputmode="numeric" enterkeyhint="done" aria-label="Estabilidad mínima" placeholder="75"></label>
+      <button type="button" class="btnSecondary" onclick="saveGoals()">Guardar</button>
     </form>
-    <p id="goalHint" class="scoreNote">La semana va de lunes a domingo. Un campo vacío no cuenta.</p>
+    <details class="info"><summary aria-label="Detalle">ⓘ</summary><p id="goalHint">Lunes a domingo. Vacío = no cuenta.</p></details>
   </section>
   <div class="card">
     <div class="cardTitle">Evolución</div>
     <div id="progSum"></div>
-    <canvas id="progress"></canvas>
-    <div id="legend2"></div>
+    <div id="sessBars" class="sessbars"></div>
+    <canvas id="progress" hidden></canvas>
+    <div id="legend2" hidden></div>
   </div>
   <div class="empty" id="progressEmpty"></div>
 </main>
 <main id="vHistory" style="display:none">
   <div class="card list" id="histList"></div>
-  <button type="button" class="btnSecondary" id="openCompare" onclick="openCompare()">Comparar sesiones</button>
+  <button type="button" class="btnSecondary" id="openCompare" onclick="openCompare()">Comparar</button>
   <section class="card" id="compareCard" hidden>
-    <div class="cardTitle">Lado a lado<small>Δ = segunda − primera</small></div>
+    <div class="cardTitle">Comparar<small>Δ</small></div>
     <div class="cmpPick">
       <select id="cmpA" aria-label="Primera sesión" onchange="cmpSide('A', this.value)"></select>
       <select id="cmpB" aria-label="Segunda sesión" onchange="cmpSide('B', this.value)"></select>
     </div>
     <div class="tracebar" id="cmpQuick">
-      <button type="button" onclick="cmpQuick('today')">Hoy vs anterior</button>
-      <button type="button" onclick="cmpQuick('score')">Vs mejor puntuación</button>
-      <button type="button" onclick="cmpQuick('aim')">Vs mejor estabilidad</button>
+      <button type="button" onclick="cmpQuick('today')">Hoy</button>
+      <button type="button" onclick="cmpQuick('score')">Mejor valor</button>
+      <button type="button" onclick="cmpQuick('aim')">Mejor estabilidad</button>
     </div>
     <div class="cmpTable" id="cmpTable"></div>
     <div class="cmpGear" id="cmpGear"></div>
@@ -323,15 +405,15 @@
     </div>
     <canvas id="cmpSets"></canvas>
     <div id="cmpLegend"></div>
-    <div class="cardTitle" style="margin-top:14px">Apunte en grados</div>
+    <div class="cardTitle" style="margin-top:14px">Grados</div>
     <div class="cmpPick"><select id="cmpArrow" aria-label="Flecha a comparar" onchange="cmpArrowSet(this.value)"></select></div>
     <div class="aimwrap"><canvas id="cmpAim"></canvas></div>
     <p class="caption" id="cmpAimCap"></p>
   </section>
-  <button type="button" class="btnSecondary" id="exportData" onclick="exportBackup()">Exportar datos</button>
+  <button type="button" class="btnSecondary" id="exportData" onclick="exportBackup()">Exportar</button>
 </main>
 <main id="vSet" style="display:none">
-  <div class="empty emptyState"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M172,76a44,44,0,1,0-44,44A44.05,44.05,0,0,0,172,76Zm-44,28a28,28,0,1,1,28-28A28,28,0,0,1,128,104Zm60,24a44,44,0,1,0,44,44A44.05,44.05,0,0,0,188,128Zm0,72a28,28,0,1,1,28-28A28,28,0,0,1,188,200ZM68,128a44,44,0,1,0,44,44A44.05,44.05,0,0,0,68,128Zm0,72a28,28,0,1,1,28-28A28,28,0,0,1,68,200Z"/></svg><b>Sin sets todavía</b>Los sets se forman solos con las flechas del reloj.</div>
+  <div class="empty emptyState"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M172,76a44,44,0,1,0-44,44A44.05,44.05,0,0,0,172,76Zm-44,28a28,28,0,1,1,28-28A28,28,0,0,1,128,104Zm60,24a44,44,0,1,0,44,44A44.05,44.05,0,0,0,188,128Zm0,72a28,28,0,1,1,28-28A28,28,0,0,1,188,200ZM68,128a44,44,0,1,0,44,44A44.05,44.05,0,0,0,68,128Zm0,72a28,28,0,1,1,28-28A28,28,0,0,1,68,200Z"/></svg><b>Sin sets</b></div>
   <div class="setbar" id="setbar"></div>
   <section class="card" id="setScore"></section>
   <div class="card"><div class="aimwrap"><canvas id="aimSet"></canvas></div><div id="legend"></div></div>
@@ -354,9 +436,9 @@
 <script src="compare.js"></script>
 <script src="goals.js"></script>
 <script>
-const GAP_MS = 60000, ACOLORS = ['#5ab0f0', '#ff7a1a', '#b58cf0', '#3ecf8e', '#e8c14e', '#ef5a5a'];
-const C = {txt:'#eceef1', txt2:'#a0a4ad', txt3:'#6f747d', grid:'rgba(255,255,255,.06)', acc:'#ff7a1a', prev:'#5d6571', aim:'#e6e8eb', rel:'#ef5a5a', ref:'#5ab0f0'};
-const FONT = "'Geist', system-ui, sans-serif", MONO = "'Geist Mono', ui-monospace, monospace";
+const GAP_MS = 60000, ACOLORS = ['#FF8A1F', 'rgba(255,255,255,.9)', 'rgba(255,255,255,.62)', 'rgba(255,255,255,.4)', 'rgba(255,255,255,.24)', 'rgba(255,255,255,.16)'];
+const C = {txt:'#fff', txt2:'#9a9aa2', txt3:'#5c5c64', grid:'rgba(255,255,255,.07)', acc:'#ffffff', mark:'#FF8A1F', prev:'rgba(255,255,255,.32)', aim:'#fff', rel:'#FF8A1F', low:'#F0506E', ref:'rgba(255,255,255,.45)'};
+const FONT = "'Geist', system-ui, sans-serif", MONO = "'Barlow Condensed', sans-serif";
 const HEART = '<svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M178,40c-20.65,0-38.73,8.88-50,23.89C116.73,48.88,98.65,40,78,40a62.07,62.07,0,0,0-62,62c0,70,103.790,126.66,108.21,129a8,8,0,0,0,7.58,0C136.21,228.66,240,172,240,102A62.07,62.07,0,0,0,178,40Z"/></svg>';
 const TRASH = '<svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z"/></svg>';
 function setMetric(id, value, unit = '') {
@@ -523,7 +605,7 @@ const sets = shots => {
   return out;
 };
 const setLabel = (S,i) => S[i].every(j=>data.shots[j].candidate) ? 'Calibración' : 'Set '+S.slice(0,i+1).filter(g=>g.some(j=>!data.shots[j].candidate)).length;
-const grade = v => !Number.isFinite(v) ? ['#a0a4ad','–'] : v >= 90 ? ['#3ecf8e', 'A'] : v >= 75 ? ['#a3d16a', 'B'] : v >= 60 ? ['#e8c14e', 'C'] : v >= 45 ? ['#f0934a', 'D'] : ['#ef5a5a', 'E'];
+const grade = v => !Number.isFinite(v) ? ['#5c5c64','–'] : v >= 80 ? ['#FF8A1F', 'A'] : v < 70 ? ['#F0506E', 'E'] : ['rgba(255,255,255,.85)', 'C'];
 const avg = a => { a=a.filter(Number.isFinite); return a.length ? a.reduce((x,y)=>x+y,0)/a.length : NaN; };
 const sd = a => { const m = avg(a); return Math.sqrt(avg(a.map(x => (x - m) ** 2))); };
 // radio de apuntado: con brujula en GRADOS reales (yaw + inclinacion); sin ella, estimacion MOA
@@ -613,10 +695,13 @@ function render() {
   if (!data || !data.shots.length) {
     document.getElementById('title').textContent = view === 'Shot' ? 'Tiro' : (view === 'Set' ? 'Set' : 'Sesión');
     document.getElementById('subtitle').textContent = 'Esperando flechas';
-    ['sTotal', 'sSets', 'sAvg', 'sSd'].forEach(id => document.getElementById(id).textContent = '–');
+    ['sTotal', 'sSets', 'sAvg', 'sSd', 'sShot', 'sBest', 'sHr', 'sSettle'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '–'; });
     document.getElementById('sAvg').style.color = '';
-    ['trend', 'setList', 'setArrows', 'legend', 'tip', 'tLegend'].forEach(id => document.getElementById(id).textContent = '');
-    ['mScore', 'mPeak', 'mSettle', 'mInstab'].forEach(id => document.getElementById(id).textContent = '–');
+    const gauge = document.getElementById('stabGauge'); if (gauge) gauge.innerHTML = '';
+    ['sAvgDot', 'mScoreDot'].forEach(id => { const el = document.getElementById(id); if (el) el.hidden = true; });
+    ['trend', 'setList', 'setArrows', 'legend', 'tip', 'tLegend'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = ''; });
+    ['mScore', 'mPeak', 'mSettle', 'mInstab', 'mHr', 'mG'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '–'; });
+    syncTimeline(null);
     document.getElementById('mScore').parentElement.style.color = '';
     document.getElementById('mScore').parentElement.style.borderColor = '';
     document.getElementById('play').disabled = true;
@@ -639,7 +724,7 @@ function render() {
     document.getElementById('subtitle').textContent = Score.totalsLine(marked);
   } else {
     document.getElementById('title').textContent = `${data.shots[cur].candidate?'Candidato':'Flecha'} ${S[si].indexOf(cur) + 1}`;
-    document.getElementById('subtitle').textContent = setLabel(S,si) + (historyMode ? ` · ${fmtDate(histId)}` : '');
+    document.getElementById('subtitle').textContent = setLabel(S,si) + ' · ' + (S[si].indexOf(cur) + 1) + ' de ' + S[si].length + (historyMode ? ` · ${fmtDate(histId)}` : '');
   }
   if (view === 'Session') renderSession(S);
   else if (view === 'Set') renderSet(S, si);
@@ -679,10 +764,9 @@ function paintScore(id, shots) {
   const focus = focusedArrow(real);
   const current = real.find(s => s.t_ms === focus);
   const line = Score.totalsLine(Score.totals(real));
-  root.innerHTML = `<div class="cardTitle">Valor<small>${line || 'después de la tanda'}</small></div>` +
+  root.innerHTML = `<div class="cardTitle">Valor<small>${line || ''}</small></div>` +
     `<div class="scoreSlots">${real.map((s, i) => `<button type="button" data-score-t="${s.t_ms}" class="${s.t_ms === focus ? 'on' : ''}" aria-label="Flecha ${i + 1}">${i + 1}<b>${s.result?.value || '·'}</b></button>`).join('')}</div>` +
-    `<div class="scorepad" role="group" aria-label="Valor de la flecha">${Score.VALUES.map(v => `<button type="button" data-score="${v}" class="${current?.result?.value === v ? 'on' : ''}">${v}</button>`).join('')}<button type="button" class="clear" data-score="clear">Borrar</button></div>` +
-    `<p class="scoreNote">${line || 'X vale 10. M es un fallo. Borrar quita el valor y deja sitio para el impacto.'}</p>`;
+    `<div class="scorepad" role="group" aria-label="Valor de la flecha">${Score.VALUES.map(v => `<button type="button" data-score="${v}" class="${current?.result?.value === v ? 'on' : ''}">${v}</button>`).join('')}<button type="button" class="clear" data-score="clear">Borrar</button></div>`;
   root.onclick = ev => {
     const slot = ev.target.closest?.('[data-score-t]');
     if (slot) {
@@ -707,40 +791,52 @@ function renderSession(S) {
   const sc = data.shots.map(s => s.aim_score).filter(Number.isFinite), a = Math.round(avg(sc));
   document.getElementById('sTotal').textContent = data.shots.filter(s=>!s.candidate).length;
   document.getElementById('sSets').textContent = S.filter(g=>g.some(j=>!data.shots[j].candidate)).length;
+  const real = data.shots.filter(s => !s.candidate);
   const tAvg = document.getElementById('sAvg');
-  setMetric('sAvg', Number.isFinite(a) ? a : '–', '/100');
-  tAvg.style.color = grade(a)[0];
-  const ars = data.shots.map(aimRadius).filter(Number.isFinite);
-  setMetric('sSd', ars.length ? avg(ars).toFixed(1) : '–', aimUnit(data.shots[0]));
+  setMetric('sAvg', Number.isFinite(a) ? a : '–');
+  tAvg.style.color = Number.isFinite(a) && a >= 80 ? 'var(--acc)' : 'var(--txt)';
+  const avgDot = document.getElementById('sAvgDot'); if (avgDot) avgDot.hidden = !(Number.isFinite(a) && a < 70);
+  const gauge = document.getElementById('stabGauge'); if (gauge) gauge.innerHTML = gaugeSvg(Number.isFinite(a) ? a : 0);
+  const ars = real.map(aimRadius).filter(Number.isFinite);
+  setMetric('sSd', ars.length ? avg(ars).toFixed(1) : '–', aimUnit(real[0] || data.shots[0]));
+  const secs = real.map(s => s.draw_ms != null ? (s.draw_ms + 1200) / 1000 : null).filter(Number.isFinite);
+  setMetric('sShot', secs.length ? (secs.reduce((x, y) => x + y, 0) / secs.length).toFixed(1) : '–', 's');
+  const best = sc.length ? Math.max(...sc) : NaN;
+  setMetric('sBest', Number.isFinite(best) ? Math.round(best) : '–');
+  const bestEl = document.getElementById('sBest'); if (bestEl) bestEl.style.color = Number.isFinite(best) && best >= 80 ? 'var(--acc)' : 'var(--txt)';
+  const hrs = real.map(s => s.hr_bpm).filter(v => Number.isFinite(v) && v > 0);
+  setMetric('sHr', hrs.length ? Math.round(avg(hrs)) : '–');
+  const settles = real.map(s => s.settle_ms).filter(Number.isFinite);
+  setMetric('sSettle', settles.length ? Math.round(avg(settles)) : '–', 'ms');
   const sessionShots = data.shots.filter(s => !s.candidate);
   const sessionTotals = Score.totals(sessionShots);
   const sessionBox = document.getElementById('sessionScore');
   sessionBox.hidden = false;
   document.getElementById('sessionScoreCount').textContent = sessionTotals.scored ? sessionTotals.scored + '/' + sessionTotals.arrows : '';
-  document.getElementById('sessionScoreLine').textContent = Score.totalsLine(sessionTotals) || 'Sin valores. En Set, marca X, 10, 9… o M después de cada tanda.';
+  document.getElementById('sessionScoreLine').textContent = Score.totalsLine(sessionTotals) || 'Sin valores';
   document.getElementById('sessionScoreGroups').innerHTML = Score.groups(sessionShots).map(Score.groupLine).filter(Boolean).map(line => `<div>${line}</div>`).join('');
   document.getElementById('sessionScoreInsight').textContent = Score.insight(sessionShots).text;
   drawTrend(S);
 }
 
 function renderShot(S, si) {
-  const s = data.shots[cur], [gc, gl] = grade(s.aim_score);
+  const s = data.shots[cur];
   const mS = document.getElementById('mScore');
   renderCalibration(s);
   document.getElementById('play').disabled = proj(s).pts.filter(p => p[2] <= 0).length < 2;
-  setMetric('mScore', s.candidate ? '–' : Number.isFinite(s.aim_score) ? s.aim_score : 'Manual', Number.isFinite(s.aim_score) ? '/100' : '');
-  mS.style.color = gc;
+  const scored = !s.candidate && Number.isFinite(s.aim_score);
+  setMetric('mScore', s.candidate ? '–' : scored ? s.aim_score : 'Manual');
+  mS.style.color = scored && s.aim_score >= 80 ? 'var(--acc)' : 'var(--txt)';
+  const dot = document.getElementById('mScoreDot'); if (dot) dot.hidden = !scored || s.aim_score >= 70;
   const at = s.draw_ms != null ? s.draw_ms + 1200 : aimTime(s), ar = aimRadius(s);
   setMetric('mPeak', at == null ? '–' : (at / 1000).toFixed(1), 's');
-  setMetric('mInstab', ar == null ? '–' : ar.toFixed(1), aimUnit(s));
+  setMetric('mInstab', ar == null ? '–' : ar.toFixed(2), aimUnit(s));
   setMetric('mSettle', s.settle_ms == null ? '–' : s.settle_ms, 'ms');
-  document.getElementById('tLegend').innerHTML =
-    `<span><i style="background:${C.prev}"></i>Previo</span>` +
-    `<span><i style="background:${C.aim}"></i>Apunte</span>` +
-    `<span><i style="background:${C.rel}"></i>Suelta</span>` +
-    `<span><i style="background:${C.acc}"></i>Follow-through</span>` +
-    (s.hr_bpm ? `<span class="hr">${HEART}${s.hr_bpm} ppm</span>` : '');
-  document.getElementById('tip').textContent = tips(s).join('. ') || 'Estabilidad orientativa: no mide el impacto en la diana.';
+  setMetric('mHr', s.hr_bpm > 0 ? Math.round(s.hr_bpm) : '–');
+  setMetric('mG', Number.isFinite(s.peak_mg) ? (s.peak_mg / 1000).toFixed(1) : '–', 'g');
+  const legend = document.getElementById('tLegend'); if (legend) legend.innerHTML = '';
+  document.getElementById('tip').textContent = tips(s).join(' · ');
+  syncTimeline(null);
   paintScore('shotScore', S[si].map(j => data.shots[j]));
   drawAim(s); drawTrace(s);
 }
@@ -773,12 +869,12 @@ async function calibrateFromShot() {
 
 function tips(s) {
   const t = [];
-  if (!(s.tilt_x?.length || s.pos_x?.length || s.traj_x?.length)) t.push('Sin traza de muñeca en este tiro');
-  if (s.instab_mg > 250) t.push(`Temblor en apunte (${(s.instab_mg / 1000).toFixed(2)} g)`);
-  if (s.settle_ms != null && s.settle_ms > 400) t.push(`Estabilización lenta (${s.settle_ms} ms)`);
-  if (s.peak_mg > 5000) t.push(`Impulso de suelta alto (${Number.isFinite(s.peak_mg)?(s.peak_mg / 1000).toFixed(1)+' g':'–'})`);
-  if (Number.isFinite(s.aim_score) && s.aim_score < 60) t.push('Menor estabilidad antes de la suelta');
-  return t;
+  if (!(s.tilt_x?.length || s.pos_x?.length || s.traj_x?.length)) t.push('Sin traza');
+  if (s.instab_mg > 250) t.push(`Temblor ${(s.instab_mg / 1000).toFixed(2)} g`);
+  if (s.settle_ms != null && s.settle_ms > 400) t.push(`${s.settle_ms} ms`);
+  if (s.peak_mg > 5000) t.push(Number.isFinite(s.peak_mg) ? (s.peak_mg / 1000).toFixed(1) + ' g' : '');
+  if (Number.isFinite(s.aim_score) && s.aim_score < 60) t.push('Estabilidad baja');
+  return t.filter(Boolean);
 }
 
 function drawProgress(sessions) {
@@ -828,7 +924,7 @@ function renderGoals() {
   week.textContent = report.label;
   document.getElementById('goalBars').innerHTML = report.bars.length ? report.bars.map(b =>
     `<div class="goalRow"><span><b>${escapeText(b.label)}</b><b>${escapeText(b.text)}</b></span><div class="goalBar${b.met ? ' met' : ''}" role="progressbar" aria-valuenow="${b.width}" aria-valuemin="0" aria-valuemax="100" aria-label="${escapeText(b.label)}"><i style="width:${b.width}%"></i></div></div>`
-  ).join('') : '<p class="scoreNote">Todavía no hay objetivos para esta semana.</p>';
+  ).join('') : '<p class="scoreNote">Sin objetivos</p>';
   document.getElementById('goalStreak').textContent = report.streakText;
   fillGoal('goalArrows', goals.arrows);
   fillGoal('goalSessions', goals.sessions);
@@ -839,18 +935,25 @@ function renderProgress() {
   const sessions = store.list().filter(s => s.shots.length).sort((a, b) => a.id - b.id);
   document.getElementById('progSum').textContent = '';
   document.getElementById('legend2').textContent = '';
-  document.getElementById('progress').style.display = sessions.length > 1 ? 'block' : 'none';
-  document.getElementById('progressEmpty').textContent = sessions.length > 1 ? '' : sessions.length ? 'Tu primera sesión. Sigue sumando flechas.' : 'Tu progreso empieza con la primera sesión.';
+  document.getElementById('progress').style.display = 'none';
+  document.getElementById('progressEmpty').textContent = sessions.length > 1 ? '' : sessions.length ? 'Primera sesión' : 'Sin sesiones';
+  const bars = document.getElementById('sessBars');
   if (sessions.length) {
     const scores = sessions.map(s => Math.round(avg(s.shots.map(a => a.aim_score))));
     const d = scores.length > 1 ? scores[scores.length - 1] - scores[scores.length - 2] : 0;
     document.getElementById('progSum').innerHTML =
-      `Media global <b>${Math.round(avg(scores))}</b>` +
-      (sessions.length > 1 ? `, última <b>${scores[scores.length - 1]}</b> ${d > 0 ? '▲' + d : d < 0 ? '▼' + (-d) : 'sin cambio'}` : '');
-    document.getElementById('legend2').innerHTML =
-      `<span><i style="background:${C.acc}"></i>Estabilidad</span><span><i style="background:${C.ref}"></i>Temblor</span>`;
-    if (sessions.length > 1) drawProgress(sessions);
-  }
+      `Media <b>${Math.round(avg(scores))}</b>` +
+      (sessions.length > 1 ? ` · última <b>${scores[scores.length - 1]}</b> ${d > 0 ? '▲' + d : d < 0 ? '▼' + (-d) : 'sin cambio'}` : '');
+    if (bars && sessions.length > 1) {
+      const shown = sessions.slice(-8), base = scores.slice(-8);
+      const lo = Math.min(...base);
+      bars.innerHTML = shown.map((s, i) => {
+        const v = base[i], last = i === shown.length - 1;
+        const h = Math.max(8, ((v - lo) / (Math.max(8, 100 - lo))) * 72 + 8);
+        return `<div><b style="${last ? 'color:var(--acc)' : ''}">${v}</b><i class="${last ? 'last' : ''}" style="height:${h}px"></i><small>${fmtDate(s.id).split(',')[0]}</small></div>`;
+      }).join('');
+    } else if (bars) bars.innerHTML = '';
+  } else if (bars) bars.innerHTML = '';
 }
 function exportBackup() {
   try {
@@ -877,7 +980,7 @@ function renderHistory() {
       `<span class="m">${[`${s.shots.length} flecha${s.shots.length > 1 ? 's' : ''}`, meta].filter(Boolean).join(' · ')}</span></div>` +
       `<span class="chip" style="--c:${grade(a)[0]}">${Number.isFinite(a)?a:'–'}</span><span class="r"></span>` +
       `<button class="deleteAction deleteSession" data-delete="${s.id}" aria-label="Eliminar sesión del ${fmtDate(s.id)}">${TRASH}</button></div>`;
-  }).join('') : '<div class="empty"><b>Sin sesiones guardadas</b>Tira con el reloj y aparecerán aquí.</div>';
+  }).join('') : '<div class="empty"><b>Sin sesiones</b></div>';
   document.getElementById('histList').onclick = e => {
     const remove = e.target.closest('[data-delete]');
     if (remove) { removeSelection('session', +remove.dataset.delete); return; }
@@ -960,7 +1063,7 @@ function renderCompare(sessions) {
   arrow.value = cmpArrow;
   document.getElementById('cmpLegend').innerHTML = `<span><i style="background:${Compare.COLORS[0]}"></i>${escapeText(fmtDate(A.id))}</span><span><i style="background:${Compare.COLORS[1]}"></i>${escapeText(fmtDate(B.id))}</span>`;
   if (same) {
-    document.getElementById('cmpAimCap').textContent = 'Elige dos sesiones distintas.';
+    document.getElementById('cmpAimCap').textContent = 'Dos sesiones';
     document.getElementById('cmpLegend').innerHTML = '';
     for (const id of ['cmpSets', 'cmpAim']) {
       const c = document.getElementById(id);
@@ -972,7 +1075,7 @@ function renderCompare(sessions) {
   const pathA = Compare.arrowPath(A, cmpArrow), pathB = Compare.arrowPath(B, cmpArrow);
   drawCmpAim([pathA, pathB]);
   const missing = [pathA ? '' : 'La primera no tiene brújula.', pathB ? '' : 'La segunda no tiene brújula.'].filter(Boolean);
-  document.getElementById('cmpAimCap').textContent = missing.join(' ') || (cmpArrow === 'mean' ? 'Flecha media, en grados.' : 'Flecha ' + (Number(cmpArrow) + 1) + ', en grados.');
+  document.getElementById('cmpAimCap').textContent = missing.join(' ') || (cmpArrow === 'mean' ? 'Media · grados' : 'Flecha ' + (Number(cmpArrow) + 1) + ' · grados');
 }
 function drawCmpSets(seriesA, seriesB, metric) {
   const c = document.getElementById('cmpSets');
@@ -1089,15 +1192,14 @@ function renderSet(S, si) {
   bar.onclick = e => { const i = e.target.dataset?.set; if (i) { cur = S[+i][0]; render(); } };
   const g = S[si];
   paintScore('setScore', g.map(j => data.shots[j]));
-  const shown = proj(data.shots[g[0]]);
-  const unitName = shown.unit === 'deg' ? 'Grados' : 'Inclinación';
-  document.getElementById('legend').innerHTML = `<span>Unidad: ${unitName}</span>` + g.map((j, k) =>
-    `<span><i style="background:${ACOLORS[k % 6]}"></i>Flecha ${k + 1}</span>`).join('');
+  document.getElementById('legend').innerHTML = g.map((j, k) =>
+    `<span><i style="background:${ACOLORS[k % 6]}"></i>${k + 1}</span>`).join('');
   document.getElementById('setArrows').innerHTML = g.map((j, k) => {
     const s = data.shots[j];
-    const mark = s.candidate || Score.points(s.result?.value) == null ? '' : `<span class="chip">${s.result.value}</span>`;
+    const mark = s.candidate || Score.points(s.result?.value) == null ? '' : `<span class="trendScore">${s.result.value}</span>`;
+    const tone = !s.candidate && Number.isFinite(s.aim_score) && s.aim_score >= 80 ? 'var(--acc)' : 'var(--txt)';
     return `<div class="arrowline" data-jump="${j}"><span class="chip dotChip" style="--c:${ACOLORS[k % 6]}">${k + 1}</span>` +
-      mark + `<b style="color:${grade(s.aim_score)[0]}">${s.candidate?'Cal':s.aim_score ?? '–'}</b><span class="r">${Number.isFinite(s.peak_mg)?(s.peak_mg / 1000).toFixed(1)+' g':'–'} · ${s.settle_ms ?? '–'} ms</span></div>`;
+      mark + `<b style="color:${tone}">${s.candidate?'Cal':s.aim_score ?? '–'}</b><span class="r">${Number.isFinite(s.peak_mg)?(s.peak_mg / 1000).toFixed(1)+' g':'–'} · ${s.settle_ms ?? '–'} ms</span></div>`;
   }).join('');
   document.getElementById('setArrows').onclick = e => {
     const j = e.target.closest('[data-jump]')?.dataset.jump;
@@ -1120,15 +1222,54 @@ function canvasFit(c, h) {
   x.clearRect(0, 0, w, h || w);
   return [x, w];
 }
-function ringBase(x, sz) {
-  const cx = sz / 2, cy = sz / 2;
-  const R = sz * .47;
-  x.beginPath(); x.arc(cx, cy, R, 0, 7); x.fillStyle = '#111317'; x.fill();
-  [[.38, 'rgba(62,207,142,.07)'], [.16, 'rgba(62,207,142,.14)']].forEach(([r, f]) => { x.beginPath(); x.arc(cx, cy, R * r, 0, 7); x.fillStyle = f; x.fill(); });
+function niceStep(maxDeg) {
+  const cand = [0.05, 0.1, 0.2, 0.25, 0.5, 1, 2, 2.5, 5, 10];
+  return cand.find(c => maxDeg / c <= 4.2) || 10;
+}
+function ringBase(x, sz, scale) {
+  const cx = sz / 2, cy = sz / 2, R = sz * .45;
+  const outer = Math.max(0.25, Number.isFinite(scale) ? scale : 1);
+  const step = niceStep(outer);
+  const n = Math.max(1, Math.min(5, Math.ceil(outer / step)));
   x.lineWidth = 1;
-  [1, .82, .62, .38, .16].forEach((r, i) => { x.beginPath(); x.arc(cx, cy, R * r, 0, 7); x.strokeStyle = i >= 3 ? 'rgba(62,207,142,.35)' : 'rgba(255,255,255,.09)'; x.stroke(); });
-  x.strokeStyle = 'rgba(255,255,255,.05)'; x.beginPath(); x.moveTo(cx - R, cy); x.lineTo(cx + R, cy); x.moveTo(cx, cy - R); x.lineTo(cx, cy + R); x.stroke();
+  for (let i = 1; i <= n; i++) {
+    const r = Math.min(R, R * (step * i) / outer);
+    x.beginPath(); x.arc(cx, cy, r, 0, 7);
+    x.strokeStyle = i === n ? 'rgba(255,255,255,.16)' : 'rgba(255,255,255,.07)';
+    x.stroke();
+  }
+  for (let a = 0; a < 72; a++) {
+    const ang = a / 72 * Math.PI * 2, L = a % 6 === 0 ? 6 : 3;
+    x.beginPath();
+    x.moveTo(cx + Math.cos(ang) * (R + 3), cy + Math.sin(ang) * (R + 3));
+    x.lineTo(cx + Math.cos(ang) * (R + 3 + L), cy + Math.sin(ang) * (R + 3 + L));
+    x.strokeStyle = a % 6 === 0 ? 'rgba(255,255,255,.28)' : 'rgba(255,255,255,.1)';
+    x.stroke();
+  }
+  x.strokeStyle = 'rgba(255,255,255,.06)';
+  x.beginPath(); x.moveTo(cx - R, cy); x.lineTo(cx + R, cy); x.moveTo(cx, cy - R); x.lineTo(cx, cy + R); x.stroke();
+  x.fillStyle = 'rgba(255,255,255,.4)'; x.font = "600 11px " + MONO; x.textAlign = 'left';
+  for (let i = 1; i <= n; i++) {
+    const deg = step * i, r = Math.min(R, R * deg / outer);
+    x.fillText((deg < 1 ? deg.toFixed(1) : String(Math.round(deg * 10) / 10)).replace('.', ',') + '°', cx + 4, cy - r + 12);
+  }
+  x.textAlign = 'left';
   return [cx, cy];
+}
+function gaugeSvg(v) {
+  const size = 150, r = size / 2 - 8, circ = 2 * Math.PI * r, arc = 0.75;
+  const val = Math.max(0, Math.min(100, Number.isFinite(v) ? v : 0));
+  const ang = (135 + 270 * val / 100) * Math.PI / 180;
+  const ex = size / 2 + r * Math.cos(ang), ey = size / 2 + r * Math.sin(ang);
+  return `<svg viewBox="0 0 ${size} ${size}" aria-hidden="true"><defs><linearGradient id="awGauge" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#FF8A1F"/><stop offset="1" stop-color="#FFC15E"/></linearGradient></defs>
+    <g transform="rotate(135 ${size / 2} ${size / 2})"><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="7" stroke-linecap="round" stroke-dasharray="${circ * arc} ${circ}"/>
+    <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="url(#awGauge)" stroke-width="7" stroke-linecap="round" stroke-dasharray="${circ * arc * val / 100} ${circ}"/></g>
+    <circle cx="${ex}" cy="${ey}" r="9" fill="rgba(255,138,31,.28)"/><circle cx="${ex}" cy="${ey}" r="3" fill="#fff"/></svg>`;
+}
+function syncTimeline(ms) {
+  const fill = document.getElementById('tlFill'), clock = document.getElementById('aimClock');
+  if (fill) fill.style.width = ms == null ? '0' : Math.max(0, Math.min(100, (ms - -6000) / 7200 * 100)) + '%';
+  if (clock) clock.textContent = ms == null ? '' : (ms < 0 ? '−' : '+') + (Math.abs(ms) / 1000).toFixed(1).replace('.', ',') + ' s';
 }
 const yawOf = s => s.yaw_c?.length ? s.yaw_c : (s.yaw_deg || []);  // yw2 = azimut compensado por inclinacion; yw = atan2 crudo
 const hasCompass = s => { const y=yawOf(s); return y.length>2 && (Math.max(...y)-Math.min(...y))>0.5; };
@@ -1147,14 +1288,21 @@ function releasePath(pts,t) {
   // Mantener el ultimo apunte hasta el instante registrado; el impulso posterior no es una posicion de apunte.
   return i<=0?pts:[...pts.slice(0,i),[pts[i-1][0],pts[i-1][1],t],...pts.slice(i)];
 }
-function releaseMark(x,p,sz) {
-  const X=Math.max(8,Math.min(sz-128,p[0]-60)),Y=p[1]<52?p[1]+22:p[1]-42;
-  x.save();x.strokeStyle=C.rel;x.lineWidth=1.5;
-  x.beginPath();x.moveTo(...p);x.lineTo(X+60,Y+12);x.stroke();
-  x.beginPath();x.arc(...p,11,0,7);x.fillStyle='#111317';x.fill();x.stroke();
-  x.beginPath();x.arc(...p,5,0,7);x.fillStyle=C.rel;x.fill();
-  rr(x,X,Y,120,24,7);x.fillStyle='#15171b';x.fill();x.stroke();
-  x.fillStyle=C.rel;x.font='600 12px '+FONT;x.textAlign='center';x.fillText('Suelta estimada',X+60,Y+16);x.restore();
+function releaseMark(x,p) {
+  x.save();
+  const g = x.createRadialGradient(p[0], p[1], 0, p[0], p[1], 18);
+  g.addColorStop(0, 'rgba(255,138,31,.28)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+  x.fillStyle = g; x.beginPath(); x.arc(p[0], p[1], 18, 0, 7); x.fill();
+  x.strokeStyle = C.mark; x.lineWidth = 1.6;
+  x.beginPath(); x.arc(p[0], p[1], 7.5, 0, 7); x.stroke();
+  x.beginPath();
+  x.moveTo(p[0] - 13, p[1]); x.lineTo(p[0] - 9, p[1]);
+  x.moveTo(p[0] + 9, p[1]); x.lineTo(p[0] + 13, p[1]);
+  x.moveTo(p[0], p[1] - 13); x.lineTo(p[0], p[1] - 9);
+  x.moveTo(p[0], p[1] + 9); x.lineTo(p[0], p[1] + 13);
+  x.stroke();
+  x.beginPath(); x.arc(p[0], p[1], 5, 0, 7); x.fillStyle = '#fff'; x.fill();
+  x.restore();
 }
 function aimPath(x,pts,P,hold,release=0) {
   x.lineCap='round'; x.lineJoin='round';
@@ -1187,11 +1335,8 @@ function shotViewKey() {
   return JSON.stringify([historyMode ? histId : curSess?.id, cur, data?.shots.length, data?.shots[cur], document.getElementById('aim').clientWidth, devicePixelRatio]);
 }
 function aimCaptionText(s, view) {
-  const span = Number.isFinite(view.scale) ? `±${view.scale < 10 ? view.scale.toFixed(1) : Math.round(view.scale)}°` : '';
-  const mark = 'Punto rojo: suelta estimada.';
-  if (view.unit !== 'deg') return `Sin brújula: inclinación de la muñeca${span ? ' · ' + span : ''}. ${mark}`;
-  const frame = s && s.candidate ? 'Escala de esta flecha.' : 'El apunte ocupa la diana.';
-  return `Grados${span ? ' · ' + span : ''}. ${frame} Naranja: dirección del golpe, recortada. ${mark}`;
+  if (view.unit !== 'deg') return 'Sin brújula';
+  return s && s.candidate ? 'Grados · esta flecha' : 'Grados';
 }
 function drawAim(s) {
   if (anim != null) return;  // durante la reproduccion el canvas es del animador: repintar aqui produce parpadeo
@@ -1201,8 +1346,8 @@ function drawAim(s) {
   aimDrawnKey = key; c0 = cw;
   const c = document.getElementById('aim');
   const [x, sz] = canvasFit(c, null);
-  ringBase(x, sz);
   const view = proj(s), releaseAt=0, pts=releasePath(view.pts,releaseAt), P=view.P;
+  ringBase(x, sz, view.esc);
   document.getElementById('aimCaption').textContent=aimCaptionText(s, view);
   if (!pts.length) return;
   aimPath(x,pts,P,aimTime(s)||0,releaseAt);
@@ -1220,11 +1365,10 @@ function play() {
   if (!data?.shots[cur]) return;
   const s = data.shots[cur], c = document.getElementById('aim');
   const sz = c.clientWidth || 320;
-  const { pts, P } = proj(s);
+  const view = proj(s), pts = view.pts, P = view.P;
   const releaseAt=0, path=releasePath(pts,releaseAt);
   if (path.length < 2) {
-    document.getElementById('tip').textContent =
-      `Sin traza previa: pts=${pts.length} tilt=${s.tilt_x?.length || 0} pos=${s.pos_x?.length || 0} t=${s.trace_t?.length || 0}`;
+    document.getElementById('tip').textContent = 'Sin traza';
     return;
   }
   const btn = document.getElementById('play');
@@ -1233,19 +1377,19 @@ function play() {
   const pause=700, rev=dur-pause;  // pausa visual en la suelta; el resto mantiene velocidad constante por longitud de arco
   const dpr = devicePixelRatio || 1, rl = document.createElement('canvas');  // anillos cacheados: 1 blit por frame
   rl.width = sz * dpr; rl.height = sz * dpr;
-  const rx = rl.getContext('2d'); rx.setTransform(dpr, 0, 0, dpr, 0, 0); ringBase(rx, sz);
+  const rx = rl.getContext('2d'); rx.setTransform(dpr, 0, 0, dpr, 0, 0); ringBase(rx, sz, view.esc);
   const blit = () => { x.drawImage(rl, 0, 0, sz, sz); };
   const GR = 16, gl = document.createElement('canvas');  // halo de la punta precalculado (shadowBlur va mal en movil)
   gl.width = gl.height = GR * 2 * dpr;
   const gx = gl.getContext('2d'); gx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const gg = gx.createRadialGradient(GR, GR, 0, GR, GR, GR);
-  gg.addColorStop(0, 'rgba(255,255,255,.85)'); gg.addColorStop(.45, 'rgba(255,255,255,.18)'); gg.addColorStop(1, 'rgba(255,255,255,0)');
+  gg.addColorStop(0, 'rgba(255,138,31,.75)'); gg.addColorStop(.45, 'rgba(255,138,31,.18)'); gg.addColorStop(1, 'rgba(0,0,0,0)');
   gx.fillStyle = gg; gx.fillRect(0, 0, GR * 2, GR * 2);
   const hold = aimTime(s) || 0;
   const col = t => aimColor(t,hold,releaseAt);
   // la curva suavizada se aplana UNA vez: la estela solo crece sobre geometria fija, nada se recalcula ni se dobla
   const ax = path.map(p => P(p)), SUB = 12, segN = path.length - 1;
-  const fx = [], fy = [], fc = [];
+  const fx = [], fy = [], fc = [], ft = [];
   const releaseIndex=path.indexOf(releasePoint(path,releaseAt));let releaseVertex=0;
   for (let i = 1; i <= segN; i++) {
     const a0 = ax[i - 1], a1 = ax[i], pr = i > 1 ? ax[i - 2] : a0;
@@ -1257,6 +1401,7 @@ function play() {
       fx.push(u * u * m0[0] + 2 * u * t * a0[0] + t * t * m1[0]);
       fy.push(u * u * m0[1] + 2 * u * t * a0[1] + t * t * m1[1]);
       fc.push(color);
+      ft.push(path[i - 1][2] + (path[i][2] - path[i - 1][2]) * t);
     }
     if(i===releaseIndex)releaseVertex=fx.length-1;
   }
@@ -1267,7 +1412,7 @@ function play() {
   const cum = [0];  // longitud de arco acumulada: la bolita avanza a px/s constante, no por tiempo de muestra
   for (let i = 1; i < fx.length; i++) cum.push(cum[i - 1] + Math.hypot(fx[i] - fx[i - 1], fy[i] - fy[i - 1]));
   const totalLen = cum[cum.length - 1];
-  if (!Number.isFinite(totalLen) || totalLen < 1) { document.getElementById('tip').textContent = 'Sin movimiento visible en la trayectoria guardada a esta escala'; return; }
+  if (!Number.isFinite(totalLen) || totalLen < 1) { document.getElementById('tip').textContent = 'Trayectoria plana'; return; }
   const [x] = canvasFit(c, null);
   btn.textContent = 'Detener'; btn.classList.add('playing'); playbackKey = shotViewKey();
   let baked = 0;
@@ -1297,12 +1442,15 @@ function play() {
         x.strokeStyle = fc[Math.min(gi + 1, fc.length - 1)]; x.lineWidth = 2; x.lineCap = 'round';
         x.beginPath(); x.moveTo(fx[gi], fy[gi]); x.lineTo(tp[0], tp[1]); x.stroke();
         x.drawImage(gl, tp[0] - GR, tp[1] - GR, GR * 2, GR * 2);
+        x.beginPath(); x.arc(tp[0], tp[1], 3.6, 0, 7); x.fillStyle = C.mark; x.fill();
         x.beginPath(); x.arc(tp[0], tp[1], 3, 0, 7); x.fillStyle = '#fff'; x.fill();
+        syncTimeline(ft[Math.min(gi, ft.length - 1)]);
       }
       if(sEnd>=releaseDistance){cross(x,sz);releaseMark(x,rp,sz);}
       anim = requestAnimationFrame(frame);
     } else {
       anim = null; aimDrawnKey = ''; btn.textContent = 'Reproducir'; btn.classList.remove('playing');
+      syncTimeline(null);
       drawAim(s);  // termina exactamente en el estado estatico
     }
   };
@@ -1315,7 +1463,7 @@ function drawTrace(s) {
   const m = s.window ? [...s.window.mag_pre, ...s.window.mag_post] : [];
   if (!t.length) {
     x.fillStyle = C.txt3; x.font = '12px ' + FONT; x.textAlign = 'center';
-    x.fillText('Sin señal completa en este tiro', w / 2, 75);
+    x.fillText('Sin señal', w / 2, 75);
     x.textAlign = 'left';
     return;
   }
@@ -1375,32 +1523,35 @@ function drawTrend(S) {
   const candidates=data.shots.every(s=>s.candidate), values=data.shots.map(s=>candidates?s.peak_mg:s.aim_score);
   const max=candidates?values.reduce((m,v)=>Number.isFinite(v)?Math.max(m,v):m,1):100;
   const anyValue=!candidates && data.shots.some(s => Score.points(s.result && s.result.value) != null);
-  document.getElementById('trendTitle').textContent=candidates?'Impulso por candidato':'Estabilidad por flecha';
-  document.getElementById('trendHelp').textContent=candidates?'mG · toca una flecha':(anyValue?'valor en naranja · barra = estabilidad':'toca una flecha');
+  const barOf = v => candidates ? 'var(--acc)' : !Number.isFinite(v) ? 'rgba(255,255,255,.2)' : v >= 80 ? 'var(--acc)' : v < 70 ? 'var(--low)' : 'rgba(255,255,255,.85)';
+  const numOf = v => !candidates && Number.isFinite(v) && v >= 80 ? 'var(--acc)' : 'var(--txt)';
   const rows=S.map((g,si)=>{const name=setLabel(S,si);return g.map((i,j)=>{
     const s=data.shots[i], v=values[i], valid=Number.isFinite(v), label=(s.candidate?'Candidato':'Flecha')+' '+(j+1);
     const marked=!s.candidate && s.result && Score.points(s.result.value) != null ? s.result.value : '';
-    const scoreBit=anyValue ? `<b class="trendScore" title="Valor">${marked || '·'}</b>` : '';
+    const scoreBit=anyValue ? `<b class="trendScore">${marked || '·'}</b>` : '';
+    const sec = s.draw_ms != null ? ((s.draw_ms + 1200) / 1000).toFixed(1) + ' s' : '';
+    const rad = aimRadius(s); const radTxt = rad == null ? '' : rad.toFixed(1) + '°';
+    const meta = [sec, radTxt].filter(Boolean).join(' · ');
     const aria=`${name}, ${label}${marked ? ', valor ' + marked : ''}, ${valid ? Math.round(v) + (candidates ? ' mG' : ' de estabilidad') : 'sin estabilidad'}`;
-    return `<button class="trendRow" data-shot="${i}" aria-current="${i===cur}" aria-label="${aria}" style="--c:${candidates?C.acc:grade(v)[0]}">`+
-      `<span class="trendLabel">${label}${scoreBit}<small>${name}</small></span><span class="trendBar" aria-hidden="true"><span style="width:${valid?Math.max(0,Math.min(100,v/max*100)):0}%"></span></span><span class="trendValue" title="${candidates?'Impulso':'Estabilidad'}">${valid?Math.round(v):'–'}</span></button>`;
+    return `<button class="trendRow" data-shot="${i}" aria-current="${i===cur}" aria-label="${aria}" style="--c:${barOf(v)};--n:${numOf(v)}">`+
+      `<span class="trendLabel">${j + 1}${scoreBit}</span><span class="trendBar" aria-hidden="true"><span style="width:${valid?Math.max(0,Math.min(100,v/max*100)):0}%"></span></span><span class="trendMeta">${meta}</span><span class="trendValue">${valid?Math.round(v):'–'}</span></button>`;
   }).join('');});
-  c.innerHTML=rows.join('');
+  if (c) c.innerHTML=rows.join('');
   list.innerHTML=S.map((g,i)=>{
     const sa=Math.round(avg(g.map(j=>data.shots[j].aim_score))), key=(historyMode?histId:curSess?.id)+'_'+encodeURIComponent(data.shots[g[0]].set_id);
     const pts=Score.totals(g.map(j => data.shots[j]));
-    const noun=data.shots[g[0]].candidate?'candidatos':'flecha'+(g.length>1?'s':'');
     const points=pts.scored ? `<span class="chip" style="--c:var(--acc)">${pts.score} pts</span>` : '';
-    return `<details data-set="${key}" ${opened.has(key)?'open':''}><summary class="setline"><b>${setLabel(S,i)}</b><span class="chip" style="--c:${grade(sa)[0]}">${Number.isFinite(sa)?sa:'–'}</span>${points}<span class="r">${g.length} ${noun}</span></summary>${rows[i]}</details>`;
+    const mini=g.map(j=>{const v=data.shots[j].aim_score;const h=Number.isFinite(v)?Math.max(3,(Math.min(100,v)-40)/60*22):3;return `<i style="height:${h}px;background:${barOf(v)}"></i>`;}).join('');
+    return `<details data-set="${key}" ${opened.has(key)?'open':''}><summary class="setline"><b>${setLabel(S,i)}</b><span class="mini">${mini}</span><span class="setVal" style="color:${numOf(sa)}">${Number.isFinite(sa)?sa:'–'}${points}</span><span class="r"></span></summary>${rows[i]}</details>`;
   }).join('');
   c.onclick=list.onclick=e=>{const i=e.target.closest('[data-shot]')?.dataset.shot;if(i!=null){cur=+i;show('Shot');}};
 }
 function drawSet(g) {
   const c = document.getElementById('aimSet');
   const [x, sz] = canvasFit(c, null);
-  ringBase(x, sz);
   const all = g.map(j => proj(data.shots[j]));
   const esc = Math.max(0.25, ...all.map(v => v.scale || 0));
+  ringBase(x, sz, esc);
   const P = p => [sz / 2 + p[0] / esc * sz * .45, sz / 2 + p[1] / esc * sz * .45];
   g.forEach((j, k) => {
     const { pts } = all[k], col = ACOLORS[k % 6];
