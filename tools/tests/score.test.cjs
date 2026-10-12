@@ -1,3 +1,5 @@
+const fs = require('node:fs');
+const path = require('node:path');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Score = require('../../mobile/score.js');
@@ -68,4 +70,95 @@ test('the backup carries the arrow value because it lives on the shot', () => {
   const copy = Backup.build(storage, {exportedAt: '2026-10-11T08:00:00.000Z', app: '4.13'});
   assert.equal(copy.storage.awSessions[0].shots[0].result.value, 'X');
   assert.equal(copy.storage.awSessions[0].shots[0].result.impact.y, 2);
+});
+
+test('the indoor face scores the ring under the point, line included in the higher ring', () => {
+  assert.equal(Score.valueAt(0, 0), 'X');
+  assert.equal(Score.valueAt(0.05, 0), 'X');
+  assert.equal(Score.valueAt(0.050001, 0), '10');
+  assert.equal(Score.valueAt(0.1, 0), '10');
+  assert.equal(Score.valueAt(0, 0.2), '9');
+  assert.equal(Score.valueAt(0, 0.200001), '8');
+  assert.equal(Score.valueAt(0, 1), '1');
+  assert.equal(Score.valueAt(1.01, 0), 'M');
+  assert.equal(Score.valueAt(NaN, 0), null);
+  const rings = {X: 0, '10': 0.08, '9': 0.15, '8': 0.25, '7': 0.35, '6': 0.45, '5': 0.55, '4': 0.65, '3': 0.75, '2': 0.85, '1': 0.95, M: 1.1};
+  for (const [value, r] of Object.entries(rings)) assert.equal(Score.valueAt(0, r), value, value);
+  const shot = {t_ms: 4, aim_score: 88, tilt_x: [1, 2]};
+  assert.equal(Score.place(shot, 0, 0.15), true);
+  assert.equal(shot.result.value, '9');
+  assert.deepEqual(shot.result.impact, {x: 0, y: 0.15});
+  assert.deepEqual(shot.tilt_x, [1, 2]);
+  assert.equal(Score.place(shot, 3, 0), true);
+  assert.equal(shot.result.value, 'M');
+  assert.ok(Math.abs(shot.result.impact.x - Score.FACE) < 1e-9);
+  assert.equal(Score.set(shot, '8'), true);
+  assert.equal(shot.result.value, '8');
+  assert.equal(shot.result.impact.x, Score.FACE);
+  assert.equal(Score.set(shot, null), true);
+  assert.equal(shot.result.value, undefined);
+  assert.equal(Score.impacts([shot]).length, 0);
+  assert.equal(Score.place({candidate: true}, 0, 0), false);
+  assert.equal(Score.place(shot, NaN, 0), false);
+});
+
+test('a group map skips old arrows that have a value and no position', () => {
+  const placed = arrow('X', {t_ms: 1, result: {value: 'X', impact: {x: 0.1, y: 0}}});
+  const other = arrow('9', {t_ms: 2, result: {value: '9', impact: {x: -0.1, y: 0.2}}});
+  const old = arrow('10', {t_ms: 3});
+  const pts = Score.impacts([placed, other, old, {candidate: true, result: {value: 'X', impact: {x: 1, y: 1}}}]);
+  assert.equal(pts.length, 2);
+  assert.deepEqual(Score.groupCenter(pts), {x: 0, y: 0.1});
+  assert.equal(Score.groupCenter([]), null);
+  assert.equal(Score.totals([placed, other, old]).score, 29);
+});
+
+test('stability against score waits for twenty scored arrows', () => {
+  const few = Array.from({length: 8}, (_, i) => arrow(i < 3 ? 'X' : '9'));
+  const early = Score.split(few);
+  assert.equal(early.ready, false);
+  assert.equal(early.n, 8);
+  assert.equal(early.need, 12);
+  assert.equal(Score.split([arrow(null), {candidate: true, result: {value: 'X'}}]).need, 20);
+  const many = [
+    ...Array.from({length: 12}, () => arrow('10', {aim_score: 90, draw_ms: 1800})),
+    ...Array.from({length: 8}, () => arrow('8', {aim_score: 70, draw_ms: 3800}))
+  ];
+  const split = Score.split(many);
+  assert.equal(split.ready, true);
+  assert.equal(split.need, 0);
+  assert.equal(split.high.n, 12);
+  assert.equal(split.low.n, 8);
+  assert.equal(Math.round(split.high.aim), 90);
+  assert.equal(Math.round(split.low.aim), 70);
+  assert.ok(Math.abs(split.high.shot_s - 3) < 1e-9, split.high.shot_s);
+  assert.ok(Math.abs(split.low.shot_s - 5) < 1e-9, split.low.shot_s);
+  assert.equal(split.points.length, 20);
+  const edge = Score.split(many.slice(0, 19));
+  assert.equal(edge.ready, false);
+  assert.equal(edge.need, 1);
+  const withMiss = Score.split([...many.slice(0, 19), arrow('M', {aim_score: 40, draw_ms: 5000})]);
+  assert.equal(withMiss.ready, true);
+  assert.equal(withMiss.low.n, 8);
+  assert.ok(withMiss.points.some(p => p.value === 'M'));
+});
+
+test('exported shots without an impact still score and split', () => {
+  const dir = path.join(__dirname, 'fixtures');
+  for (const name of ['release-paint-20261002.json', 'candidates-20261002.json']) {
+    const shots = JSON.parse(fs.readFileSync(path.join(dir, name), 'utf8'));
+    const totals = Score.totals(shots);
+    assert.equal(totals.scored, 0);
+    assert.equal(Score.impacts(shots).length, 0);
+    assert.equal(Score.split(shots).ready, false);
+    assert.equal(Score.groups(shots).every(g => g.n === 0), true);
+    assert.equal(Score.insight(shots).enough, false);
+  }
+  const shot = JSON.parse(fs.readFileSync(path.join(dir, 'release-paint-20261002.json'), 'utf8'))[0];
+  const copy = JSON.parse(JSON.stringify(shot));
+  assert.equal(Score.place(copy, 0.12, -0.04), true);
+  assert.equal(copy.result.value, '9');
+  assert.equal(copy.aim_score, shot.aim_score);
+  assert.equal(copy.tilt_x.length, shot.tilt_x.length);
+  assert.equal(Score.totals([copy, shot]).scored, 1);
 });

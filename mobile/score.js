@@ -1,9 +1,65 @@
 /* Valor de la flecha (diana), aparte de la estabilidad aim_score.
-   result.impact queda libre para marcar después el punto en la diana. */
+   impact es el punto en la diana indoor: centro en (0,0), y hacia abajo, radio 1 = anillo 1. */
 const Score = {
   VALUES: ['X', '10', '9', '8', '7', '6', '5', '4', '3', '2', '1', 'M'],
   GROUPS: [{id: 'x10', label: 'X-10'}, {id: '98', label: '9-8'}, {id: 'low', label: '≤7'}, {id: 'm', label: 'M'}],
   MIN: 4,
+  FACE: 1.25,
+  SPLIT: 20,
+  // La línea cuenta en el anillo mayor. La X es la mitad interior del 10.
+  valueAt(x, y) {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    const r = Math.hypot(x, y);
+    if (r > 1) return 'M';
+    if (r <= 0.05) return 'X';
+    const ring = 11 - Math.ceil(r * 10);
+    return ring >= 1 && ring <= 10 ? String(ring) : null;
+  },
+  place(shot, x, y) {
+    if (!shot || shot.candidate || !Number.isFinite(x) || !Number.isFinite(y)) return false;
+    let px = x, py = y;
+    const r = Math.hypot(x, y);
+    if (r > this.FACE) { px = x * this.FACE / r; py = y * this.FACE / r; }
+    const value = this.valueAt(px, py);
+    if (this.points(value) == null) return false;
+    shot.result = {value, impact: {x: px, y: py}};
+    return true;
+  },
+  impacts(shots) {
+    const out = [];
+    for (const s of shots || []) {
+      if (!s || s.candidate || this.points(s.result && s.result.value) == null) continue;
+      const p = s.result.impact;
+      if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
+      out.push({x: p.x, y: p.y, value: s.result.value, t: s.t_ms});
+    }
+    return out;
+  },
+  groupCenter(pts) {
+    if (!pts || !pts.length) return null;
+    return {
+      x: pts.reduce((n, p) => n + p.x, 0) / pts.length,
+      y: pts.reduce((n, p) => n + p.y, 0) / pts.length
+    };
+  },
+  split(shots) {
+    const scored = (shots || []).filter(s => s && !s.candidate && this.points(s.result && s.result.value) != null);
+    const mean = (rows, pick) => {
+      const a = rows.map(pick).filter(v => v != null && Number.isFinite(v));
+      return a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+    };
+    const pack = rows => ({n: rows.length, aim: mean(rows, s => s.aim_score), shot_s: mean(rows, s => this.shotSeconds(s))});
+    const high = scored.filter(s => s.result.value === 'X' || s.result.value === '10');
+    const low = scored.filter(s => s.result.value !== 'X' && s.result.value !== '10');
+    return {
+      n: scored.length,
+      need: Math.max(0, this.SPLIT - scored.length),
+      ready: scored.length >= this.SPLIT,
+      high: pack(high),
+      low: pack(low),
+      points: scored.filter(s => Number.isFinite(s.aim_score)).map(s => ({value: s.result.value, aim: s.aim_score}))
+    };
+  },
   points(value) {
     if (value === 'X' || value === '10') return 10;
     if (value === 'M') return 0;

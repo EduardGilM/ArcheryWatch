@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="aw-version" content="4.21">
+<meta name="aw-version" content="4.22">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#000000">
 <link rel="manifest" href="manifest.json">
@@ -82,7 +82,8 @@
   .cardTitle { display:flex; align-items:baseline; justify-content:space-between; gap:8px; font-size:14px; font-weight:600; margin-bottom:10px; }
   .cardTitle small { font-size:12px; font-weight:400; color:var(--txt-3); }
   .aimwrap { display:flex; justify-content:center; align-items:center; width:100%; position:relative; }
-  #aim, #aimSet, #cmpAim { width:min(100%,340px); max-width:100%; height:auto; aspect-ratio:1/1; display:block; flex:0 0 auto; }
+  #aim, #aimSet, #cmpAim, .face, #sessionGroup { width:min(100%,340px); max-width:100%; height:auto; aspect-ratio:1/1; display:block; flex:0 0 auto; }
+  .face { touch-action:none; margin:0 auto 10px; cursor:crosshair; }
   .target { position:relative; background:var(--surface); border:1px solid var(--line); border-radius:20px; padding:8px 8px 4px; }
   .tclock { position:absolute; left:16px; top:12px; font:500 11px/1 var(--font); letter-spacing:.12em; text-transform:uppercase; color:var(--txt-2); }
   .tlClock { position:absolute; right:16px; top:10px; font:600 15px/1 var(--num); color:var(--acc); letter-spacing:.02em; }
@@ -110,6 +111,13 @@
   .scoreNote:empty { display:none; }
   .scoreGroups { display:grid; gap:6px; margin-top:8px; }
   .scoreGroups div { font-size:12.5px; color:var(--txt-2); line-height:1.4; }
+  .splitPair { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .splitPair .lbl { display:block; }
+  .splitPair .num { font-family:var(--num); font-weight:600; font-size:clamp(42px,14vw,64px); line-height:.85; display:block; margin-top:4px; }
+  .splitPair .sub { font-family:var(--num); font-weight:600; font-size:clamp(22px,6vw,28px); color:var(--txt-2); display:block; margin-top:6px; line-height:1; }
+  #splitHighAim { color:var(--acc); }
+  #splitPlot { width:100%; height:150px; display:block; margin-top:12px; }
+  #splitNeed { margin:0; font-size:14px; color:var(--txt-2); }
   .tracebar { display:flex; gap:6px; justify-content:center; flex-wrap:wrap; margin-top:10px; }
   .tracebar button { background:var(--surface-2); color:var(--txt-2); border:1px solid var(--line); border-radius:999px; font-size:12.5px; padding:6px 12px; }
   .tracebar button.sel { background:var(--acc-soft); color:var(--acc); border-color:rgba(255,122,26,.3); font-weight:600; }
@@ -368,6 +376,7 @@
       <div><span class="lbl">X</span><b class="num" id="scoreX">–</b></div>
       <div><span class="lbl">10</span><b class="num" id="scoreTen">–</b></div>
     </div>
+    <div class="aimwrap" id="sessionGroupWrap" hidden><canvas id="sessionGroup" aria-label="Agrupación"></canvas></div>
     <details class="info" id="sessionScoreMore"><summary>Detalle</summary><div id="sessionScoreGroups" class="scoreGroups"></div><p id="sessionScoreInsight"></p></details>
   </section>
   <div id="setList"></div>
@@ -387,6 +396,17 @@
       <button type="button" class="btnSecondary" onclick="saveGoals()">Guardar</button>
     </form>
     <details class="info"><summary aria-label="Detalle">ⓘ</summary><p id="goalHint">Lunes a domingo. Vacío = no cuenta.</p></details>
+  </section>
+  <section class="card" id="splitCard">
+    <div class="cardTitle">Estabilidad vs puntos</div>
+    <p id="splitNeed"></p>
+    <div id="splitBody" hidden>
+      <div class="splitPair">
+        <div><span class="lbl">10/X</span><b class="num" id="splitHighAim">–</b><span class="sub" id="splitHighTime"></span></div>
+        <div><span class="lbl">≤9</span><b class="num" id="splitLowAim">–</b><span class="sub" id="splitLowTime"></span></div>
+      </div>
+      <canvas id="splitPlot" aria-label="Estabilidad y valor"></canvas>
+    </div>
   </section>
   <div class="card">
     <div class="cardTitle">Evolución</div>
@@ -759,13 +779,13 @@ function focusedArrow(shots) {
   const blank = real.find(s => Score.points(s.result && s.result.value) == null);
   return (blank || real[0]).t_ms;
 }
-function scoreArrow(t_ms, value) {
+function commitScore(t_ms, apply) {
   const id = historyMode ? histId : curSess?.id;
   if (!Number.isFinite(id)) return;
   const L = store.list();
   const sess = L.find(s => s.id === id);
   const shot = sess?.shots.find(s => s.t_ms === t_ms);
-  if (!shot || !Score.set(shot, value)) return;
+  if (!shot || !apply(shot)) return;
   store.save(L);
   const fresh = store.list().find(s => s.id === id);
   if (!fresh) return;
@@ -774,6 +794,25 @@ function scoreArrow(t_ms, value) {
   const idx = fresh.shots.findIndex(s => s.t_ms === (scoreFocus ?? t_ms));
   if (view === 'Shot' && idx >= 0) cur = idx;
   render();
+}
+function scoreArrow(t_ms, value) {
+  commitScore(t_ms, shot => Score.set(shot, value));
+}
+function placeArrow(t_ms, x, y) {
+  commitScore(t_ms, shot => Score.place(shot, x, y));
+}
+const FACE_SCALE = 0.38;
+function facePoint(canvas, ev) {
+  const side = canvas.clientWidth || canvas.getBoundingClientRect?.().width || 320;
+  let px = ev.offsetX, py = ev.offsetY;
+  if (!Number.isFinite(px) || !Number.isFinite(py)) {
+    const rect = canvas.getBoundingClientRect?.() || {left: 0, top: 0};
+    px = (ev.clientX || 0) - rect.left;
+    py = (ev.clientY || 0) - rect.top;
+  }
+  const x = (px - side / 2) / (side * FACE_SCALE);
+  const y = (py - side / 2) / (side * FACE_SCALE);
+  return Number.isFinite(x) && Number.isFinite(y) ? {x, y} : null;
 }
 function paintScore(id, shots) {
   const root = document.getElementById(id);
@@ -784,9 +823,23 @@ function paintScore(id, shots) {
   const focus = focusedArrow(real);
   const current = real.find(s => s.t_ms === focus);
   const line = Score.totalsLine(Score.totals(real));
+  const faceId = id === 'shotScore' ? 'faceShot' : 'faceSet';
   root.innerHTML = `<div class="cardTitle">Valor<small>${line || ''}</small></div>` +
+    `<div class="aimwrap"><canvas class="face" id="${faceId}" aria-label="Diana"></canvas></div>` +
     `<div class="scoreSlots">${real.map((s, i) => `<button type="button" data-score-t="${s.t_ms}" class="${s.t_ms === focus ? 'on' : ''}" aria-label="Flecha ${i + 1}">${i + 1}<b>${s.result?.value || '·'}</b></button>`).join('')}</div>` +
     `<div class="scorepad" role="group" aria-label="Valor de la flecha">${Score.VALUES.map(v => `<button type="button" data-score="${v}" class="${current?.result?.value === v ? 'on' : ''}">${v}</button>`).join('')}<button type="button" class="clear" data-score="clear">Borrar</button></div>`;
+  const face = document.getElementById(faceId);
+  drawFace(face, real, focus);
+  if (face) face.onclick = ev => {
+    ev.stopPropagation?.();
+    const pt = facePoint(face, ev);
+    const t = focusedArrow(real);
+    if (!pt || t == null) return;
+    const i = real.findIndex(s => s.t_ms === t);
+    const blank = real.find((s, j) => j > i && Score.points(s.result && s.result.value) == null);
+    scoreFocus = blank ? blank.t_ms : (real[Math.min(real.length - 1, i + 1)]?.t_ms ?? t);
+    placeArrow(t, pt.x, pt.y);
+  };
   root.onclick = ev => {
     const slot = ev.target.closest?.('[data-score-t]');
     if (slot) {
@@ -842,6 +895,10 @@ function renderSession(S) {
   document.getElementById('sessionScoreGroups').innerHTML = groupHtml;
   document.getElementById('sessionScoreInsight').textContent = insight;
   document.getElementById('sessionScoreMore').hidden = !groupHtml && !insight;
+  const groupWrap = document.getElementById('sessionGroupWrap');
+  const grouped = Score.impacts(sessionShots);
+  if (groupWrap) groupWrap.hidden = !grouped.length;
+  if (grouped.length) drawFace(document.getElementById('sessionGroup'), sessionShots, null);
   drawTrend(S);
 }
 
@@ -985,6 +1042,29 @@ function renderProgress() {
       }).join('');
     } else if (bars) bars.innerHTML = '';
   } else if (bars) bars.innerHTML = '';
+  renderSplit();
+}
+function renderSplit() {
+  const split = Score.split(store.list().flatMap(s => s.shots || []));
+  const need = document.getElementById('splitNeed');
+  const body = document.getElementById('splitBody');
+  if (!need || !body) return;
+  if (!split.ready) {
+    need.hidden = false;
+    need.textContent = 'Faltan ' + split.need;
+    body.hidden = true;
+    return;
+  }
+  need.hidden = true;
+  need.textContent = '';
+  body.hidden = false;
+  const put = (aimId, timeId, row) => {
+    document.getElementById(aimId).textContent = row.aim == null ? '–' : String(Math.round(row.aim));
+    document.getElementById(timeId).textContent = row.shot_s == null ? '–' : esNum(row.shot_s, 1) + ' s';
+  };
+  put('splitHighAim', 'splitHighTime', split.high);
+  put('splitLowAim', 'splitLowTime', split.low);
+  drawSplit(split.points);
 }
 function exportBackup() {
   try {
@@ -1267,6 +1347,75 @@ function canvasFit(c, h) {
 function niceStep(maxDeg) {
   const cand = [0.05, 0.1, 0.2, 0.25, 0.5, 1, 2, 2.5, 5, 10];
   return cand.find(c => maxDeg / c <= 4.2) || 10;
+}
+function drawFace(c, shots, focus) {
+  if (!c) return;
+  const [x, sz] = canvasFit(c, null);
+  const cx = sz / 2, cy = sz / 2, R = sz * FACE_SCALE;
+  x.beginPath(); x.arc(cx, cy, R, 0, Math.PI * 2);
+  x.fillStyle = 'rgba(255,138,31,.06)'; x.fill();
+  x.lineWidth = 1.15;
+  for (let i = 1; i <= 10; i++) {
+    x.beginPath(); x.arc(cx, cy, R * i / 10, 0, Math.PI * 2);
+    x.strokeStyle = i === 10 || i <= 2 ? 'rgba(255,193,94,.9)' : 'rgba(255,138,31,' + (0.3 + i * 0.035) + ')';
+    x.stroke();
+  }
+  x.beginPath(); x.arc(cx, cy, R * 0.05, 0, Math.PI * 2);
+  x.strokeStyle = '#FFC15E'; x.lineWidth = 1.5; x.stroke();
+  x.fillStyle = 'rgba(255,193,94,.82)';
+  x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.font = '600 ' + Math.max(7, Math.min(9, Math.round(R * 0.048))) + 'px ' + MONO;
+  x.fillText('X', cx, cy);
+  for (let v = 1; v <= 10; v++) {
+    const mid = (v === 10 ? 0.078 : (21 - 2 * v) / 20) * R;
+    x.fillText(String(v), cx, cy - mid);
+  }
+  const pts = Score.impacts(shots);
+  for (const p of pts) {
+    const on = focus != null && p.t === focus;
+    x.beginPath(); x.arc(cx + p.x * R, cy + p.y * R, on ? 5 : 3.4, 0, Math.PI * 2);
+    x.fillStyle = '#FF8A1F'; x.fill();
+    if (on) { x.lineWidth = 1.2; x.strokeStyle = '#fff'; x.stroke(); }
+  }
+  if (pts.length >= 2) {
+    const g = Score.groupCenter(pts);
+    const gx = cx + g.x * R, gy = cy + g.y * R;
+    x.strokeStyle = 'rgba(255,255,255,.55)'; x.lineWidth = 1;
+    x.beginPath(); x.arc(gx, gy, 6, 0, Math.PI * 2); x.stroke();
+    x.beginPath();
+    x.moveTo(gx - 2.2, gy); x.lineTo(gx + 2.2, gy);
+    x.moveTo(gx, gy - 2.2); x.lineTo(gx, gy + 2.2);
+    x.stroke();
+  }
+}
+function drawSplit(points) {
+  const c = document.getElementById('splitPlot');
+  if (!c) return;
+  const [x, w] = canvasFit(c, 150);
+  const h = 150, labels = ['M', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'X'];
+  const padL = 28, padR = 8, padT = 10, padB = 20;
+  const aims = points.map(p => p.aim);
+  let lo = aims.length ? Math.min(...aims) : 0, hi = aims.length ? Math.max(...aims) : 100;
+  if (hi - lo < 12) { lo = Math.max(0, lo - 6); hi = Math.min(100, hi + 6); }
+  else { lo = Math.max(0, lo - 4); hi = Math.min(100, hi + 4); }
+  if (!(hi > lo)) { lo = 0; hi = 100; }
+  const X = i => padL + (i / (labels.length - 1)) * (w - padL - padR);
+  const Y = v => padT + (1 - (v - lo) / (hi - lo)) * (h - padT - padB);
+  x.strokeStyle = 'rgba(255,255,255,.14)'; x.lineWidth = 1;
+  x.beginPath(); x.moveTo(padL, padT); x.lineTo(padL, h - padB); x.lineTo(w - padR, h - padB); x.stroke();
+  x.fillStyle = 'rgba(255,255,255,.45)'; x.font = '600 10px ' + MONO; x.textAlign = 'center'; x.textBaseline = 'alphabetic';
+  labels.forEach((lab, i) => { if (i % 2 === 0 || lab === 'X') x.fillText(lab, X(i), h - 6); });
+  x.textAlign = 'right'; x.textBaseline = 'middle';
+  x.fillText(String(Math.round(hi)), padL - 4, padT + 4);
+  x.fillText(String(Math.round(lo)), padL - 4, h - padB);
+  points.forEach((p, n) => {
+    const i = labels.indexOf(p.value);
+    if (i < 0) return;
+    const jx = ((n * 17) % 7 - 3) * 1.3;
+    const high = p.value === 'X' || p.value === '10';
+    x.beginPath(); x.arc(X(i) + jx, Y(p.aim), 3.2, 0, Math.PI * 2);
+    x.fillStyle = high ? '#FF8A1F' : 'rgba(255,255,255,.62)'; x.fill();
+  });
 }
 function ringBase(x, sz, scale) {
   const cx = sz / 2, cy = sz / 2, R = sz * .45;

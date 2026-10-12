@@ -471,3 +471,65 @@ test('a stretched aim box is stored as a square bitmap', () => {
   assert.equal(aim.width, aim.height);
   assert.equal(aim.style.height, '300px');
 });
+
+test('tapping the face stores the ring and a button can correct it without dropping the point', () => {
+  const p = page();
+  p.run("fixture.draw_ms=1800;const second={...fixture,t_ms:2000,aim_score:70};curSess.shots=[fixture,second];data={shots:curSess.shots};store.save([curSess]);view='Shot';cur=0;render()");
+  const face = p.elements.get('faceShot');
+  face.getContext('2d').calls.length = 0;
+  face.clientWidth = 300;
+  face.clientHeight = 160;
+  p.run("render()");
+  assert.equal(face.width, face.height);
+  assert.equal(face.style.height, '300px');
+  const arcs = face.getContext('2d').calls.filter(c => c[0] === 'arc');
+  const rings = arcs.filter(a => a[1] === arcs[0][1] && a[2] === arcs[0][2] && a[4] === 0 && Math.abs(a[5] - Math.PI * 2) < 1e-9);
+  const radii = rings.map(a => a[3]).sort((a, b) => a - b);
+  assert.equal(radii.length, 12);
+  assert.ok(Math.abs(radii[0] / radii[radii.length - 1] - 0.05) < 0.02, radii.join(','));
+  face.onclick({offsetX: 150, offsetY: 150, stopPropagation() {}});
+  assert.equal(p.run("store.list()[0].shots.find(s=>s.t_ms===1000).result.value"), 'X');
+  assert.deepEqual(JSON.parse(p.run("JSON.stringify(store.list()[0].shots.find(s=>s.t_ms===1000).result.impact)")), {x: 0, y: 0});
+  p.run("scoreArrow(1000,'8')");
+  assert.equal(p.run("store.list()[0].shots.find(s=>s.t_ms===1000).result.value"), '8');
+  assert.equal(p.run("store.list()[0].shots.find(s=>s.t_ms===1000).result.impact.x"), 0);
+  p.run("scoreArrow(1000,null)");
+  assert.equal(p.run("store.list()[0].shots.find(s=>s.t_ms===1000).result.value"), undefined);
+  assert.equal(p.run("store.list()[0].shots.find(s=>s.t_ms===1000).result.impact.y"), 0);
+  p.run("placeArrow(2000,0.15,0);view='Set';cur=0;render()");
+  assert.match(p.elements.get('setScore').innerHTML, /id="faceSet"/);
+  assert.match(p.elements.get('setScore').innerHTML, /data-score="X"/);
+  p.run("view='Session';render()");
+  assert.equal(p.elements.get('sessionGroupWrap').hidden, false);
+  assert.equal(p.elements.get('sessionGroup').width, p.elements.get('sessionGroup').height);
+  assert.equal(p.run('Score.impacts(data.shots).length'), 1);
+});
+
+test('progress hides the stability chart until twenty arrows are scored', () => {
+  const p = page();
+  p.run(`document.getElementById('progressProfile').value='Sin equipo · v1';store.save([{id:1,shots:Array.from({length:8},(_,i)=>({t_ms:i+1,aim_score:80,draw_ms:2000,result:{value:'9'}}))}]);show('Progress')`);
+  assert.equal(p.elements.get('splitNeed').textContent, 'Faltan 12');
+  assert.equal(p.elements.get('splitBody').hidden, true);
+  assert.equal(p.elements.get('splitNeed').textContent.split('\\n').length, 1);
+  p.run(`store.save([{id:1,shots:Array.from({length:20},(_,i)=>({t_ms:i+1,aim_score:i<12?90:70,draw_ms:i<12?1800:3800,result:{value:i<12?'X':'8'}}))}]);show('Progress')`);
+  assert.equal(p.elements.get('splitNeed').textContent, '');
+  assert.equal(p.elements.get('splitBody').hidden, false);
+  assert.equal(p.elements.get('splitHighAim').textContent, '90');
+  assert.equal(p.elements.get('splitLowAim').textContent, '70');
+  assert.equal(p.elements.get('splitHighTime').textContent, '3,0 s');
+  assert.equal(p.elements.get('splitLowTime').textContent, '5,0 s');
+  assert.ok(p.elements.get('splitPlot').getContext('2d').calls.some(c => c[0] === 'arc'));
+});
+
+test('exported shots without a position still open every scoring view', () => {
+  const p = page();
+  const shots = require('./fixtures/release-paint-20261002.json');
+  p.run(`const exported=${JSON.stringify(shots)};curSess={id:3,shots:exported};data={shots:exported};store.save([curSess]);historyMode=false;show('Shot');show('Set');show('Session');show('Progress')`);
+  assert.match(p.elements.get('shotScore').innerHTML, /id="faceShot"/);
+  assert.match(p.elements.get('setScore').innerHTML, /id="faceSet"/);
+  assert.match(p.elements.get('setScore').innerHTML, /data-score="M"/);
+  assert.equal(p.elements.get('sessionGroupWrap').hidden, true);
+  assert.equal(p.run('Score.impacts(data.shots).length'), 0);
+  assert.equal(p.elements.get('splitNeed').textContent, 'Faltan 20');
+  assert.equal(String(p.elements.get('scoreTotal').textContent), '–');
+});
