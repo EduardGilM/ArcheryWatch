@@ -72,22 +72,28 @@ test('the backup carries the arrow value because it lives on the shot', () => {
   assert.equal(copy.storage.awSessions[0].shots[0].result.impact.y, 2);
 });
 
-test('the indoor face scores the ring under the point, line included in the higher ring', () => {
+test('the compound face scores 10 to 6, the inner ten as X, and outside the six as a miss', () => {
   assert.equal(Score.valueAt(0, 0), 'X');
-  assert.equal(Score.valueAt(0.05, 0), 'X');
-  assert.equal(Score.valueAt(0.050001, 0), '10');
-  assert.equal(Score.valueAt(0.1, 0), '10');
-  assert.equal(Score.valueAt(0, 0.2), '9');
-  assert.equal(Score.valueAt(0, 0.200001), '8');
-  assert.equal(Score.valueAt(0, 1), '1');
+  assert.equal(Score.valueAt(0.1, 0), 'X');
+  assert.equal(Score.valueAt(0.100001, 0), '10');
+  assert.equal(Score.valueAt(0, 0.2), '10');
+  assert.equal(Score.valueAt(0, 0.200001), '9');
+  assert.equal(Score.valueAt(0, 0.4), '9');
+  assert.equal(Score.valueAt(0, 0.400001), '8');
+  assert.equal(Score.valueAt(0, 0.6), '8');
+  assert.equal(Score.valueAt(0, 0.600001), '7');
+  assert.equal(Score.valueAt(0, 0.8), '7');
+  assert.equal(Score.valueAt(0, 0.800001), '6');
+  assert.equal(Score.valueAt(0, 1), '6');
   assert.equal(Score.valueAt(1.01, 0), 'M');
   assert.equal(Score.valueAt(NaN, 0), null);
-  const rings = {X: 0, '10': 0.08, '9': 0.15, '8': 0.25, '7': 0.35, '6': 0.45, '5': 0.55, '4': 0.65, '3': 0.75, '2': 0.85, '1': 0.95, M: 1.1};
+  const rings = {X: 0.05, '10': 0.15, '9': 0.3, '8': 0.5, '7': 0.7, '6': 0.9, M: 1.05};
   for (const [value, r] of Object.entries(rings)) assert.equal(Score.valueAt(0, r), value, value);
+  assert.deepEqual(Score.VALUES, ['X', '10', '9', '8', '7', '6', 'M']);
   const shot = {t_ms: 4, aim_score: 88, tilt_x: [1, 2]};
-  assert.equal(Score.place(shot, 0, 0.15), true);
+  assert.equal(Score.place(shot, 0, 0.3), true);
   assert.equal(shot.result.value, '9');
-  assert.deepEqual(shot.result.impact, {x: 0, y: 0.15});
+  assert.deepEqual(shot.result.impact, {x: 0, y: 0.3});
   assert.deepEqual(shot.tilt_x, [1, 2]);
   assert.equal(Score.place(shot, 3, 0), true);
   assert.equal(shot.result.value, 'M');
@@ -95,6 +101,10 @@ test('the indoor face scores the ring under the point, line included in the high
   assert.equal(Score.set(shot, '8'), true);
   assert.equal(shot.result.value, '8');
   assert.equal(shot.result.impact.x, Score.FACE);
+  assert.equal(Score.set(shot, '5'), false);
+  assert.equal(shot.result.value, '8');
+  assert.equal(Score.points('5'), 5);
+  assert.equal(Score.totals([{result: {value: '5'}}]).score, 5);
   assert.equal(Score.set(shot, null), true);
   assert.equal(shot.result.value, undefined);
   assert.equal(Score.impacts([shot]).length, 0);
@@ -157,7 +167,7 @@ test('exported shots without an impact still score and split', () => {
   const shot = JSON.parse(fs.readFileSync(path.join(dir, 'release-paint-20261002.json'), 'utf8'))[0];
   const copy = JSON.parse(JSON.stringify(shot));
   assert.equal(Score.place(copy, 0.12, -0.04), true);
-  assert.equal(copy.result.value, '9');
+  assert.equal(copy.result.value, '10');
   assert.equal(copy.aim_score, shot.aim_score);
   assert.equal(copy.tilt_x.length, shot.tilt_x.length);
   assert.equal(Score.totals([copy, shot]).scored, 1);

@@ -1,19 +1,20 @@
-/* Valor de la flecha (diana), aparte de la estabilidad aim_score.
-   impact es el punto en la diana indoor: centro en (0,0), y hacia abajo, radio 1 = anillo 1. */
+/* Valor de la flecha, aparte de la estabilidad aim_score.
+   Diana reducida de compuesto: centro (0,0), y hacia abajo, radio 1 = anillo 6.
+   La X es la mitad interior del 10. Fuera del 6 es M. */
 const Score = {
-  VALUES: ['X', '10', '9', '8', '7', '6', '5', '4', '3', '2', '1', 'M'],
+  VALUES: ['X', '10', '9', '8', '7', '6', 'M'],
   GROUPS: [{id: 'x10', label: 'X-10'}, {id: '98', label: '9-8'}, {id: 'low', label: '≤7'}, {id: 'm', label: 'M'}],
   MIN: 4,
-  FACE: 1.25,
+  FACE: 1.04,
   SPLIT: 20,
-  // La línea cuenta en el anillo mayor. La X es la mitad interior del 10.
+  // La línea cuenta en el anillo mayor. Cada anillo 10..6 ocupa 0,2; la X llega hasta 0,1.
   valueAt(x, y) {
     if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
     const r = Math.hypot(x, y);
     if (r > 1) return 'M';
-    if (r <= 0.05) return 'X';
-    const ring = 11 - Math.ceil(r * 10);
-    return ring >= 1 && ring <= 10 ? String(ring) : null;
+    if (r <= 0.1) return 'X';
+    const ring = 11 - Math.ceil(r * 5);
+    return ring >= 6 && ring <= 10 ? String(ring) : null;
   },
   place(shot, x, y) {
     if (!shot || shot.candidate || !Number.isFinite(x) || !Number.isFinite(y)) return false;
@@ -83,7 +84,7 @@ const Score = {
       return true;
     }
     const key = String(value);
-    if (this.points(key) == null) return false;
+    if (!this.VALUES.includes(key)) return false;
     const impact = shot.result && shot.result.impact;
     shot.result = impact == null ? {value: key} : {value: key, impact};
     return true;

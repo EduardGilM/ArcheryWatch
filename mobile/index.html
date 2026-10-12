@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="aw-version" content="4.22">
+<meta name="aw-version" content="4.23">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#000000">
 <link rel="manifest" href="manifest.json">
@@ -103,10 +103,10 @@
   .scoreSlots button b { display:block; font-family:var(--mono); font-size:16px; color:var(--txt); font-weight:600; margin-top:1px; }
   .scoreSlots button.on { border-color:rgba(255,122,26,.45); background:var(--acc-soft); color:var(--acc); }
   .scoreSlots button.on b { color:var(--acc); }
-  .scorepad { display:grid; grid-template-columns:repeat(6, minmax(0,1fr)); gap:6px; }
-  .scorepad button { min-height:44px; border-radius:12px; background:var(--surface-2); border:1px solid var(--line); color:var(--txt); font-family:var(--mono); font-size:15px; font-weight:600; padding:0; }
+  .scorepad { display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:4px; }
+  .scorepad button { min-height:44px; border-radius:12px; background:var(--surface-2); border:1px solid var(--line); color:var(--txt); font-family:var(--mono); font-size:16px; font-weight:600; padding:0; }
   .scorepad button.on { background:transparent; color:var(--acc); border-color:rgba(255,138,31,.55); }
-  .scorepad button.clear { grid-column:span 6; font-family:var(--font); font-size:13px; font-weight:500; color:var(--txt-2); }
+  .scorepad button.clear { grid-column:span 7; font-family:var(--font); font-size:13px; font-weight:500; color:var(--txt-2); }
   .scoreNote { margin-top:8px; font-size:12.5px; color:var(--txt-2); line-height:1.45; }
   .scoreNote:empty { display:none; }
   .scoreGroups { display:grid; gap:6px; margin-top:8px; }
@@ -801,7 +801,7 @@ function scoreArrow(t_ms, value) {
 function placeArrow(t_ms, x, y) {
   commitScore(t_ms, shot => Score.place(shot, x, y));
 }
-const FACE_SCALE = 0.38;
+const FACE_SCALE = 0.46;
 function facePoint(canvas, ev) {
   const side = canvas.clientWidth || canvas.getBoundingClientRect?.().width || 320;
   let px = ev.offsetX, py = ev.offsetY;
@@ -1352,47 +1352,41 @@ function drawFace(c, shots, focus) {
   if (!c) return;
   const [x, sz] = canvasFit(c, null);
   const cx = sz / 2, cy = sz / 2, R = sz * FACE_SCALE;
-  x.beginPath(); x.arc(cx, cy, R, 0, Math.PI * 2);
-  x.fillStyle = 'rgba(255,138,31,.06)'; x.fill();
-  x.lineWidth = 1.15;
-  for (let i = 1; i <= 10; i++) {
-    x.beginPath(); x.arc(cx, cy, R * i / 10, 0, Math.PI * 2);
-    x.strokeStyle = i === 10 || i <= 2 ? 'rgba(255,193,94,.9)' : 'rgba(255,138,31,' + (0.3 + i * 0.035) + ')';
-    x.stroke();
-  }
-  x.beginPath(); x.arc(cx, cy, R * 0.05, 0, Math.PI * 2);
-  x.strokeStyle = '#FFC15E'; x.lineWidth = 1.5; x.stroke();
-  x.fillStyle = 'rgba(255,193,94,.82)';
+  const disk = (r, color) => { x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.fillStyle = color; x.fill(); };
+  disk(R, '#3F5F78');
+  disk(R * 0.8, '#8F4A4C');
+  disk(R * 0.4, '#C2A36A');
+  x.lineWidth = 1; x.strokeStyle = 'rgba(0,0,0,.62)';
+  for (const k of [1, 0.8, 0.6, 0.4, 0.2, 0.1]) { x.beginPath(); x.arc(cx, cy, R * k, 0, Math.PI * 2); x.stroke(); }
+  const fs = Math.max(9, Math.min(13, Math.round(R * 0.055)));
   x.textAlign = 'center'; x.textBaseline = 'middle';
-  x.font = '600 ' + Math.max(7, Math.min(9, Math.round(R * 0.048))) + 'px ' + MONO;
-  x.fillText('X', cx, cy);
-  for (let v = 1; v <= 10; v++) {
-    const mid = (v === 10 ? 0.078 : (21 - 2 * v) / 20) * R;
-    x.fillText(String(v), cx, cy - mid);
-  }
+  x.font = '600 ' + Math.max(8, Math.round(fs * 0.75)) + 'px ' + MONO;
+  x.fillStyle = 'rgba(44,36,22,.7)'; x.fillText('X', cx, cy);
+  x.font = '600 ' + fs + 'px ' + MONO;
+  const num = (text, r, color) => { x.fillStyle = color; x.fillText(text, cx, cy - r); };
+  num('10', R * 0.15, 'rgba(44,36,22,.78)');
+  num('9', R * 0.3, 'rgba(44,36,22,.78)');
+  num('8', R * 0.5, 'rgba(42,18,18,.76)');
+  num('7', R * 0.7, 'rgba(42,18,18,.76)');
+  num('6', R * 0.9, 'rgba(236,242,246,.82)');
   const pts = Score.impacts(shots);
   for (const p of pts) {
     const on = focus != null && p.t === focus;
-    x.beginPath(); x.arc(cx + p.x * R, cy + p.y * R, on ? 5 : 3.4, 0, Math.PI * 2);
-    x.fillStyle = '#FF8A1F'; x.fill();
-    if (on) { x.lineWidth = 1.2; x.strokeStyle = '#fff'; x.stroke(); }
+    x.beginPath(); x.arc(cx + p.x * R, cy + p.y * R, on ? 4.4 : 3.3, 0, Math.PI * 2);
+    x.fillStyle = on ? '#FF8A1F' : '#F3F0E8'; x.fill();
+    x.lineWidth = 1; x.strokeStyle = 'rgba(12,10,8,.8)'; x.stroke();
   }
   if (pts.length >= 2) {
     const g = Score.groupCenter(pts);
-    const gx = cx + g.x * R, gy = cy + g.y * R;
-    x.strokeStyle = 'rgba(255,255,255,.55)'; x.lineWidth = 1;
-    x.beginPath(); x.arc(gx, gy, 6, 0, Math.PI * 2); x.stroke();
-    x.beginPath();
-    x.moveTo(gx - 2.2, gy); x.lineTo(gx + 2.2, gy);
-    x.moveTo(gx, gy - 2.2); x.lineTo(gx, gy + 2.2);
-    x.stroke();
+    x.strokeStyle = 'rgba(255,255,255,.32)'; x.lineWidth = 1;
+    x.beginPath(); x.arc(cx + g.x * R, cy + g.y * R, 3.2, 0, Math.PI * 2); x.stroke();
   }
 }
 function drawSplit(points) {
   const c = document.getElementById('splitPlot');
   if (!c) return;
   const [x, w] = canvasFit(c, 150);
-  const h = 150, labels = ['M', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'X'];
+  const h = 150, labels = ['M', '6', '7', '8', '9', '10', 'X'];
   const padL = 28, padR = 8, padT = 10, padB = 20;
   const aims = points.map(p => p.aim);
   let lo = aims.length ? Math.min(...aims) : 0, hi = aims.length ? Math.max(...aims) : 100;
@@ -1404,7 +1398,7 @@ function drawSplit(points) {
   x.strokeStyle = 'rgba(255,255,255,.14)'; x.lineWidth = 1;
   x.beginPath(); x.moveTo(padL, padT); x.lineTo(padL, h - padB); x.lineTo(w - padR, h - padB); x.stroke();
   x.fillStyle = 'rgba(255,255,255,.45)'; x.font = '600 10px ' + MONO; x.textAlign = 'center'; x.textBaseline = 'alphabetic';
-  labels.forEach((lab, i) => { if (i % 2 === 0 || lab === 'X') x.fillText(lab, X(i), h - 6); });
+  labels.forEach((lab, i) => x.fillText(lab, X(i), h - 6));
   x.textAlign = 'right'; x.textBaseline = 'middle';
   x.fillText(String(Math.round(hi)), padL - 4, padT + 4);
   x.fillText(String(Math.round(lo)), padL - 4, h - padB);

@@ -485,8 +485,9 @@ test('tapping the face stores the ring and a button can correct it without dropp
   const arcs = face.getContext('2d').calls.filter(c => c[0] === 'arc');
   const rings = arcs.filter(a => a[1] === arcs[0][1] && a[2] === arcs[0][2] && a[4] === 0 && Math.abs(a[5] - Math.PI * 2) < 1e-9);
   const radii = rings.map(a => a[3]).sort((a, b) => a - b);
-  assert.equal(radii.length, 12);
-  assert.ok(Math.abs(radii[0] / radii[radii.length - 1] - 0.05) < 0.02, radii.join(','));
+  const outer = radii[radii.length - 1];
+  for (const k of [0.1, 0.2, 0.4, 0.6, 0.8, 1]) assert.ok(radii.some(r => Math.abs(r - outer * k) < 0.8), k + ' ' + radii.join(','));
+  assert.ok(Math.abs(radii[0] / outer - 0.1) < 0.02, radii.join(','));
   face.onclick({offsetX: 150, offsetY: 150, stopPropagation() {}});
   assert.equal(p.run("store.list()[0].shots.find(s=>s.t_ms===1000).result.value"), 'X');
   assert.deepEqual(JSON.parse(p.run("JSON.stringify(store.list()[0].shots.find(s=>s.t_ms===1000).result.impact)")), {x: 0, y: 0});
@@ -498,7 +499,7 @@ test('tapping the face stores the ring and a button can correct it without dropp
   assert.equal(p.run("store.list()[0].shots.find(s=>s.t_ms===1000).result.impact.y"), 0);
   p.run("placeArrow(2000,0.15,0);view='Set';cur=0;render()");
   assert.match(p.elements.get('setScore').innerHTML, /id="faceSet"/);
-  assert.match(p.elements.get('setScore').innerHTML, /data-score="X"/);
+  assert.deepEqual([...p.elements.get('setScore').innerHTML.matchAll(/data-score="([^"]+)"/g)].map(m => m[1]), ['X', '10', '9', '8', '7', '6', 'M', 'clear']);
   p.run("view='Session';render()");
   assert.equal(p.elements.get('sessionGroupWrap').hidden, false);
   assert.equal(p.elements.get('sessionGroup').width, p.elements.get('sessionGroup').height);
