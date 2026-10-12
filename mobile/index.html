@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="aw-version" content="4.23">
+<meta name="aw-version" content="4.24">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#000000">
 <link rel="manifest" href="manifest.json">
@@ -225,6 +225,8 @@
   .setbar:empty { display:none; }
   .setbar button { background:var(--surface); color:var(--txt-2); border:1px solid var(--line); border-radius:999px; font-size:13px; padding:7px 14px; white-space:nowrap; }
   .setbar button.sel { background:var(--acc-soft); color:var(--acc); border-color:rgba(255,122,26,.3); font-weight:600; }
+  .setHead { display:flex; align-items:center; gap:12px; flex-shrink:0; }
+  .setHead .setVal { font-size:32px; }
 
   /* Sesión */
   .hero { display:flex; align-items:center; gap:16px; }
@@ -308,6 +310,7 @@
 <body>
 <header>
   <h1><span id="title">Sesión</span><small id="subtitle"></small></h1>
+  <div class="setHead" id="setHead" hidden><span class="setPts" id="setHeadPts"><b id="setHeadScore">–</b><small>pts</small></span><b class="setVal" id="setHeadStab">–</b></div>
   <div class="stepper">
     <button class="btn" id="prev" aria-label="Flecha anterior"><svg class="ico" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M165.66,202.34a8,8,0,0,1-11.32,11.32l-80-80a8,8,0,0,1,0-11.32l80-80a8,8,0,0,1,11.32,11.32L91.31,128Z"/></svg></button>
     <button class="btn" id="next" aria-label="Flecha siguiente"><svg class="ico" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z"/></svg></button>
@@ -720,6 +723,8 @@ function render() {
   document.getElementById('returnCurrent').style.display = historyMode ? 'block' : 'none';
   document.getElementById('prev').disabled = document.getElementById('next').disabled = !data?.shots.length;
   document.getElementById('setbar').innerHTML = '';
+  const setHead = document.getElementById('setHead');
+  if (setHead) setHead.hidden = true;
   if (view === 'Progress') {
     document.getElementById('title').textContent = 'Progreso';
     document.getElementById('subtitle').textContent = '';
@@ -760,8 +765,8 @@ function render() {
     document.getElementById('subtitle').textContent = historyMode ? fmtDate(histId) : '';
   } else if (view === 'Set') {
     document.getElementById('title').textContent = setLabel(S,si);
-    const marked = Score.totals(S[si].map(j => data.shots[j]));
-    document.getElementById('subtitle').textContent = Score.totalsLine(marked);
+    document.getElementById('subtitle').textContent = historyMode ? fmtDate(histId) : '';
+    renderSetHead(S, si);
   } else {
     document.getElementById('title').textContent = `${data.shots[cur].candidate?'Candidato':'Flecha'} ${S[si].indexOf(cur) + 1}`;
     document.getElementById('subtitle').textContent = setLabel(S,si) + ' · ' + (S[si].indexOf(cur) + 1) + ' de ' + S[si].length + (historyMode ? ` · ${fmtDate(histId)}` : '');
@@ -769,6 +774,20 @@ function render() {
   if (view === 'Session') renderSession(S);
   else if (view === 'Set') renderSet(S, si);
   else renderShot(S, si);
+}
+function renderSetHead(S, si) {
+  const head = document.getElementById('setHead');
+  if (!head) return;
+  const shots = (S[si] || []).map(j => data.shots[j]).filter(s => s && !s.candidate);
+  const aims = shots.map(s => s.aim_score).filter(Number.isFinite);
+  const stab = aims.length ? Math.round(aims.reduce((a, b) => a + b, 0) / aims.length) : null;
+  const pts = Score.totals(shots);
+  head.hidden = false;
+  document.getElementById('setHeadScore').textContent = pts.scored ? pts.score : '–';
+  document.getElementById('setHeadPts').classList.toggle('on', !!pts.scored);
+  const stabEl = document.getElementById('setHeadStab');
+  stabEl.textContent = stab == null ? '–' : String(stab);
+  stabEl.style.color = stab != null && stab >= 80 ? 'var(--acc)' : 'var(--txt)';
 }
 
 let scoreFocus = null;
@@ -822,9 +841,8 @@ function paintScore(id, shots) {
   root.hidden = false;
   const focus = focusedArrow(real);
   const current = real.find(s => s.t_ms === focus);
-  const line = Score.totalsLine(Score.totals(real));
   const faceId = id === 'shotScore' ? 'faceShot' : 'faceSet';
-  root.innerHTML = `<div class="cardTitle">Valor<small>${line || ''}</small></div>` +
+  root.innerHTML = `<div class="cardTitle">Valor</div>` +
     `<div class="aimwrap"><canvas class="face" id="${faceId}" aria-label="Diana"></canvas></div>` +
     `<div class="scoreSlots">${real.map((s, i) => `<button type="button" data-score-t="${s.t_ms}" class="${s.t_ms === focus ? 'on' : ''}" aria-label="Flecha ${i + 1}">${i + 1}<b>${s.result?.value || '·'}</b></button>`).join('')}</div>` +
     `<div class="scorepad" role="group" aria-label="Valor de la flecha">${Score.VALUES.map(v => `<button type="button" data-score="${v}" class="${current?.result?.value === v ? 'on' : ''}">${v}</button>`).join('')}<button type="button" class="clear" data-score="clear">Borrar</button></div>`;

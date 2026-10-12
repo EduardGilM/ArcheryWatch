@@ -402,7 +402,15 @@ test('scoring the set stores the value and a repeated watch event leaves it', ()
     scoreArrow(1000,'X');scoreArrow(2000,'9');scoreArrow(3000,'M');view='Set';cur=0;render()`);
   assert.match(p.elements.get('setScore').innerHTML, /data-score="X"/);
   assert.match(p.elements.get('setScore').innerHTML, />X</);
-  assert.match(p.elements.get('subtitle').textContent, /19 puntos/);
+  assert.doesNotMatch(p.elements.get('setScore').innerHTML, /puntos|media/);
+  assert.equal(p.elements.get('setHead').hidden, false);
+  assert.equal(String(p.elements.get('setHeadScore').textContent), '19');
+  assert.equal(String(p.elements.get('setHeadStab').textContent), '70');
+  assert.doesNotMatch(p.elements.get('subtitle').textContent, /puntos|media/);
+  p.run("view='Shot';cur=0;render()");
+  assert.doesNotMatch(p.elements.get('shotScore').innerHTML, /puntos|media/);
+  assert.equal(p.elements.get('setHead').hidden, true);
+  p.run("view='Set';cur=0;render()");
   p.run("liveEvent({sid:'test',kind:'shot',eid:4,t:1000,set:1,score:11,peak:1000,instab:10,dt:50})");
   const kept = p.run("store.list()[0].shots.find(s=>s.t_ms===1000).result.value");
   assert.equal(kept, 'X');
