@@ -42,23 +42,46 @@ test('starting a round tags the current set and the next arrows', () => {
   assert.equal(libre.shots[1].phase, 'warm');
 });
 
-test('radar turns points, grouping and rhythm into a 0-100 shape', () => {
-  const shots = [
-    {t_ms: 0, set_id: 1, aim_score: 80, result: {value: 'X', impact: {x: 0, y: 0}}},
-    {t_ms: 10000, set_id: 1, aim_score: 80, result: {value: '10', impact: {x: 0.2, y: 0}}},
-    {t_ms: 20000, set_id: 1, aim_score: 80, result: {value: '9', impact: {x: 0, y: 0.2}}}
-  ];
-  const stats = Studio.radar(shots);
-  const by = Object.fromEntries(stats.axes.map(a => [a.id, a]));
-  assert.ok(Math.abs(by.media.value - (stats.totals.avg / 10 * 100)) < 0.01);
-  assert.ok(Math.abs(by.x.value - (100 / 3)) < 0.01);
-  assert.equal(Math.round(by.stab.value), 80);
-  assert.equal(Math.round(by.const.value), 100);
-  assert.equal(Math.round(by.ritmo.value), 100);
-  assert.equal(by.ritmo.text, '10,0 s');
-  assert.ok(by.group.value > 70 && by.group.value < 85);
-  const one = Studio.radar([{aim_score: 90, result: {value: 'X', impact: {x: 0.1, y: 0.1}}}]);
-  assert.equal(one.axes.find(a => a.id === 'group').value, 100);
+test('radar scores only the six new axes and leaves a thin sample blank', () => {
+  const shots = [];
+  for (let i = 0; i < 8; i++) {
+    shots.push({
+      t_ms: i * 1000, set_id: Math.floor(i / 2) + 1, phase: 'score', aim_score: 80,
+      draw_ms: 7000, hr_bpm: 68,
+      result: {value: 'X', impact: {x: 0.01, y: 0.01}}
+    });
+  }
+  shots.push({t_ms: 9000, set_id: 1, phase: 'warm', aim_score: 10, draw_ms: 1000, hr_bpm: 140, result: {value: 'M', impact: {x: 0.9, y: 0.9}}});
+  const by = Object.fromEntries(Studio.radar(shots).axes.map(a => [a.id, a]));
+  assert.deepEqual(Object.keys(by), ['precision', 'group', 'vertical', 'window', 'pulse', 'endure']);
+  assert.equal(by.precision.value, 100);
+  assert.equal(by.group.value, 100);
+  assert.equal(by.vertical.value, 100);
+  assert.equal(by.window.value, 100);
+  assert.equal(by.pulse.value, 100);
+  assert.equal(by.pulse.text, '68 lpm');
+  assert.equal(by.endure.value, 100);
+  const thin = Studio.radar([{aim_score: 90, draw_ms: 7000, hr_bpm: 80, result: {value: 'X', impact: {x: 0.1, y: 0.4}}}]);
+  thin.axes.forEach(ax => { assert.equal(ax.value, null); assert.equal(ax.thin, true); assert.equal(ax.text, '–'); });
+  const wide = Array.from({length: 8}, (_, i) => ({
+    set_id: 1, phase: 'score', result: {value: '10', impact: {x: 0, y: (i - 3.5) * 0.2}}
+  }));
+  assert.equal(Studio.radar(wide).axes.find(a => a.id === 'vertical').value, 0);
+  const drop = [];
+  for (let s = 1; s <= 4; s++) {
+    for (let n = 0; n < 3; n++) drop.push({set_id: s, phase: 'score', aim_score: 80, result: {value: s < 3 ? '10' : '9'}});
+  }
+  assert.equal(Studio.radar(drop).axes.find(a => a.id === 'endure').value, 0);
+});
+
+test('the share card dates a Tuesday in October and treats a higher score as a record', () => {
+  assert.equal(Studio.cardDate(new Date(2026, 9, 13, 12).getTime()), 'MAR 13 OCT 2026');
+  assert.equal(Studio.cardCopy({mode: 'Indoor', tanda: true}, new Date(2026, 9, 13, 12).getTime()).title, 'Tanda puntuable');
+  assert.equal(Studio.cardCopy({mode: 'Indoor'}, 0).subtitle, '18 M · DIANA REDUCIDA');
+  assert.equal(Studio.isRecord(297, [{shots: [{result: {value: '10'}}]}]), true);
+  assert.equal(Studio.isRecord(10, [{shots: [{result: {value: 'X'}}, {result: {value: '10'}}]}]), false);
+  assert.deepEqual(Studio.LAYOUTS.map(t => t.id), ['resumen', 'diana', 'tandas']);
+  assert.deepEqual([Studio.SIZES.story.w, Studio.SIZES.story.h, Studio.SIZES.post.h], [1080, 1920, 1350]);
 });
 
 test('the training calendar counts a day and skips the future', () => {

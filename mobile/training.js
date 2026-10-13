@@ -36,6 +36,13 @@ $('sessionHero').insertAdjacentHTML('afterend',`<section class="training" id="tr
 <button data-v="TandaIndoor">Tanda indoor<span>10 sets</span></button>
 <button data-v="TandaOutdoor">Tanda aire libre<span>6 sets</span></button>
 </div></div>
+<div class="picker" id="formatPicker" hidden>
+<button class="pickRow" id="formatRow"><span>Formato</span><b id="formatVal">Vegas</b></button>
+<div class="sheet" id="formatSheet" hidden>
+<button data-fmt="wa">World Archery<span>10, 9</span></button>
+<button data-fmt="vegas">Vegas<span>X, 10, 9</span></button>
+<button data-fmt="lancaster">Lancaster<span>11, 10, 9</span></button>
+</div></div>
 <div class="picker" id="bowPicker">
 <button class="pickRow" id="bowRow"><span>Arco</span><b id="bowVal">–</b></button>
 <div class="sheet" id="bowSheet" hidden><div id="bowList"></div>
@@ -52,8 +59,8 @@ $('vProgress').insertAdjacentHTML('afterbegin',`<section class="training card"><
 document.body.insertAdjacentHTML('beforeend','<div id="notice" role="status" hidden></div>');
 const gear={get:()=>{try{const g=JSON.parse(localStorage.getItem('awGear'));return {bows:Array.isArray(g?.bows)?g.bows:[],arrows:Array.isArray(g?.arrows)?g.arrows:[]};}catch(e){return {bows:[],arrows:[]};}},
   save:g=>localStorage.setItem('awGear',JSON.stringify(g))};
-function closeSheets(except){['modeSheet','bowSheet','arrowSheet'].forEach(id=>{$(id).hidden=id!==except;});}
-['modeRow','bowRow','arrowRow'].forEach(id=>{$(id).onclick=()=>{const sh=$(id.replace('Row','Sheet'));closeSheets(sh.hidden?sh.id:null);};});
+function closeSheets(except){['modeSheet','formatSheet','bowSheet','arrowSheet'].forEach(id=>{const n=$(id);if(n)n.hidden=id!==except;});}
+['modeRow','formatRow','bowRow','arrowRow'].forEach(id=>{const n=$(id);if(n)n.onclick=()=>{const sh=$(id.replace('Row','Sheet'));closeSheets(sh.hidden?sh.id:null);};});
 function sendCmd(action,value){const s=displayedSession();if(s?.live&&s.watchId&&window.Native?.command){const error=Native.command(JSON.stringify({sid:s.watchId,action,value}));if(error)notice(error);}}
 let calibrationConfirming = false, calibrationShotKey = '';
 function validCalibrationShot(s) { return !!s && !s.manual && Number.isFinite(s.peak_mg) && s.peak_mg > 150 && s.peak_mg <= 100000; }
@@ -80,7 +87,14 @@ $('modeSheet').onclick=e=>{const b=e.target.closest('[data-v]');if(!b)return;con
   const key=b.dataset.v, tanda=key==='TandaIndoor'||key==='TandaOutdoor';
   const mode=key==='TandaIndoor'?'Indoor':key==='TandaOutdoor'?'Outdoor':key;
   s.mode=mode;s.tanda=tanda;s.roundDone=Training.roundComplete(s);s.target=mode==='Indoor'?3:mode==='Outdoor'?6:0;
+  if(mode==='Indoor' && !['wa','vegas','lancaster'].includes(s.scoreFormat)) s.scoreFormat='vegas';
   saveSession(s);sendCmd('mode',mode);closeSheets(null);render();};
+$('formatSheet').onclick=e=>{const b=e.target.closest('[data-fmt]');if(!b)return;const s=displayedSession();if(!s||historyMode||s.mode!=='Indoor')return;
+  const next=b.dataset.fmt;
+  const locked=Score.formatOf(s);
+  const values=(s.shots||[]).map(x=>x&&x.result&&x.result.value).filter(Boolean);
+  if((values.includes('X')||values.includes('11'))&&next!==locked){notice(values.includes('11')?'Esta sesión ya tiene 11: se puntúa como Lancaster.':'Esta sesión ya tiene X: se puntúa como Vegas.');return;}
+  s.scoreFormat=next;saveSession(s);closeSheets(null);render();};
 function gearSheet(listId,sheetId,field,cmd){
   $(sheetId).onclick=e=>{const remove=e.target.closest('[data-delete-bow]');if(remove){deleteBow(remove.dataset.deleteBow);return;}const b=e.target.closest('[data-n]');if(!b)return;const s=displayedSession();if(!s||historyMode)return;
     s[field]=b.dataset.n;saveSession(s);if(cmd)sendCmd(cmd,s[field]);closeSheets(null);render();};
@@ -199,6 +213,13 @@ render=function() {
   $('calibrationMode').textContent=s?.calibrating?'Salir de calibración':'Iniciar calibración';
   ['modePicker','bowPicker','arrowPicker'].forEach(id=>$(id).hidden=historyMode);
   $('modeVal').textContent=s?(Training.roundLabel(s)||'–'):'–';
+  const indoor=!!(s&&s.mode==='Indoor');
+  $('formatPicker').hidden=!indoor||!!historyMode;
+  if(indoor){
+    const fmt=Score.formatOf(s);
+    $('formatVal').textContent=Score.FORMATS[fmt]?.name||'Vegas';
+    $('formatSheet').querySelectorAll('[data-fmt]').forEach(b=>b.classList.toggle('on',b.dataset.fmt===fmt));
+  }
   $('bowVal').textContent=s?.bow||s?.profile||'–';
   $('arrowVal').textContent=s?.arrows||'–';
   const modeKey=s?.tanda&&s.mode==='Indoor'?'TandaIndoor':s?.tanda&&s.mode==='Outdoor'?'TandaOutdoor':(s?.mode||'');

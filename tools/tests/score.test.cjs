@@ -72,6 +72,38 @@ test('the backup carries the arrow value because it lives on the shot', () => {
   assert.equal(copy.storage.awSessions[0].shots[0].result.impact.y, 2);
 });
 
+test('indoor formats put X on Vegas, drop it from World Archery, and keep 11 on Lancaster', () => {
+  assert.deepEqual(Score.FORMATS.wa.values, ['10', '9', 'M']);
+  assert.deepEqual(Score.FORMATS.vegas.values, ['X', '10', '9', 'M']);
+  assert.deepEqual(Score.FORMATS.lancaster.values, ['11', '10', '9', 'M']);
+  assert.equal(Score.DEFAULT_FORMAT, 'vegas');
+  assert.equal(Score.points('11'), 11);
+  assert.equal(Score.points('X'), 10);
+  assert.equal(Score.valueAt(0, 0, 'wa'), '10');
+  assert.equal(Score.valueAt(0, 0, 'vegas'), 'X');
+  assert.equal(Score.valueAt(0, 0, 'lancaster'), '11');
+  assert.equal(Score.valueAt(0, 0.4, 'vegas'), '10');
+  assert.equal(Score.valueAt(0, 0.8, 'wa'), '9');
+  assert.equal(Score.valueAt(1.2, 0, 'lancaster'), 'M');
+  assert.equal(Score.valueAt(0, 0), 'X');
+  const indoor = {mode: 'Indoor', shots: [{result: {value: 'X'}}], scoreFormat: 'wa'};
+  assert.equal(Score.formatOf(indoor), 'vegas');
+  assert.equal(Score.formatOf({mode: 'Indoor', shots: []}), 'vegas');
+  assert.equal(Score.formatOf({mode: 'Indoor', scoreFormat: 'wa', shots: []}), 'wa');
+  assert.equal(Score.formatOf({mode: 'Indoor', shots: [{result: {value: '11'}}]}), 'lancaster');
+  assert.equal(Score.formatOf({mode: 'Outdoor', shots: [{result: {value: 'X'}}]}), null);
+  assert.deepEqual(Score.valuesFor({mode: 'Indoor', scoreFormat: 'wa', shots: []}), ['10', '9', 'M']);
+  const shot = {t_ms: 1};
+  assert.equal(Score.set(shot, 'X', 'wa'), false);
+  assert.equal(Score.set(shot, '10', 'wa'), true);
+  assert.equal(Score.set(shot, '11', 'lancaster'), true);
+  assert.equal(shot.result.value, '11');
+  assert.equal(Score.set(shot, '8', 'vegas'), false);
+  const placed = {t_ms: 2};
+  assert.equal(Score.place(placed, 0, 0, 'wa'), true);
+  assert.equal(placed.result.value, '10');
+});
+
 test('the compound face scores 10 to 6, the inner ten as X, and outside the six as a miss', () => {
   assert.equal(Score.valueAt(0, 0), 'X');
   assert.equal(Score.valueAt(0.1, 0), 'X');

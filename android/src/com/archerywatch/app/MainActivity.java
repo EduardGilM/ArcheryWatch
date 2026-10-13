@@ -13,6 +13,7 @@ public class MainActivity extends Activity {
     private boolean started;
     private boolean pageReady;  // el drain antes de que cargue la página pierde los eventos
     private boolean draining;
+    private android.webkit.ValueCallback<android.net.Uri[]> fileCallback;
 
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
@@ -29,10 +30,17 @@ public class MainActivity extends Activity {
                     .setOnCancelListener(dialog -> result.cancel()).show();
                 return true;
             }
+            @Override public boolean onShowFileChooser(WebView view, android.webkit.ValueCallback<android.net.Uri[]> callback, FileChooserParams params) {
+                if (fileCallback != null) fileCallback.onReceiveValue(null);
+                fileCallback = callback;
+                if (params != null && params.isCaptureEnabled()) openCamera();
+                else openGallery();
+                return true;
+            }
         });
         // Solo recursos empaquetados en la aplicación.
         s.setAllowFileAccess(false);
-        s.setAllowContentAccess(false);
+        s.setAllowContentAccess(true);
         s.setAllowFileAccessFromFileURLs(false);
         s.setAllowUniversalAccessFromFileURLs(false);
         s.setBlockNetworkLoads(true);
@@ -191,8 +199,58 @@ public class MainActivity extends Activity {
             }
         }
     }
+    private void cancelFile() {
+        if (fileCallback != null) { fileCallback.onReceiveValue(null); fileCallback = null; }
+    }
+    private void openGallery() {
+        try {
+            Intent pick = new Intent(Intent.ACTION_GET_CONTENT);
+            pick.setType("image/*");
+            pick.addCategory(Intent.CATEGORY_OPENABLE);
+            startActivityForResult(Intent.createChooser(pick, "Galería"), 42);
+        } catch (Exception e) {
+            cancelFile();
+            push("notice(" + org.json.JSONObject.quote("No se pudo abrir la galería") + ")");
+        }
+    }
+    private void openCamera() {
+        if (checkSelfPermission(android.Manifest.permission.CAMERA) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{android.Manifest.permission.CAMERA}, 41);
+            return;
+        }
+        try {
+            android.net.Uri uri = android.net.Uri.parse("content://com.archerywatch.app.share/camera.jpg");
+            Intent cam = new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE);
+            cam.putExtra(android.provider.MediaStore.EXTRA_OUTPUT, uri);
+            cam.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            cam.setClipData(android.content.ClipData.newRawUri("foto", uri));
+            startActivityForResult(cam, 43);
+        } catch (Exception e) {
+            push("notice(" + org.json.JSONObject.quote("Sin cámara. Elige una foto de la galería.") + ")");
+            openGallery();
+        }
+    }
+    private void finishFile(int result, Intent intent, boolean camera) {
+        android.net.Uri[] out = null;
+        if (result == RESULT_OK) {
+            if (camera) out = new android.net.Uri[]{android.net.Uri.parse("content://com.archerywatch.app.share/camera.jpg")};
+            else if (intent != null && intent.getData() != null) out = new android.net.Uri[]{intent.getData()};
+        }
+        if (fileCallback != null) fileCallback.onReceiveValue(out);
+        fileCallback = null;
+    }
+    @Override public void onRequestPermissionsResult(int code, String[] perms, int[] grants) {
+        super.onRequestPermissionsResult(code, perms, grants);
+        if (code != 41) return;
+        if (grants.length > 0 && grants[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) openCamera();
+        else {
+            cancelFile();
+            push("notice(" + org.json.JSONObject.quote("Sin permiso de cámara. Elige una foto de la galería.") + ")");
+        }
+    }
     @Override protected void onActivityResult(int request, int result, Intent intent) {
         super.onActivityResult(request,result,intent);
+        if (request == 42 || request == 43) { finishFile(result, intent, request == 43); return; }
         if (request == 20) { finishExport(result, intent); return; }
         if (request != 21 || result != RESULT_OK || intent == null || intent.getData() == null) return;
         try (java.io.InputStream stream = getContentResolver().openInputStream(intent.getData())) {

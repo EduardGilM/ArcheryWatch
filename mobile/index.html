@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="aw-version" content="4.27">
+<meta name="aw-version" content="4.28">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#000000">
 <link rel="manifest" href="manifest.json">
@@ -106,7 +106,7 @@
   .scorepad { display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:4px; }
   .scorepad button { min-height:44px; border-radius:12px; background:var(--surface-2); border:1px solid var(--line); color:var(--txt); font-family:var(--mono); font-size:16px; font-weight:600; padding:0; }
   .scorepad button.on { background:transparent; color:var(--acc); border-color:var(--acc-line); }
-  .scorepad button.clear { grid-column:span 7; font-family:var(--font); font-size:13px; font-weight:500; color:var(--txt-2); }
+  .scorepad button.clear { grid-column:1 / -1; font-family:var(--font); font-size:13px; font-weight:500; color:var(--txt-2); }
   .scoreNote { margin-top:8px; font-size:12.5px; color:var(--txt-2); line-height:1.45; }
   .scoreNote:empty { display:none; }
   .scoreGroups { display:grid; gap:6px; margin-top:8px; }
@@ -320,9 +320,20 @@
   .heatLegend { display:flex; gap:4px; align-items:center; margin-top:8px; font-size:11px; color:var(--txt-3); }
   #shareSheet:not([hidden]) { display:flex; position:fixed; inset:0; z-index:60; background:rgba(0,0,0,.82); align-items:flex-end; justify-content:center; }
   .sharePanel { width:min(100%, 460px); max-height:100%; overflow:auto; background:#0b0b0d; border-top:1px solid var(--line-2); border-radius:20px 20px 0 0; padding:14px 14px 22px; display:grid; gap:10px; }
-  #shareCanvas { width:min(100%, 340px); height:auto; border-radius:16px; display:block; margin:0 auto; background:#000; }
-  .shareOpts { display:flex; flex-wrap:wrap; gap:8px 12px; font-size:13px; color:var(--txt-2); }
-  .shareOpts label { display:flex; align-items:center; gap:6px; }
+  .holoStage { perspective:900px; width:min(100%, 320px); margin:0 auto; touch-action:none; }
+  .holoTilt { position:relative; transform-style:preserve-3d; transition:transform .08s linear, box-shadow .08s linear; border-radius:22px; }
+  .holoSheen { position:absolute; inset:0; border-radius:22px; pointer-events:none; mix-blend-mode:screen;
+    background:linear-gradient(115deg, transparent 18%, rgba(123,43,255,.28) 36%, rgba(0,229,255,.38) 46%, rgba(198,255,61,.22) 54%, rgba(255,210,80,.3) 62%, rgba(255,43,214,.34) 72%, transparent 86%);
+    background-size:220% 220%; background-position:50% 50%; }
+  .holoStage[data-tone="light"] .holoSheen { mix-blend-mode:soft-light; opacity:.9; }
+  #shareCanvas { width:100%; height:auto; border-radius:22px; display:block; background:#111; }
+  .shareOpts { display:flex; flex-wrap:wrap; gap:8px; }
+  .shareOpts button, #shareGyro, #cropDone { flex:1; min-height:44px; border-radius:12px; border:1px solid var(--line-2); background:var(--surface-2); color:var(--txt); font-weight:600; }
+  #shareCrop { display:grid; gap:8px; }
+  #shareCrop[hidden] { display:none; }
+  #cropFrame { position:relative; border-radius:16px; overflow:hidden; touch-action:none; background:#000; }
+  #cropCanvas { width:100%; height:auto; display:block; }
+  #cropZoom { width:100%; }
 
   /* Diálogo */
   #askModal:not([hidden]) { display:flex; position:fixed; inset:0; background:rgba(6,7,9,.72); z-index:40; align-items:flex-end; justify-content:center; padding:16px; }
@@ -561,13 +572,33 @@
 </nav>
 <div id="shareSheet" hidden>
   <div class="sharePanel">
-    <canvas id="shareCanvas" width="1080" height="1350" aria-label="Tarjeta para compartir"></canvas>
+    <div class="holoStage" id="holoStage" data-tone="dark">
+      <div class="holoTilt" id="holoTilt">
+        <canvas id="shareCanvas" width="1080" height="1920" aria-label="Tarjeta para compartir"></canvas>
+        <div class="holoSheen" id="holoSheen"></div>
+      </div>
+    </div>
     <div class="lensBar" id="shareLayouts"></div>
+    <div class="lensBar" id="shareSizes">
+      <button type="button" data-size="story">Historia</button>
+      <button type="button" data-size="post">Post</button>
+    </div>
+    <div class="lensBar" id="shareTones">
+      <button type="button" data-tone="dark">Oscura</button>
+      <button type="button" data-tone="light">Clara</button>
+    </div>
     <div class="shareOpts">
-      <label><input type="checkbox" id="shareName" checked> Nombre</label>
-      <label><input type="checkbox" id="shareRadar" checked> Radar</label>
-      <label><input type="checkbox" id="shareStab" checked> Estabilidad</label>
-      <label>Fondo <input type="file" id="shareBg" accept="image/*"></label>
+      <button type="button" id="shareCam">Cámara</button>
+      <button type="button" id="shareGal">Galería</button>
+      <button type="button" id="shareGyro">Inclinar</button>
+    </div>
+    <input id="shareCamFile" type="file" accept="image/*" capture="environment" hidden>
+    <input id="shareGalFile" type="file" accept="image/*" hidden>
+    <div id="shareCrop" hidden>
+      <p class="caption">Arrastra para encuadrar</p>
+      <div id="cropFrame"><canvas id="cropCanvas" width="640" height="800"></canvas></div>
+      <label>Zoom <input id="cropZoom" type="range" min="1" max="2.6" step="0.01" value="1"></label>
+      <button type="button" id="cropDone">Listo</button>
     </div>
     <button type="button" class="btnPrimary" id="shareExport">Compartir</button>
     <button type="button" class="btnSecondary" id="shareClose">Cerrar</button>
@@ -927,11 +958,17 @@ function commitScore(t_ms, apply) {
   if (view === 'Shot' && idx >= 0) cur = idx;
   render();
 }
+function activeFormat() {
+  if (typeof Score.formatOf !== 'function' || typeof displayedSession !== 'function') return null;
+  return Score.formatOf(displayedSession());
+}
 function scoreArrow(t_ms, value) {
-  commitScore(t_ms, shot => Score.set(shot, value));
+  const format = activeFormat();
+  commitScore(t_ms, shot => Score.set(shot, value, format));
 }
 function placeArrow(t_ms, x, y) {
-  commitScore(t_ms, shot => Score.place(shot, x, y));
+  const format = activeFormat();
+  commitScore(t_ms, shot => Score.place(shot, x, y, format));
 }
 const FACE_SCALE = 0.46;
 const FACE_ZOOM_MAX = 4;
@@ -1166,7 +1203,7 @@ function faceMove(canvas, ev) {
     if (d < FACE_SLOP && g.mode === 'arm-drag') return;
     g.mode = 'drag'; g.eatTap = false;
     const pt = faceScreenToTarget(canvas, loc.x, loc.y);
-    if (pt && Score.place(g.shot, pt.x, pt.y)) faceRedraw(canvas, g, g.shot.t_ms);
+    if (pt && Score.place(g.shot, pt.x, pt.y, activeFormat())) faceRedraw(canvas, g, g.shot.t_ms);
   }
 }
 function faceUp(canvas, ev) {
@@ -1238,10 +1275,11 @@ function paintScore(id, shots) {
   const focus = focusedArrow(real);
   const current = real.find(s => s.t_ms === focus);
   const faceId = id === 'shotScore' ? 'faceShot' : 'faceSet';
+  const pad = typeof Score.valuesFor === 'function' ? Score.valuesFor(typeof displayedSession === 'function' ? displayedSession() : null) : Score.VALUES;
   root.innerHTML = `<div class="cardTitle">Valor</div>` +
     `<div class="aimwrap"><canvas class="face" id="${faceId}" aria-label="Diana"></canvas></div>` +
     `<div class="scoreSlots">${real.map((s, i) => `<button type="button" data-score-t="${s.t_ms}" class="${s.t_ms === focus ? 'on' : ''}" aria-label="Flecha ${i + 1}">${i + 1}<b>${s.result?.value || '·'}</b></button>`).join('')}</div>` +
-    `<div class="scorepad" role="group" aria-label="Valor de la flecha">${Score.VALUES.map(v => `<button type="button" data-score="${v}" class="${current?.result?.value === v ? 'on' : ''}">${v}</button>`).join('')}<button type="button" class="clear" data-score="clear">Borrar</button></div>`;
+    `<div class="scorepad" style="grid-template-columns:repeat(${pad.length},minmax(0,1fr))" role="group" aria-label="Valor de la flecha">${pad.map(v => `<button type="button" data-score="${v}" class="${current?.result?.value === v ? 'on' : ''}">${v}</button>`).join('')}<button type="button" class="clear" data-score="clear">Borrar</button></div>`;
   const face = document.getElementById(faceId);
   if (face && !face.id) face.id = faceId;
   drawFace(face, real, focus);
@@ -1763,22 +1801,35 @@ function drawFace(c, shots, focus) {
   const origin = faceTargetToScreen(c, 0, 0);
   const cx = origin.x, cy = origin.y, R = sz * FACE_SCALE * z, base = sz * FACE_SCALE;
   const disk = (r, color) => { x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.fillStyle = color; x.fill(); };
-  disk(R, '#3F5F78');
-  disk(R * 0.8, '#8F4A4C');
-  disk(R * 0.4, '#C2A36A');
-  x.lineWidth = 1; x.strokeStyle = 'rgba(0,0,0,.62)';
-  for (const k of [1, 0.8, 0.6, 0.4, 0.2, 0.1]) { x.beginPath(); x.arc(cx, cy, R * k, 0, Math.PI * 2); x.stroke(); }
+  const format = typeof activeFormat === 'function' ? activeFormat() : null;
   const fs = Math.max(9, Math.min(13, Math.round(base * 0.055)));
   x.textAlign = 'center'; x.textBaseline = 'middle';
-  x.font = '600 ' + Math.max(8, Math.round(fs * 0.75)) + 'px ' + MONO;
-  x.fillStyle = 'rgba(44,36,22,.7)'; x.fillText('X', cx, cy);
-  x.font = '600 ' + fs + 'px ' + MONO;
   const num = (text, r, color) => { x.fillStyle = color; x.fillText(text, cx, cy - r); };
-  num('10', R * 0.15, 'rgba(44,36,22,.78)');
-  num('9', R * 0.3, 'rgba(44,36,22,.78)');
-  num('8', R * 0.5, 'rgba(42,18,18,.76)');
-  num('7', R * 0.7, 'rgba(42,18,18,.76)');
-  num('6', R * 0.9, 'rgba(236,242,246,.82)');
+  if (format) {
+    disk(R, '#3F5F78');
+    disk(R * 0.5, '#C2A36A');
+    if (format !== 'wa') disk(R * 0.25, '#F4E7C3');
+    x.lineWidth = 1; x.strokeStyle = 'rgba(0,0,0,.62)';
+    [1, 0.5].concat(format === 'wa' ? [] : [0.25]).forEach(k => { x.beginPath(); x.arc(cx, cy, R * k, 0, Math.PI * 2); x.stroke(); });
+    x.font = '600 ' + fs + 'px ' + MONO;
+    if (format === 'wa') { num('10', 0, 'rgba(44,36,22,.78)'); num('9', R * 0.75, 'rgba(236,242,246,.86)'); }
+    else if (format === 'lancaster') { x.fillStyle = 'rgba(44,36,22,.78)'; x.fillText('11', cx, cy); num('10', R * 0.37, 'rgba(44,36,22,.78)'); num('9', R * 0.75, 'rgba(236,242,246,.86)'); }
+    else { x.fillStyle = 'rgba(44,36,22,.78)'; x.fillText('X', cx, cy); num('10', R * 0.37, 'rgba(44,36,22,.78)'); num('9', R * 0.75, 'rgba(236,242,246,.86)'); }
+  } else {
+    disk(R, '#3F5F78');
+    disk(R * 0.8, '#8F4A4C');
+    disk(R * 0.4, '#C2A36A');
+    x.lineWidth = 1; x.strokeStyle = 'rgba(0,0,0,.62)';
+    for (const k of [1, 0.8, 0.6, 0.4, 0.2, 0.1]) { x.beginPath(); x.arc(cx, cy, R * k, 0, Math.PI * 2); x.stroke(); }
+    x.font = '600 ' + Math.max(8, Math.round(fs * 0.75)) + 'px ' + MONO;
+    x.fillStyle = 'rgba(44,36,22,.7)'; x.fillText('X', cx, cy);
+    x.font = '600 ' + fs + 'px ' + MONO;
+    num('10', R * 0.15, 'rgba(44,36,22,.78)');
+    num('9', R * 0.3, 'rgba(44,36,22,.78)');
+    num('8', R * 0.5, 'rgba(42,18,18,.76)');
+    num('7', R * 0.7, 'rgba(42,18,18,.76)');
+    num('6', R * 0.9, 'rgba(236,242,246,.82)');
+  }
   const pts = Score.impacts(shots);
   if (pts.length >= 2) {
     const g = Score.groupCenter(pts);
