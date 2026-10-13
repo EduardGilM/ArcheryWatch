@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="aw-version" content="4.33">
+<meta name="aw-version" content="4.34">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#000000">
 <link rel="manifest" href="manifest.json">
@@ -289,14 +289,22 @@
   .setModes { display:grid; gap:8px; padding:10px 12px; background:var(--surface); border:1px solid var(--line); border-radius:16px; }
   .setModesTop { display:flex; align-items:center; justify-content:space-between; color:var(--txt-2); font-size:13px; }
   .setModesTop button { background:none; border:none; color:var(--acc); font-weight:600; min-height:36px; padding:0 2px; }
-  .pickBar { background:var(--bg); }
-  .pickBar.on { position:sticky; top:0; z-index:2; padding:8px 0 10px; }
-  .pickStart { width:100%; min-height:44px; border-radius:12px; background:var(--surface); color:var(--txt); border:1px solid var(--line-2); font-size:14px; font-weight:600; }
-  .pickBarOn { display:grid; gap:8px; padding:10px 12px; background:var(--surface); border:1px solid var(--line); border-radius:16px; }
+  .pickBar { position:fixed; left:0; right:0; z-index:25; background:var(--bg); border-bottom:1px solid var(--line); padding:8px 18px 12px;
+    transform:translateY(calc(-100% - 16px)); opacity:0; pointer-events:none; transition:transform .32s cubic-bezier(.2,.7,.2,1), opacity .2s ease; }
+  .pickBar.on { transform:translateY(0); opacity:1; pointer-events:auto; }
+  .pickBarOn { display:grid; gap:8px; }
   .pickScope { display:flex; gap:6px; }
   .pickScope button { flex:1; min-height:40px; border-radius:10px; background:var(--surface-2); color:var(--txt-2); border:1px solid var(--line); font-size:13px; font-weight:600; }
   #setList details.picked { border-color:var(--acc); box-shadow:0 0 0 1px var(--acc-line); }
   .trendRow.picked { background:var(--acc-soft); }
+  @keyframes awWiggle {
+    0%, 100% { transform:translateX(0); }
+    18% { transform:translateX(-5px) rotate(-.6deg); }
+    36% { transform:translateX(5px) rotate(.6deg); }
+    54% { transform:translateX(-3px) rotate(-.3deg); }
+    72% { transform:translateX(3px) rotate(.3deg); }
+  }
+  #setList details.wiggle > summary, .trendRow.wiggle { animation:awWiggle .42s ease; }
   .profileTop { display:grid; grid-template-columns:84px minmax(0,1fr); gap:12px; align-items:center; }
   .profilePhoto { width:84px; height:84px; border-radius:50%; border:1px solid var(--line-2); background:var(--surface-2); overflow:hidden; padding:0; color:var(--txt-2); font-size:28px; }
   .profilePhoto img { width:100%; height:100%; object-fit:cover; display:block; }
@@ -2213,9 +2221,7 @@ function drawTrend(S) {
     const mini=g.map(j=>{const v=data.shots[j].aim_score;const h=Number.isFinite(v)?Math.max(3,(Math.min(100,v)-40)/60*22):3;return `<i style="height:${h}px;background:${barOf(v)}"></i>`;}).join('');
     const phase = phaseOfGroup(g);
     const sid = escapeText(String(data.shots[g[0]].set_id));
-    const seg = (id, label) => `<button type="button" data-mode="${id}" class="${phase===id?'on':''}">${label}</button>`;
-    const modes = `<span class="modeSeg">${seg('warm','Calentamiento')}${seg('score','Puntuable')}${seg('','Libre')}</span>`;
-    return `<details data-set="${key}" data-sid="${sid}" data-phase="${phase}" ${opened.has(key)?'open':''}><summary class="setline"><b>${setLabel(S,i)}</b><span class="mini">${mini}</span>${points}<span class="setVal" style="color:${numOf(sa)}">${Number.isFinite(sa)?sa:'–'}</span><span class="r"></span>${modes}</summary>${rows[i]}</details>`;
+    return `<details data-set="${key}" data-sid="${sid}" data-phase="${phase}" ${opened.has(key)?'open':''}><summary class="setline"><b>${setLabel(S,i)}</b><span class="mini">${mini}</span>${points}<span class="setVal" style="color:${numOf(sa)}">${Number.isFinite(sa)?sa:'–'}</span><span class="r"></span></summary>${rows[i]}</details>`;
   }).join('');
   c.onclick=list.onclick=e=>{if(typeof Studio!=='undefined'&&Studio.onSetClick&&Studio.onSetClick(e))return;const i=e.target.closest('[data-shot]')?.dataset.shot;if(i!=null){cur=+i;show('Shot');}};
 }

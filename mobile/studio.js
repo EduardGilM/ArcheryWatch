@@ -342,6 +342,15 @@ function studioClearPick() {
   Studio.dayIds.clear();
 }
 
+function studioHaptic(el) {
+  try { if (navigator.vibrate) navigator.vibrate([14, 28, 18]); } catch (e) {}
+  if (!el || !el.classList) return;
+  const node = el.classList.contains('trendRow') ? el : (el.closest && el.closest('details')) || el;
+  node.classList.remove('wiggle');
+  void node.offsetWidth;
+  node.classList.add('wiggle');
+}
+
 function studioSessionIds(session) {
   const ids = [];
   const seen = new Set();
@@ -515,6 +524,7 @@ function studioMount() {
         } else if (sid != null) Studio.picks.add(String(sid));
         suppress = true;
         setTimeout(() => { suppress = false; }, 700);
+        studioHaptic(row || sum);
         studioSync();
       }, 480);
     });
@@ -535,21 +545,6 @@ function studioMount() {
         suppress = false;
         e.preventDefault();
         e.stopPropagation();
-        return;
-      }
-      const modeBtn = e.target.closest('[data-mode]');
-      if (modeBtn && modeBtn.closest('#setList')) {
-        e.preventDefault();
-        e.stopPropagation();
-        const sid = modeBtn.closest('details') && modeBtn.closest('details').dataset.sid;
-        if (sid != null) studioCommit(s => Studio.applyPhase(s, modeBtn.dataset.mode, [sid]));
-        return;
-      }
-      const start = e.target.closest('[data-pick="start"]');
-      if (start) {
-        e.preventDefault();
-        Studio.picking = true;
-        studioSync();
         return;
       }
       const bulk = e.target.closest('[data-bulk]');
@@ -787,7 +782,7 @@ function studioSync() {
   const session = typeof displayedSession === 'function' ? displayedSession() : null;
   const round = document.getElementById('roundBar');
   if (round) {
-    round.hidden = !session;
+    round.hidden = !session || Studio.picking;
     const mark = session && (session.phase === 'warm' || session.phase === 'score') ? session.phase : '';
     round.querySelectorAll('[data-round]').forEach(b => b.classList.toggle('on', b.dataset.round === mark));
   }
@@ -810,15 +805,17 @@ function studioModes() {
   if (!bar) return;
   const session = typeof displayedSession === 'function' ? displayedSession() : null;
   const hasShots = !!(session && session.shots && session.shots.length);
-  bar.hidden = !hasShots;
-  bar.classList.toggle('on', !!(hasShots && Studio.picking));
-  if (!hasShots) { bar.innerHTML = ''; return; }
-  if (!Studio.picking) {
-    if (!bar.querySelector('[data-pick="start"]')) bar.innerHTML = '<button type="button" class="pickStart" data-pick="start">Seleccionar</button>';
-    return;
-  }
+  const show = hasShots && Studio.picking && (typeof view === 'undefined' || view === 'Session');
+  if (!show) { bar.classList.remove('on'); if (!hasShots) bar.hidden = true; return; }
   if (!bar.querySelector('.pickBarOn')) {
     bar.innerHTML = '<div class="pickBarOn"><div class="setModesTop"><span id="pickCount"></span><button type="button" data-bulk="done">Hecho</button></div><div class="pickScope"><button type="button" data-scope="session">Sesión</button><button type="button" data-scope="day">Día</button></div><span class="modeSeg"><button type="button" data-bulk="warm">Calentamiento</button><button type="button" data-bulk="score">Puntuable</button><button type="button" data-bulk="">Libre</button></span></div>';
+  }
+  const header = document.querySelector('header');
+  if (header) bar.style.top = Math.round(header.getBoundingClientRect().bottom) + 'px';
+  bar.hidden = false;
+  if (!bar.classList.contains('on')) {
+    void bar.offsetWidth;
+    bar.classList.add('on');
   }
   const count = document.getElementById('pickCount');
   const n = studioPickCount();
