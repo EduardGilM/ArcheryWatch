@@ -1,7 +1,7 @@
 // ArcheryWatch service worker: app shell cache-first, sesiones network-first.
-const C = 'aw-v99';
+const C = 'aw-v100';
 self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(caches.open(C).then(c =>
-  c.addAll(['./', './index.html', './session-model.js', './trace-geom.js', './backup.js', './score.js', './compare.js', './goals.js', './training.js', './studio.js', './manifest.json', './icon-192.png', './icon-512.png', './fonts/Geist-Variable.woff2', './fonts/GeistMono-Variable.woff2', './fonts/BarlowCondensed-600.woff2', './photos/range.jpg', './photos/field.jpg', './photos/targets.jpg', './photos/bow.jpg']))); });
+  c.addAll(['./', './index.html', './session-model.js', './trace-geom.js', './backup.js', './score.js', './compare.js', './goals.js', './training.js', './studio.js', './manifest.json', './icon-192.png', './icon-512.png', './fonts/Geist-Variable.woff2', './fonts/GeistMono-Variable.woff2', './fonts/BarlowCondensed-600.woff2', './photos/campo.jpg', './photos/diana.jpg', './photos/visor.jpg']))); });
 self.addEventListener('activate', e => e.waitUntil(caches.keys().then(ks =>
   Promise.all(ks.filter(k => k !== C).map(k => caches.delete(k))))));
 self.addEventListener('fetch', e => e.respondWith(

@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="aw-version" content="4.35">
+<meta name="aw-version" content="4.36">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#000000">
 <link rel="manifest" href="manifest.json">
@@ -340,7 +340,9 @@
   .holoTilt { position:relative; transform-style:preserve-3d; transition:transform .08s linear, box-shadow .08s linear; border-radius:18px; }
   .holoSheen { position:absolute; inset:0; border-radius:18px; pointer-events:none; mix-blend-mode:soft-light;
     background:linear-gradient(115deg, transparent 42%, rgba(255,255,255,.45) 50%, transparent 58%);
-    background-size:220% 220%; background-position:40% 40%; opacity:.22; }
+    background-size:220% 220%; background-position:40% 40%; opacity:0; }
+  .shareLbl { font-size:11px; font-weight:600; letter-spacing:.14em; text-transform:uppercase; color:var(--txt-3); margin-top:4px; }
+  #shareFinish { margin-top:0; }
   .sharePhoto { display:flex; gap:8px; }
   .sharePhoto button { flex:1; min-height:40px; border-radius:12px; border:1px solid var(--line-2); background:#16161a; color:var(--txt); font-size:13px; font-weight:600; }
   .presetRow { display:flex; gap:8px; }
@@ -603,12 +605,13 @@
       </div>
     </div>
     <div class="cardThumbs" id="shareThumbs"></div>
+    <p class="shareLbl">Estilo</p>
     <div class="tracebar" id="shareFinish">
-      <button type="button" data-finish="metal" class="sel">Metal</button>
+      <button type="button" data-finish="glass" class="sel">Cristal</button>
+      <button type="button" data-finish="editorial">Editorial</button>
       <button type="button" data-finish="obsidian">Obsidiana</button>
-      <button type="button" data-finish="glass">Cristal</button>
-      <button type="button" data-finish="carbon">Carbono</button>
     </div>
+    <p class="shareLbl">Foto</p>
     <div class="sharePhoto">
       <button type="button" id="shareCam">Cámara</button>
       <button type="button" id="shareLib">Galería</button>
@@ -625,7 +628,7 @@
 <div id="cropSheet" hidden>
   <div class="cropPanel">
     <p>Encuadra la foto</p>
-    <canvas id="cropCanvas" width="900" height="620" aria-label="Recorte"></canvas>
+    <canvas id="cropCanvas" width="900" height="634" aria-label="Recorte"></canvas>
     <input id="cropZoom" type="range" min="1" max="3" step="0.01" value="1" aria-label="Zoom">
     <button type="button" class="btnPrimary" id="cropUse">Usar foto</button>
     <button type="button" class="btnSecondary" id="cropCancel">Cancelar</button>

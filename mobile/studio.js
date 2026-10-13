@@ -3,7 +3,8 @@ const StudioScore = (typeof module !== 'undefined') ? require('./score.js') : Sc
 const StudioGoals = (typeof module !== 'undefined') ? require('./goals.js') : Goals;
 const studioSans = "'Geist', system-ui, sans-serif";
 const studioNum = "'Barlow Condensed', sans-serif";
-const studioSerif = "'Liberation Serif', 'DejaVu Serif', Georgia, 'Times New Roman', serif";
+const studioGeist = "'Geist', system-ui, -apple-system, sans-serif";
+const studioItalic = "Georgia, 'Noto Serif', 'DejaVu Serif', serif";
 const Studio = {
   lens: 'all',
   picks: new Set(),
@@ -12,18 +13,16 @@ const Studio = {
   picking: false,
   shareOpen: false,
   shareKind: 'session',
-  card: {layout: 'session', tilt: {x: 0, y: 0}, tone: 'dark', finish: 'metal', preset: 'range', photo: ''},
+  card: {layout: 'session', tilt: {x: 0, y: 0}, finish: 'glass', preset: 'campo', photo: ''},
   FINISHES: [
-    {id: 'metal', name: 'Metal'},
-    {id: 'obsidian', name: 'Obsidiana'},
     {id: 'glass', name: 'Cristal'},
-    {id: 'carbon', name: 'Carbono'}
+    {id: 'editorial', name: 'Editorial'},
+    {id: 'obsidian', name: 'Obsidiana'}
   ],
   PRESETS: [
-    {id: 'range', name: 'Campo', src: 'photos/range.jpg'},
-    {id: 'field', name: 'Pradera', src: 'photos/field.jpg'},
-    {id: 'targets', name: 'Dianas', src: 'photos/targets.jpg'},
-    {id: 'bow', name: 'Arco', src: 'photos/bow.jpg'}
+    {id: 'campo', name: 'Campo', src: 'photos/campo.jpg', focus: 0.4},
+    {id: 'diana', name: 'Diana', src: 'photos/diana.jpg', focus: 0.45},
+    {id: 'visor', name: 'Visor', src: 'photos/visor.jpg', focus: 0.35}
   ],
   THEMES: [
     {id: 'amber', name: 'Ámbar', acc: '#FF8A1F', acc2: '#FFC15E', glow: 'rgba(255,138,31,.28)', ink: '#1b0f05', soft: 'rgba(255,138,31,.12)', line: 'rgba(255,138,31,.45)'},
@@ -1066,6 +1065,8 @@ function studioRound(ctx, x, y, w, h, r) {
 }
 
 function studioRgb(hex) {
+  const rgb = String(hex || '').match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+  if (rgb) return [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])];
   const h = String(hex || '#FF8A1F').replace('#', '');
   const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
   const n = parseInt(full, 16);
@@ -1186,51 +1187,103 @@ function studioCardView(layout) {
     duration = anySpan ? span : null;
     bars = sessions.slice(-12).map((s, i) => ({n: i + 1, rows: Studio.scorePool(s.shots)}));
     chart = bars.some(b => studioSpread(b.rows) != null) ? 'Agrupación' : 'Estabilidad de puntería';
-    return studioCardPack(headline, subtitle, when, shots, sets.length, duration, bars, chart, grouped, studioPhotoSrc());
+    return studioCardPack(headline, subtitle, when, shots, sets.length, duration, bars, chart, grouped, studioPhotoSrc(), {
+      kicker: 'TRAYECTORIA · ' + sessions.length + ' SESIONES',
+      title: profile.name || 'Mi trayectoria',
+      modeLine: profile.club || 'Historial completo',
+      serial: ''
+    });
   }
+  const meta = {
+    kicker: studioKicker(session),
+    title: studioSubtitle(session).replace(/ M$/, ' m'),
+    modeLine: studioModeLine(session),
+    serial: studioSerial(session)
+  };
   if (layout === 'best') {
     const best = Studio.bestSet(sessionShots.length ? sessionShots : history);
     shots = best ? best.rows : [];
     headline = 'Mejor tanda';
     subtitle = best ? 'Tanda ' + best.index + (session && session.mode === 'Indoor' ? ' · 18 M' : '') : studioSubtitle(session);
     bars = best ? [{n: best.index, rows: best.rows}] : [];
+    meta.kicker = 'MEJOR TANDA' + (best ? ' · SERIE ' + best.index : '');
   } else {
     bars = studioSetsOf(shots);
   }
   chart = bars.some(b => studioSpread(b.rows) != null) ? 'Agrupación' : 'Estabilidad de puntería';
   const sets = studioSetsOf(shots);
-  return studioCardPack(headline, subtitle, when, shots, sets.length, duration, bars, chart, format, studioPhotoSrc());
+  return studioCardPack(headline, subtitle, when, shots, sets.length, duration, bars, chart, format, studioPhotoSrc(), meta);
 }
-function studioCardPack(headline, subtitle, when, shots, series, duration, bars, chart, format, photo) {
+function studioKicker(session) {
+  if (!session) return 'ENTRENAMIENTO';
+  if (session.mode === 'Indoor') return 'SESIÓN INDOOR';
+  if (session.mode === 'Outdoor') return 'SESIÓN OUTDOOR';
+  return 'ENTRENAMIENTO';
+}
+function studioModeLine(session) {
+  const bow = (session && (session.bow || session.profile)) || 'Compuesto';
+  if (session && session.mode === 'Indoor') return 'Indoor · ' + bow;
+  if (session && session.mode === 'Outdoor') return 'Outdoor · ' + bow;
+  return String(bow);
+}
+function studioSerial(session) {
+  if (!session || typeof studioSessions !== 'function') return '';
+  const i = studioSessions().findIndex(s => s.id === session.id);
+  return i < 0 ? '' : 'Nº ' + String(i + 1).padStart(3, '0');
+}
+function studioCardPack(headline, subtitle, when, shots, series, duration, bars, chart, format, photo, meta) {
   const totals = StudioScore.totals(shots);
+  const info = meta || {};
   const measured = (bars || []).map(b => {
     const spread = studioSpread(b.rows);
-    return {n: b.n, value: spread != null ? spread : studioAimLoose(b.rows)};
-  }).filter(b => b.value != null);
+    return {n: b.n, value: spread != null ? spread * 10 : studioAimLoose(b.rows), cm: spread != null};
+  }).filter(b => b.value != null).slice(-12);
+  const allCm = measured.length && measured.every(b => b.cm);
   const center = format === 'lancaster' ? '11' : format === 'wa' ? '' : 'X';
+  const max = totals.score != null ? (format ? StudioScore.roundMax(shots, format) : (totals.arrows || 0) * 10) : 0;
+  const best = Studio.bestSet(shots);
+  const spread = studioSpread(shots);
+  const d = new Date(when);
+  const months = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+  const arrows = totals.arrows || 0;
+  const summary = (info.title || subtitle || 'Entrenamiento') + ', ' + arrows + ' flechas en ' + (series || 0) + ' series. ' +
+    (best ? 'Mejor serie: S' + best.index + ' con ' + best.sum + ' puntos.' : 'Sin puntuación marcada.');
   return {
     brand: 'ARCHERY WATCH',
     headline, subtitle,
+    kicker: info.kicker || 'ENTRENAMIENTO',
+    title: info.title || subtitle || '',
+    modeLine: info.modeLine || subtitle || '',
+    serial: info.serial || '',
+    summary,
     date: studioCornerDate(when),
+    day: Number.isFinite(d.getTime()) ? String(d.getDate()) : '',
+    monthYear: Number.isFinite(d.getTime()) ? months[d.getMonth()] + ' ' + d.getFullYear() : '',
     scoreLine: studioScoreLine(totals, shots, format),
+    scoreMain: totals.score != null ? String(totals.score) : String(arrows),
+    scoreMax: totals.score != null && max ? String(max) : '',
+    scoreNote: totals.score != null ? '' : 'flechas registradas',
+    pct: totals.score != null && max ? totals.score / max : null,
+    breakdown: Studio.breakdown(shots),
+    groupText: spread != null ? 'Agrupación media de ' + studioAvgText(spread * 10) + ' cm' : 'Marca los impactos en la diana',
     center,
     impacts: StudioScore.impacts(shots).slice(-80),
     stats: [
-      {id: 'arrows', label: 'Flechas', value: String(totals.arrows || 0)},
+      {id: 'arrows', label: 'Flechas', value: String(arrows)},
       {id: 'series', label: 'Series', value: String(series || 0)},
       {id: 'avg', label: 'Media', value: studioAvgText(totals.avg)},
       {id: 'time', label: 'Duración', value: studioDurationText(duration)}
     ],
     chart, chartNote: 'Menor es mejor',
-    bars: measured.slice(-12),
-    photo: photo || ''
+    bars: measured,
+    chartValues: measured.map(b => b.value),
+    chartLabels: measured.map(b => b.n),
+    chartUnit: allCm ? 'cm' : '',
+    photo: photo || '',
+    focus: Studio.card.photo ? 0.5 : ((studioPreset() || {}).focus ?? 0.5)
   };
 }
 
-function studioPalette(tone) {
-  if (tone === 'light') return {field: '#e6e1d6', glass: '#f6f3ec', ink: '#1b1916', muted: '#6d685f', onPhoto: '#f7f4ee'};
-  return {field: '#050506', glass: '#0c0c0e', ink: '#f3f1ec', muted: '#9b968d', onPhoto: '#f7f4ee'};
-}
 function studioHeaderImage(src) {
   if (!src || typeof Image === 'undefined') return null;
   if (Studio.card.photoSrc === src && Studio.card.photoImg && Studio.card.photoImg.complete && Studio.card.photoImg.naturalWidth) return Studio.card.photoImg;
@@ -1247,8 +1300,7 @@ function studioSetCardPhoto(url) {
   Studio.card.photo = url || '';
   Studio.card.photoSrc = '';
   Studio.card.photoImg = null;
-  Studio.card.gradeKey = '';
-  Studio.card.gradeCanvas = null;
+  if (Studio.card.photoCache) Studio.card.photoCache.clear();
   if (Studio.shareOpen) studioDrawShare();
   if (typeof studioSyncShare === 'function') studioSyncShare();
 }
@@ -1336,494 +1388,748 @@ function studioCommitCrop() {
   studioCloseCrop();
   studioSetCardPhoto(url);
 }
+function studioPhotoSrc() {
+  if (Studio.card.photo) return Studio.card.photo;
+  const hit = studioPreset();
+  return hit ? hit.src : '';
+}
+function studioPreset() {
+  const list = Studio.PRESETS || [];
+  return list.find(p => p.id === Studio.card.preset) || list[0] || null;
+}
+function studioF(weight, px, family) {
+  return weight + ' ' + px + 'px ' + (family || studioGeist);
+}
+function studioTrackWidth(ctx, text, tracking) {
+  let w = 0;
+  for (const ch of String(text)) w += ctx.measureText(ch).width + tracking;
+  return Math.max(0, w - tracking);
+}
+function studioTextWidth(ctx, text, font, track) {
+  ctx.font = font;
+  const s = String(text == null ? '' : text);
+  if (!track) return ctx.measureText(s).width;
+  if ('letterSpacing' in ctx) {
+    ctx.letterSpacing = track + 'px';
+    const w = ctx.measureText(s).width - track;
+    ctx.letterSpacing = '0px';
+    return w;
+  }
+  return studioTrackWidth(ctx, s, track);
+}
+function studioText(ctx, text, x, y, font, color, track, align) {
+  const s = String(text == null ? '' : text);
+  const t = track || 0;
+  const w = studioTextWidth(ctx, s, font, t);
+  const x0 = align === 'center' ? x - w / 2 : align === 'right' ? x - w : x;
+  ctx.font = font;
+  ctx.fillStyle = color;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  if (!t) ctx.fillText(s, x0, y);
+  else if ('letterSpacing' in ctx) {
+    ctx.letterSpacing = t + 'px';
+    ctx.fillText(s, x0, y);
+    ctx.letterSpacing = '0px';
+  } else studioTrack(ctx, s, x0, y, t);
+  return w;
+}
+function studioFitPx(ctx, text, maxW, px, weight, min, track) {
+  let n = px;
+  while (n > (min || 20) && studioTextWidth(ctx, text, studioF(weight, n), track || 0) > maxW) n -= 2;
+  return n;
+}
+function studioWrap(ctx, text, font, maxW, maxLines) {
+  const words = String(text || '').split(/\s+/).filter(Boolean);
+  const lines = [];
+  let line = '';
+  ctx.font = font;
+  words.forEach(w => {
+    const next = line ? line + ' ' + w : w;
+    if (line && ctx.measureText(next).width > maxW && lines.length < (maxLines || 2) - 1) {
+      lines.push(line);
+      line = w;
+    } else line = next;
+  });
+  if (line) lines.push(line);
+  return lines;
+}
+function studioSplitValue(v) {
+  const s = String(v == null ? '–' : v);
+  const m = s.match(/^([\d.,]+)\s*(min|cm|%|pts)$/);
+  return m ? [m[1], m[2]] : [s, ''];
+}
+function studioValue(ctx, value, x, y, big, small, color, unitColor, align) {
+  const [num, unit] = studioSplitValue(value);
+  const a = studioTextWidth(ctx, num, big, 0);
+  const b = unit ? studioTextWidth(ctx, unit, small, 0) + 8 : 0;
+  const x0 = align === 'center' ? x - (a + b) / 2 : align === 'right' ? x - a - b : x;
+  studioText(ctx, num, x0, y, big, color);
+  if (unit) studioText(ctx, unit, x0 + a + 8, y, small, unitColor);
+  return a + b;
+}
+function studioIcon(ctx, id, cx, cy, s, color, lw) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = lw || Math.max(1.6, s * 0.085);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  const h = s / 2;
+  ctx.beginPath();
+  if (id === 'arrow') {
+    ctx.moveTo(-h * 0.78, h * 0.78);
+    ctx.lineTo(h * 0.62, -h * 0.62);
+    ctx.moveTo(h * 0.7, -h * 0.7);
+    ctx.lineTo(h * 0.18, -h * 0.62);
+    ctx.moveTo(h * 0.7, -h * 0.7);
+    ctx.lineTo(h * 0.62, -h * 0.18);
+    ctx.moveTo(-h * 0.78, h * 0.78);
+    ctx.lineTo(-h * 0.78, h * 0.34);
+    ctx.moveTo(-h * 0.78, h * 0.78);
+    ctx.lineTo(-h * 0.34, h * 0.78);
+    ctx.moveTo(-h * 0.5, h * 0.5);
+    ctx.lineTo(-h * 0.5, h * 0.12);
+    ctx.moveTo(-h * 0.5, h * 0.5);
+    ctx.lineTo(-h * 0.12, h * 0.5);
+    ctx.stroke();
+  } else if (id === 'series') {
+    [-0.52, 0, 0.52].forEach((yy, i) => {
+      ctx.moveTo(-h * 0.72, yy * h);
+      ctx.lineTo(h * (0.72 - i * 0.26), yy * h);
+    });
+    ctx.stroke();
+  } else if (id === 'target') {
+    ctx.arc(0, 0, h * 0.8, 0, Math.PI * 2);
+    ctx.moveTo(h * 0.44, 0);
+    ctx.arc(0, 0, h * 0.44, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, 0, h * 0.13, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (id === 'clock') {
+    ctx.arc(0, 0, h * 0.8, 0, Math.PI * 2);
+    ctx.moveTo(0, -h * 0.42);
+    ctx.lineTo(0, 0);
+    ctx.lineTo(h * 0.3, h * 0.2);
+    ctx.stroke();
+  } else if (id === 'bow') {
+    ctx.arc(h * 0.9, 0, h * 1.25, Math.PI * 0.68, Math.PI * 1.32);
+    const ax = h * 0.9 + Math.cos(Math.PI * 0.68) * h * 1.25;
+    const ay = Math.sin(Math.PI * 0.68) * h * 1.25;
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(ax, -ay);
+    ctx.moveTo(-h * 0.85, 0);
+    ctx.lineTo(h * 0.85, 0);
+    ctx.moveTo(h * 0.85, 0);
+    ctx.lineTo(h * 0.5, -h * 0.3);
+    ctx.moveTo(h * 0.85, 0);
+    ctx.lineTo(h * 0.5, h * 0.3);
+    ctx.stroke();
+  } else if (id === 'score') {
+    ctx.moveTo(-h * 0.55, -h * 0.78);
+    ctx.lineTo(h * 0.55, -h * 0.78);
+    ctx.lineTo(h * 0.5, -h * 0.1);
+    ctx.quadraticCurveTo(0, h * 0.35, -h * 0.5, -h * 0.1);
+    ctx.closePath();
+    ctx.moveTo(0, h * 0.14);
+    ctx.lineTo(0, h * 0.56);
+    ctx.moveTo(-h * 0.4, h * 0.78);
+    ctx.lineTo(h * 0.4, h * 0.78);
+    ctx.stroke();
+  } else {
+    ctx.arc(0, 0, h * 0.8, 0, Math.PI * 2);
+    ctx.stroke();
+    [[-0.22, -0.18], [0.2, -0.08], [-0.06, 0.24], [0.14, 0.3]].forEach(p => {
+      ctx.beginPath();
+      ctx.arc(p[0] * h, p[1] * h, h * 0.11, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+  ctx.restore();
+}
+function studioEase(g, from, to, colorOf) {
+  for (let i = 0; i <= 10; i++) {
+    const t = i / 10;
+    const e = t * t * (3 - 2 * t);
+    g.addColorStop(from + (to - from) * t, colorOf(e));
+  }
+}
+function studioPhotoCanvas(img, src, w, h, opt) {
+  const o = opt || {};
+  const tag = String(src).length > 160 ? String(src).length + ':' + String(src).slice(-48) : String(src);
+  const key = [tag, w, h, o.focus, o.bright, o.fade, o.tint].join('|');
+  const cache = Studio.card.photoCache || (Studio.card.photoCache = new Map());
+  if (cache.has(key)) return cache.get(key);
+  if (cache.size > 10) cache.clear();
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const x = c.getContext('2d');
+  const scale = Math.max(w / img.naturalWidth, h / img.naturalHeight);
+  const dw = img.naturalWidth * scale, dh = img.naturalHeight * scale;
+  const fy = Number.isFinite(o.focus) ? o.focus : 0.5;
+  x.filter = 'grayscale(1) contrast(1.12) brightness(' + (o.bright || 0.62) + ')';
+  x.drawImage(img, (w - dw) / 2, (h - dh) * fy, dw, dh);
+  x.filter = 'none';
+  if (o.tint) {
+    x.globalCompositeOperation = 'soft-light';
+    x.fillStyle = o.tint;
+    x.fillRect(0, 0, w, h);
+    x.globalCompositeOperation = 'source-over';
+  }
+  const vig = x.createRadialGradient(w / 2, h * 0.45, Math.min(w, h) * 0.3, w / 2, h * 0.5, Math.max(w, h) * 0.75);
+  vig.addColorStop(0, 'rgba(0,0,0,0)');
+  vig.addColorStop(1, 'rgba(0,0,0,.34)');
+  x.fillStyle = vig;
+  x.fillRect(0, 0, w, h);
+  if (o.fade) {
+    x.globalCompositeOperation = 'destination-out';
+    const g = x.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, 'rgba(0,0,0,0)');
+    studioEase(g, o.fade, 1, e => 'rgba(0,0,0,' + e.toFixed(3) + ')');
+    x.fillStyle = g;
+    x.fillRect(0, 0, w, h);
+    x.globalCompositeOperation = 'source-over';
+  }
+  cache.set(key, c);
+  return c;
+}
 function studioCardSheen(ctx, x, y, w, h, r, tilt, gloss, accent) {
   const rx = tilt && Number.isFinite(tilt.x) ? tilt.x : 0;
   const ry = tilt && Number.isFinite(tilt.y) ? tilt.y : 0;
-  const amount = Number.isFinite(gloss) ? gloss : 0.2;
+  const amount = Number.isFinite(gloss) ? gloss : 0.1;
   ctx.save();
   if (r > 0) { studioRound(ctx, x, y, w, h, r); ctx.clip(); }
-  ctx.translate(x + w * 0.22 + (20 + ry) * 14, y + h * 0.06 - rx * 12);
-  ctx.rotate(-0.72);
-  const g = ctx.createLinearGradient(-w * 0.05, 0, w * 0.72, 0);
+  ctx.translate(x + w * 0.3 + ry * 18, y + h * 0.1 - rx * 14);
+  ctx.rotate(-0.62);
+  const g = ctx.createLinearGradient(-w * 0.2, 0, w * 0.8, 0);
   g.addColorStop(0, 'rgba(255,255,255,0)');
-  g.addColorStop(0.36, 'rgba(255,255,255,0)');
-  g.addColorStop(0.46, studioRgba(accent || '#fff', amount * 0.16));
-  g.addColorStop(0.5, 'rgba(255,255,255,' + (0.06 + amount * 0.5) + ')');
-  g.addColorStop(0.55, 'rgba(186,210,255,' + (amount * 0.1) + ')');
-  g.addColorStop(0.64, 'rgba(255,255,255,0)');
+  g.addColorStop(0.38, 'rgba(255,255,255,0)');
+  g.addColorStop(0.47, studioRgba(accent || '#ffffff', amount * 0.35));
+  g.addColorStop(0.52, 'rgba(255,255,255,' + amount.toFixed(3) + ')');
+  g.addColorStop(0.6, 'rgba(255,255,255,0)');
   g.addColorStop(1, 'rgba(255,255,255,0)');
   ctx.fillStyle = g;
   ctx.fillRect(-w * 1.6, -h, w * 3.4, h * 2.8);
   ctx.restore();
 }
-function studioPhotoSrc() {
-  if (Studio.card.photo) return Studio.card.photo;
-  const list = Studio.PRESETS || [];
-  const hit = list.find(p => p.id === Studio.card.preset) || list[0];
-  return hit ? hit.src : '';
-}
-function studioRand(seed) {
-  let s = seed || 1;
-  return () => { s = (s * 48271) % 2147483647; return s / 2147483647; };
-}
-function studioMetalBrush() {
-  if (Studio.card.metalBrush) return Studio.card.metalBrush;
-  const c = document.createElement('canvas');
-  c.width = 48; c.height = 320;
-  const x = c.getContext('2d');
-  const g = x.createLinearGradient(0, 0, 0, 320);
-  g.addColorStop(0, '#c5cad0');
-  g.addColorStop(0.42, '#8e949b');
-  g.addColorStop(1, '#6a7076');
-  x.fillStyle = g;
-  x.fillRect(0, 0, 48, 320);
-  const rnd = studioRand(19);
-  for (let i = 0; i < 900; i++) {
-    const yy = rnd() * 320;
-    x.strokeStyle = rnd() > 0.55 ? 'rgba(255,255,255,.28)' : 'rgba(0,0,0,.18)';
-    x.lineWidth = 1;
-    x.beginPath();
-    x.moveTo(0, yy);
-    x.lineTo(48, yy + (rnd() - 0.5) * 1.2);
-    x.stroke();
-  }
-  Studio.card.metalBrush = c;
-  return c;
-}
-function studioNoiseTile() {
-  if (Studio.card.noiseTile) return Studio.card.noiseTile;
-  const n = 160;
-  const c = document.createElement('canvas');
-  c.width = c.height = n;
-  const x = c.getContext('2d');
-  const img = x.createImageData(n, n);
-  const rnd = studioRand(73);
-  for (let i = 0; i < img.data.length; i += 4) {
-    const v = Math.floor(rnd() * 255);
-    img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
-    img.data[i + 3] = 255;
-  }
-  x.putImageData(img, 0, 0);
-  Studio.card.noiseTile = c;
-  return c;
-}
-function studioCarbonTile() {
-  if (Studio.card.carbonTile) return Studio.card.carbonTile;
-  const cell = 10;
-  const c = document.createElement('canvas');
-  c.width = cell * 4; c.height = cell * 4;
-  const x = c.getContext('2d');
-  for (let yy = 0; yy < 4; yy++) for (let xx = 0; xx < 4; xx++) {
-    const twill = ((xx + yy) % 4) < 2;
-    x.fillStyle = twill ? '#2a2e32' : '#101214';
-    x.fillRect(xx * cell, yy * cell, cell, cell);
-    x.fillStyle = twill ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.35)';
-    x.fillRect(xx * cell, yy * cell, cell, 2);
-  }
-  Studio.card.carbonTile = c;
-  return c;
-}
-function studioPaintFinish(ctx, id, accent, tilt) {
-  const W = 1080, H = 1350;
-  if (id === 'obsidian') {
-    const g = ctx.createLinearGradient(0, 0, W, H);
-    g.addColorStop(0, '#23262c');
-    g.addColorStop(0.45, '#101114');
-    g.addColorStop(1, '#1a1c20');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, W, H);
-    ctx.save();
-    ctx.globalAlpha = 0.22;
-    ctx.fillStyle = ctx.createPattern(studioNoiseTile(), 'repeat');
-    ctx.fillRect(0, 0, W, H);
-    ctx.restore();
-    const ox = (tilt && tilt.y || 0) * 10;
-    const oy = (tilt && tilt.x || 0) * -8;
-    ctx.save();
+function studioSpark(ctx, x, y, w, h, values, color, opt) {
+  const o = opt || {};
+  if (!values || !values.length) {
+    ctx.strokeStyle = o.empty || 'rgba(255,255,255,.18)';
     ctx.lineWidth = 2;
-    [[180 + ox, 980 + oy, 260, 0.2, 1.7], [860 + ox, 640 + oy, 190, 3.6, 5.2], [420 + ox, 1180 + oy, 340, 0.8, 2.1]].forEach(arc => {
-      ctx.beginPath();
-      ctx.arc(arc[0], arc[1], arc[2], arc[3], arc[4]);
-      ctx.strokeStyle = 'rgba(255,255,255,.09)';
-      ctx.stroke();
+    ctx.setLineDash([3, 7]);
+    ctx.beginPath();
+    ctx.moveTo(x, y + h / 2);
+    ctx.lineTo(x + w, y + h / 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    return [];
+  }
+  const max = Math.max.apply(null, values);
+  const min = o.zero ? 0 : Math.min.apply(null, values);
+  const span = max - min || 1;
+  const pts = values.map((v, i) => ({
+    x: x + (values.length === 1 ? w / 2 : (i / (values.length - 1)) * w),
+    y: y + h - ((v - min) / span) * h * 0.82 - h * 0.09
+  }));
+  const path = () => {
+    ctx.beginPath();
+    pts.forEach((p, i) => {
+      if (!i) { ctx.moveTo(p.x, p.y); return; }
+      const q = pts[i - 1];
+      const mx = (q.x + p.x) / 2;
+      ctx.bezierCurveTo(mx, q.y, mx, p.y, p.x, p.y);
     });
-    ctx.restore();
-    const gloss = ctx.createRadialGradient(W * 0.3 + ox, 180 + oy, 10, W * 0.45, 280, 520);
-    gloss.addColorStop(0, 'rgba(255,255,255,.16)');
-    gloss.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = gloss;
-    ctx.fillRect(0, 0, W, H);
-    return;
-  }
-  if (id === 'carbon') {
-    ctx.fillStyle = ctx.createPattern(studioCarbonTile(), 'repeat');
-    ctx.fillRect(0, 0, W, H);
-    const g = ctx.createLinearGradient(0, 0, W, H);
-    g.addColorStop(0, 'rgba(255,255,255,.05)');
-    g.addColorStop(0.5, 'rgba(0,0,0,.18)');
-    g.addColorStop(1, 'rgba(0,0,0,.28)');
+  };
+  if (o.fill) {
+    path();
+    ctx.lineTo(pts[pts.length - 1].x, y + h);
+    ctx.lineTo(pts[0].x, y + h);
+    ctx.closePath();
+    const g = ctx.createLinearGradient(0, y, 0, y + h);
+    g.addColorStop(0, studioRgba(color, o.fill));
+    g.addColorStop(1, studioRgba(color, 0));
     ctx.fillStyle = g;
-    ctx.fillRect(0, 0, W, H);
-    return;
+    ctx.fill();
   }
-  if (id === 'glass') {
-    const g = ctx.createLinearGradient(0, 0, 0, H);
-    g.addColorStop(0, '#1a1d26');
-    g.addColorStop(1, '#0b0c10');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, W, H);
-    const glow = ctx.createRadialGradient(W * 0.5, 160, 20, W * 0.5, 420, 640);
-    glow.addColorStop(0, studioRgba(accent, 0.2));
-    glow.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = glow;
-    ctx.fillRect(0, 0, W, H);
-    const frost = ctx.createLinearGradient(0, 0, 0, 260);
-    frost.addColorStop(0, 'rgba(255,255,255,.1)');
-    frost.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = frost;
-    ctx.fillRect(0, 0, W, 260);
-    return;
-  }
-  ctx.drawImage(studioMetalBrush(), 0, 0, W, H);
-  ctx.fillStyle = studioRgba(accent, 0.07);
-  ctx.fillRect(0, 0, W, H);
-  const shade = ctx.createLinearGradient(0, 0, 0, H);
-  shade.addColorStop(0, 'rgba(255,255,255,.16)');
-  shade.addColorStop(0.35, 'rgba(255,255,255,0)');
-  shade.addColorStop(1, 'rgba(0,0,0,.2)');
-  ctx.fillStyle = shade;
-  ctx.fillRect(0, 0, W, H);
-}
-function studioGradedPhoto(img, src) {
-  const key = String(src) + '|v3';
-  if (Studio.card.gradeKey === key && Studio.card.gradeCanvas) return Studio.card.gradeCanvas;
-  const W = 1080, H = 700;
-  const c = document.createElement('canvas');
-  c.width = W; c.height = H;
-  const x = c.getContext('2d');
-  const scale = Math.max(W / img.naturalWidth, H / img.naturalHeight);
-  const dw = img.naturalWidth * scale, dh = img.naturalHeight * scale;
-  x.filter = 'grayscale(1) contrast(1.05) brightness(0.8)';
-  x.drawImage(img, (W - dw) / 2, Math.min(0, (H - dh) / 2), dw, dh);
-  x.filter = 'none';
-  x.fillStyle = 'rgba(92, 94, 98, 0.46)';
-  x.fillRect(0, 0, W, H);
-  const top = x.createLinearGradient(0, 0, 0, 150);
-  top.addColorStop(0, 'rgba(10,10,12,.55)');
-  top.addColorStop(1, 'rgba(10,10,12,0)');
-  x.fillStyle = top;
-  x.fillRect(0, 0, W, 150);
-  x.globalCompositeOperation = 'destination-out';
-  const fade = x.createLinearGradient(0, 400, 0, H);
-  fade.addColorStop(0, 'rgba(0,0,0,0)');
-  fade.addColorStop(1, 'rgba(0,0,0,1)');
-  x.fillStyle = fade;
-  x.fillRect(0, 400, W, H - 400);
-  Studio.card.gradeKey = key;
-  Studio.card.gradeCanvas = c;
-  return c;
-}
-function studioFill(ctx, text, x, y, color, relief) {
-  if (relief === 'emboss') {
-    ctx.fillStyle = 'rgba(0,0,0,.42)';
-    ctx.fillText(text, x + 1.5, y + 2);
-    ctx.fillStyle = 'rgba(255,255,255,.62)';
-    ctx.fillText(text, x - 0.7, y - 0.8);
-  } else if (relief === 'engrave') {
-    ctx.fillStyle = 'rgba(255,255,255,.4)';
-    ctx.fillText(text, x - 0.7, y - 0.7);
-    ctx.fillStyle = 'rgba(0,0,0,.4)';
-    ctx.fillText(text, x + 1, y + 1.2);
-  }
-  ctx.fillStyle = color;
-  ctx.fillText(text, x, y);
-}
-function studioTrackAt(ctx, text, x, y, tracking, color, relief) {
-  let cx = x;
-  const s = String(text || '');
-  for (const ch of s) {
-    studioFill(ctx, ch, cx, y, color, relief);
-    cx += ctx.measureText(ch).width + tracking;
-  }
-}
-function studioTrackWidth(ctx, text, tracking) {
-  let w = 0;
-  for (const ch of text) w += ctx.measureText(ch).width + tracking;
-  return Math.max(0, w - tracking);
-}
-function studioFit(ctx, text, max, size, weight, family) {
-  let px = size;
-  const font = n => weight + ' ' + n + 'px ' + family;
-  ctx.font = font(px);
-  while (px > 28 && ctx.measureText(text).width > max) {
-    px -= 2;
-    ctx.font = font(px);
-  }
-  return px;
-}
-function studioStatIcon(ctx, id, x, y, s, color) {
-  ctx.save();
-  ctx.translate(x, y);
+  path();
   ctx.strokeStyle = color;
-  ctx.fillStyle = color;
-  ctx.lineWidth = Math.max(2, s * 0.09);
+  ctx.lineWidth = o.lw || 3;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  if (id === 'arrows') {
+  ctx.stroke();
+  const best = Math.min.apply(null, values);
+  pts.forEach((p, i) => {
+    const top = values[i] === best;
     ctx.beginPath();
-    ctx.moveTo(-s * 0.32, s * 0.28);
-    ctx.lineTo(s * 0.3, -s * 0.28);
-    ctx.moveTo(0, -s * 0.28);
-    ctx.lineTo(s * 0.3, -s * 0.28);
-    ctx.lineTo(s * 0.3, 0.02);
-    ctx.stroke();
-  } else if (id === 'series') {
-    [-0.26, 0, 0.26].forEach((yy, i) => {
-      ctx.beginPath();
-      ctx.moveTo(-s * 0.32, yy * s);
-      ctx.lineTo(s * (0.02 + i * 0.14), yy * s);
-      ctx.stroke();
-    });
-  } else if (id === 'time') {
-    ctx.beginPath();
-    ctx.arc(0, 0, s * 0.32, 0, Math.PI * 2);
-    ctx.moveTo(0, -s * 0.16);
-    ctx.lineTo(0, 0);
-    ctx.lineTo(s * 0.14, s * 0.08);
-    ctx.stroke();
-  } else {
-    ctx.beginPath();
-    ctx.arc(0, 0, s * 0.32, 0, Math.PI * 2);
-    ctx.moveTo(-s * 0.18, s * 0.08);
-    ctx.lineTo(0, -s * 0.1);
-    ctx.lineTo(s * 0.2, s * 0.12);
-    ctx.stroke();
-  }
-  ctx.restore();
-}
-function studioTargetFace(ctx, cx, cy, R, impacts, center, accent) {
-  ctx.save();
-  const shade = ctx.createRadialGradient(cx, cy + R * 0.92, R * 0.08, cx, cy + R * 0.98, R * 0.95);
-  shade.addColorStop(0, 'rgba(0,0,0,.32)');
-  shade.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = shade;
-  ctx.beginPath();
-  ctx.ellipse(cx, cy + R * 0.96, R * 0.78, R * 0.11, 0, 0, Math.PI * 2);
-  ctx.fill();
-  const disk = (k, color) => {
-    ctx.beginPath();
-    ctx.arc(cx, cy, R * k, 0, Math.PI * 2);
-    ctx.fillStyle = color;
+    ctx.arc(p.x, p.y, top ? (o.dot || 4) + 2.5 : (o.dot || 4), 0, Math.PI * 2);
+    ctx.fillStyle = top ? color : (o.dotFill || '#ffffff');
     ctx.fill();
-  };
-  disk(1.045, '#f4f0e6');
-  disk(1, '#1a6f9c');
-  disk(0.8, '#c4232c');
-  disk(0.4, '#e4be55');
-  disk(0.2, '#f0d78a');
-  const hair = Math.max(1.25, R * 0.008);
-  const ring = (k, color) => {
-    ctx.beginPath();
-    ctx.arc(cx, cy, R * k, 0, Math.PI * 2);
-    ctx.strokeStyle = color;
-    ctx.lineWidth = hair;
-    ctx.stroke();
-  };
-  ring(1, 'rgba(255,255,255,.42)');
-  ring(0.8, 'rgba(255,255,255,.38)');
-  ring(0.6, 'rgba(255,255,255,.28)');
-  ring(0.4, 'rgba(42,28,8,.42)');
-  ring(0.2, 'rgba(42,28,8,.38)');
-  ring(0.1, 'rgba(42,28,8,.5)');
-  const gloss = ctx.createRadialGradient(cx - R * 0.28, cy - R * 0.34, R * 0.04, cx, cy, R * 1.05);
-  gloss.addColorStop(0, 'rgba(255,255,255,.3)');
-  gloss.addColorStop(0.42, 'rgba(255,255,255,0)');
-  ctx.fillStyle = gloss;
-  disk(1, gloss);
+    if (!top && o.dotLine) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+  });
+  return pts;
+}
+function studioClip(p, lim) {
+  const r = Math.hypot(p.x, p.y);
+  return r > lim ? {x: p.x * lim / r, y: p.y * lim / r} : p;
+}
+function studioMedal(ctx, cx, cy, R, impacts, accent, ink, line) {
+  ctx.save();
   ctx.beginPath();
   ctx.arc(cx, cy, R, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,255,255,.035)';
   ctx.fill();
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  if (R >= 88) {
-    ctx.font = '600 ' + Math.round(R * 0.062) + 'px ' + studioSans;
-    const num = (text, r, color) => { ctx.fillStyle = color; ctx.fillText(text, cx, cy - r); };
-    num('6', R * 0.9, 'rgba(244,248,252,.88)');
-    num('7', R * 0.7, 'rgba(255,236,232,.8)');
-    num('8', R * 0.5, 'rgba(255,236,232,.72)');
-    num('9', R * 0.3, 'rgba(48,32,8,.62)');
-    num('10', R * 0.15, 'rgba(48,32,8,.7)');
-  }
-  if (center) {
-    ctx.fillStyle = 'rgba(48,32,8,.78)';
-    ctx.font = '600 ' + Math.round(R * 0.07) + 'px ' + studioSerif;
-    ctx.fillText(center, cx, cy + R * 0.012);
-  }
+  ctx.beginPath();
+  ctx.arc(cx, cy, R * 0.4, 0, Math.PI * 2);
+  ctx.fillStyle = studioRgba(accent, 0.12);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(cx, cy, R * 0.2, 0, Math.PI * 2);
+  ctx.fillStyle = studioRgba(accent, 0.16);
+  ctx.fill();
+  [1, 0.8, 0.6, 0.4, 0.2].forEach(k => {
+    ctx.beginPath();
+    ctx.arc(cx, cy, R * k, 0, Math.PI * 2);
+    ctx.strokeStyle = line;
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+  });
+  ctx.beginPath();
+  ctx.arc(cx, cy, R * 0.1, 0, Math.PI * 2);
+  ctx.strokeStyle = studioRgba(accent, 0.7);
+  ctx.lineWidth = 1.4;
+  ctx.stroke();
   (impacts || []).forEach((p, i) => {
-    const rr = Math.hypot(p.x, p.y);
-    const lim = 1.02;
-    const sx = rr > lim ? p.x * lim / rr : p.x;
-    const sy = rr > lim ? p.y * lim / rr : p.y;
+    const q = studioClip(p, 1.02);
     const last = i === impacts.length - 1;
     ctx.beginPath();
-    ctx.arc(cx + sx * R, cy + sy * R, last ? R * 0.038 : R * 0.026, 0, Math.PI * 2);
-    ctx.fillStyle = last ? accent : '#f7f4ee';
+    ctx.arc(cx + q.x * R, cy + q.y * R, last ? R * 0.05 : R * 0.034, 0, Math.PI * 2);
+    ctx.fillStyle = last ? accent : ink;
     ctx.fill();
-    ctx.lineWidth = Math.max(1.2, R * 0.008);
-    ctx.strokeStyle = 'rgba(16,12,8,.82)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = 'rgba(0,0,0,.55)';
     ctx.stroke();
   });
   ctx.restore();
 }
-function studioSparkline(ctx, x, y, w, h, bars, accent) {
-  if (!bars || !bars.length) return;
-  const vals = bars.map(b => b.value);
-  const max = Math.max.apply(null, vals);
-  const min = Math.min.apply(null, vals);
-  const span = max - min || 1;
-  const pts = vals.map((v, i) => ({
-    x: x + (vals.length === 1 ? w / 2 : (i / (vals.length - 1)) * w),
-    y: y + h - ((v - min) / span) * (h * 0.86) - h * 0.08
-  }));
-  ctx.beginPath();
-  pts.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
-  ctx.lineTo(pts[pts.length - 1].x, y + h);
-  ctx.lineTo(pts[0].x, y + h);
-  ctx.closePath();
-  const fill = ctx.createLinearGradient(0, y, 0, y + h);
-  fill.addColorStop(0, studioRgba(accent, 0.28));
-  fill.addColorStop(1, studioRgba(accent, 0));
-  ctx.fillStyle = fill;
-  ctx.fill();
-  ctx.beginPath();
-  pts.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
-  ctx.strokeStyle = accent;
-  ctx.lineWidth = 3.5;
-  ctx.lineJoin = 'round';
+function studioRing(ctx, cx, cy, R, pct, accent, track, lw) {
+  ctx.save();
+  ctx.lineWidth = lw;
   ctx.lineCap = 'round';
-  ctx.stroke();
-  const last = pts[pts.length - 1];
   ctx.beginPath();
-  ctx.arc(last.x, last.y, 5.5, 0, Math.PI * 2);
-  ctx.fillStyle = accent;
-  ctx.fill();
-}
-function studioScorePaint(ctx, line, cx, baseline, maxW, ink, muted, relief, align) {
-  const bits = String(line || '–').split(' / ');
-  let big = 132;
-  const fontBig = n => 'normal ' + n + 'px ' + studioSerif;
-  const fontSmall = n => 'normal ' + Math.round(n * 0.42) + 'px ' + studioSerif;
-  const widthOf = () => {
-    ctx.font = fontBig(big);
-    const a = ctx.measureText(bits[0]).width;
-    ctx.font = fontSmall(big);
-    const b = bits[1] ? ctx.measureText(' / ' + bits[1]).width : 0;
-    return {a, b};
-  };
-  let box = widthOf();
-  while (big > 72 && box.a + box.b > maxW) { big -= 4; box = widthOf(); }
-  const x = align === 'left' ? cx : cx - (box.a + box.b) / 2;
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'alphabetic';
-  ctx.font = fontBig(big);
-  studioFill(ctx, bits[0], x, baseline, ink, relief);
-  if (bits[1]) {
-    ctx.font = fontSmall(big);
-    studioFill(ctx, ' / ' + bits[1], x + box.a, baseline, muted, relief);
+  ctx.arc(cx, cy, R, 0, Math.PI * 2);
+  ctx.strokeStyle = track;
+  ctx.stroke();
+  if (pct > 0) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, pct));
+    ctx.strokeStyle = accent;
+    ctx.shadowColor = studioRgba(accent, 0.55);
+    ctx.shadowBlur = 18;
+    ctx.stroke();
   }
+  ctx.restore();
 }
-function studioFinishInk(id) {
-  if (id === 'metal') return {ink: '#2a2d31', muted: '#3c4148', score: '#f6f7f8', scoreMuted: 'rgba(255,255,255,.62)', onPhoto: 'rgba(255,255,255,.9)', relief: 'emboss', label: 'engrave', gloss: 0.62, edge: 'rgba(255,255,255,.7)'};
-  if (id === 'carbon') return {ink: '#f3f0ea', muted: '#b7b2a8', score: '#f7f4ee', scoreMuted: 'rgba(243,240,234,.55)', onPhoto: 'rgba(255,255,255,.9)', relief: '', label: '', gloss: 0.22, edge: ''};
-  if (id === 'glass') return {ink: '#f4f1ea', muted: '#c2bdb4', score: '#f7f4ee', scoreMuted: 'rgba(247,244,238,.5)', onPhoto: 'rgba(255,255,255,.9)', relief: '', label: '', gloss: 0.18, edge: ''};
-  return {ink: '#f4f1ea', muted: '#c8c2b8', score: '#f7f4ee', scoreMuted: 'rgba(247,244,238,.5)', onPhoto: 'rgba(255,255,255,.9)', relief: '', label: '', gloss: 0.28, edge: 'rgba(255,255,255,.22)'};
+function studioFace(ctx) {
+  if (typeof document === 'undefined' || !document.fonts || !document.fonts.load) return;
+  if (Studio.card.fontsAsked) return;
+  Studio.card.fontsAsked = true;
+  Promise.all([300, 400, 500, 600, 700, 200].map(w => document.fonts.load(studioF(w, 40)))).then(() => {
+    if (Studio.shareOpen) studioDrawShare();
+  }).catch(() => {});
 }
+
+function studioPaintGlass(ctx, view, theme, tilt, photo) {
+  const W = 1080, H = 1350, acc = theme.acc;
+  const bg = ctx.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0, '#8d9ee8');
+  bg.addColorStop(0.5, studioMix(acc, '#eadff0', 0.78));
+  bg.addColorStop(1, studioMix(acc, '#fbe1cc', 0.55));
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+  [[90, 1180, 620, 'rgba(110,132,236,.55)'], [1010, 90, 560, studioRgba(studioMix(acc, '#ffd2ad', 0.45), 0.55)], [960, 1050, 520, 'rgba(206,182,246,.4)']].forEach(b => {
+    const g = ctx.createRadialGradient(b[0], b[1], 0, b[0], b[1], b[2]);
+    g.addColorStop(0, b[3]);
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+  });
+  const cx = 128, cy = 56, cw = 824, ch = 1232, r = 46;
+  ctx.save();
+  ctx.shadowColor = 'rgba(30,32,72,.42)';
+  ctx.shadowBlur = 80;
+  ctx.shadowOffsetY = 36;
+  studioRound(ctx, cx, cy, cw, ch, r);
+  ctx.fillStyle = '#161920';
+  ctx.fill();
+  ctx.restore();
+  ctx.save();
+  studioRound(ctx, cx, cy, cw, ch, r);
+  ctx.clip();
+  const base = ctx.createLinearGradient(0, cy, 0, cy + ch);
+  base.addColorStop(0, '#1d2029');
+  base.addColorStop(1, '#111318');
+  ctx.fillStyle = base;
+  ctx.fillRect(cx, cy, cw, ch);
+  const ph = 640;
+  if (photo) ctx.drawImage(studioPhotoCanvas(photo, view.photo, cw, ph, {focus: view.focus, bright: 0.66, fade: 0.5, tint: 'rgba(96,108,140,.55)'}), cx, cy);
+  const topShade = ctx.createLinearGradient(0, cy, 0, cy + 220);
+  topShade.addColorStop(0, 'rgba(8,10,16,.42)');
+  topShade.addColorStop(1, 'rgba(8,10,16,0)');
+  ctx.fillStyle = topShade;
+  ctx.fillRect(cx, cy, cw, 220);
+  const L = cx + 58, R = cx + cw - 58;
+  const onPhoto = 'rgba(255,255,255,.9)';
+  studioText(ctx, 'CADA FLECHA', L, cy + 96, studioF(500, 18), onPhoto, 5.5);
+  studioText(ctx, 'CUENTA', L, cy + 126, studioF(500, 18), onPhoto, 5.5);
+  ctx.fillStyle = studioRgba(acc, 0.9);
+  ctx.fillRect(L, cy + 150, 36, 2.5);
+  studioText(ctx, 'ARCHERY WATCH', R, cy + 96, studioF(600, 15), 'rgba(255,255,255,.7)', 4, 'right');
+  const titleFont = studioF(700, 78);
+  const lines = studioWrap(ctx, view.headline, titleFont, cw - 120, 2);
+  const lastBase = cy + 566;
+  const firstBase = lastBase - (lines.length - 1) * 82;
+  studioText(ctx, view.date, L, firstBase - 92, studioF(500, 19), 'rgba(255,255,255,.76)', 4.5);
+  lines.forEach((t, i) => studioText(ctx, t, L - 3, firstBase + i * 82, titleFont, '#ffffff', -1.5));
+  studioText(ctx, view.kicker, L, lastBase + 50, studioF(500, 18), 'rgba(255,255,255,.6)', 5);
+  const px = cx + 30, pw = cw - 60, py = cy + 660, pH = 224;
+  studioRound(ctx, px, py, pw, pH, 30);
+  ctx.fillStyle = 'rgba(255,255,255,.045)';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,.075)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,.07)';
+  ctx.fillRect(px + pw / 2, py + 30, 1.5, pH - 60);
+  ctx.fillRect(px + 30, py + pH / 2, pw - 60, 1.5);
+  const tones = [acc, '#7b93ff', '#f07a93', '#4cc98a'];
+  const icons = {arrows: 'arrow', series: 'series', avg: 'target', time: 'clock'};
+  view.stats.forEach((cell, i) => {
+    const colX = px + (i % 2) * (pw / 2) + 30;
+    const rowC = py + (i < 2 ? pH * 0.25 : pH * 0.75);
+    const tone = tones[i];
+    ctx.beginPath();
+    ctx.arc(colX + 34, rowC, 34, 0, Math.PI * 2);
+    ctx.fillStyle = studioRgba(tone, 0.2);
+    ctx.fill();
+    ctx.strokeStyle = studioRgba(tone, 0.32);
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    studioIcon(ctx, icons[cell.id] || 'target', colX + 34, rowC, 30, studioMix(tone, '#ffffff', 0.25), 2.4);
+    studioText(ctx, cell.label.toUpperCase(), colX + 92, rowC - 12, studioF(600, 14), '#9ea4b2', 3);
+    studioValue(ctx, cell.value, colX + 92, rowC + 34, studioF(600, 44), studioF(500, 22), '#ffffff', '#9ea4b2');
+  });
+  const by = py + pH + 18, bh = 164;
+  studioRound(ctx, px, by, pw, bh, 30);
+  const band = ctx.createLinearGradient(px, by, px + pw, by + bh);
+  band.addColorStop(0, studioRgba(acc, 0.26));
+  band.addColorStop(1, studioRgba(acc, 0.07));
+  ctx.fillStyle = band;
+  ctx.fill();
+  ctx.strokeStyle = studioRgba(acc, 0.34);
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  const ringX = px + 100, ringY = by + bh / 2;
+  studioRing(ctx, ringX, ringY, 56, view.pct || 0, acc, 'rgba(255,255,255,.1)', 10);
+  studioText(ctx, view.pct != null ? Math.round(view.pct * 100) + '%' : '–', ringX, ringY + 11, studioF(600, 30), '#ffffff', 0, 'center');
+  const tx = px + 196;
+  studioText(ctx, 'PUNTUACIÓN', tx, by + 50, studioF(600, 15), studioMix(acc, '#ffffff', 0.3), 4);
+  const sw = studioText(ctx, view.scoreMain, tx - 2, by + 110, studioF(700, 60), '#ffffff', -1);
+  if (view.scoreMax) studioText(ctx, '/ ' + view.scoreMax, tx + sw + 12, by + 110, studioF(500, 30), 'rgba(255,255,255,.55)');
+  studioText(ctx, view.breakdown || view.scoreNote, tx, by + 142, studioF(400, 21), 'rgba(255,255,255,.72)');
+  const fy = by + bh + 22;
+  ctx.fillStyle = 'rgba(255,255,255,.08)';
+  ctx.fillRect(px, fy, pw, 1.5);
+  const fc = fy + 58;
+  ctx.beginPath();
+  ctx.arc(px + 30, fc, 30, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,255,255,.07)';
+  ctx.fill();
+  studioIcon(ctx, 'bow', px + 30, fc, 30, 'rgba(255,255,255,.88)', 2.2);
+  studioText(ctx, 'MODALIDAD', px + 80, fc - 10, studioF(600, 14), '#9ea4b2', 3);
+  const mpx = studioFitPx(ctx, view.modeLine, pw / 2 - 110, 26, 600, 18);
+  studioText(ctx, view.modeLine, px + 80, fc + 24, studioF(600, mpx), '#ffffff');
+  ctx.fillStyle = 'rgba(255,255,255,.08)';
+  ctx.fillRect(px + pw / 2, fy + 22, 1.5, 72);
+  const sx = px + pw / 2 + 34, sW = pw / 2 - 44;
+  studioText(ctx, 'AGRUPACIÓN', sx, fc - 30, studioF(600, 14), '#9ea4b2', 3);
+  studioSpark(ctx, sx, fc - 16, sW, 44, view.chartValues, acc, {fill: 0.3, dot: 3.5, dotFill: '#1a1d25', dotLine: true, lw: 2.6});
+  studioCardSheen(ctx, cx, cy, cw, ch, r, tilt, 0.07, acc);
+  ctx.restore();
+  studioRound(ctx, cx + 0.75, cy + 0.75, cw - 1.5, ch - 1.5, r);
+  ctx.strokeStyle = 'rgba(255,255,255,.12)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  studioText(ctx, 'ARCHERY WATCH', W / 2, H - 22, studioF(600, 14), 'rgba(28,30,58,.5)', 6, 'center');
+}
+
+function studioPaintEditorial(ctx, view, theme, tilt, photo) {
+  const W = 1080, H = 1350, acc = theme.acc;
+  const cream = '#f7f3ec', ink = '#1c1b19', soft = '#716b63', hair = 'rgba(28,27,25,.09)', block = '#ede7dc';
+  ctx.fillStyle = '#3a3936';
+  ctx.fillRect(0, 0, W, H);
+  if (photo) {
+    ctx.save();
+    ctx.filter = 'blur(34px)';
+    ctx.drawImage(studioPhotoCanvas(photo, view.photo, 540, 675, {focus: view.focus, bright: 0.74}), -60, -60, W + 120, H + 120);
+    ctx.restore();
+  }
+  ctx.fillStyle = 'rgba(24,23,21,.24)';
+  ctx.fillRect(0, 0, W, H);
+  const cx = 104, cy = 40, cw = 872, ch = 1270, r = 40;
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,.4)';
+  ctx.shadowBlur = 70;
+  ctx.shadowOffsetY = 28;
+  studioRound(ctx, cx, cy, cw, ch, r);
+  ctx.fillStyle = cream;
+  ctx.fill();
+  ctx.restore();
+  ctx.save();
+  studioRound(ctx, cx, cy, cw, ch, r);
+  ctx.clip();
+  if (photo) ctx.drawImage(studioPhotoCanvas(photo, view.photo, cw, 380, {focus: view.focus, bright: 0.72, tint: 'rgba(150,140,120,.4)'}), cx, cy);
+  else {
+    ctx.fillStyle = '#4a4844';
+    ctx.fillRect(cx, cy, cw, 380);
+  }
+  const shade = ctx.createLinearGradient(0, cy, 0, cy + 200);
+  shade.addColorStop(0, 'rgba(10,10,10,.4)');
+  shade.addColorStop(1, 'rgba(10,10,10,0)');
+  ctx.fillStyle = shade;
+  ctx.fillRect(cx, cy, cw, 200);
+  const L = cx + 56, R = cx + cw - 56;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,.92)';
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  ctx.arc(L + 18, cy + 72, 17, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(L + 18, cy + 72, 8, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(L + 18, cy + 72, 2.6, 0, Math.PI * 2);
+  ctx.fillStyle = acc;
+  ctx.fill();
+  ctx.restore();
+  studioText(ctx, 'ARCHERY WATCH', L + 50, cy + 70, studioF(600, 16), 'rgba(255,255,255,.95)', 5);
+  studioText(ctx, 'CADA FLECHA CUENTA', L + 50, cy + 96, studioF(500, 12.5), 'rgba(255,255,255,.66)', 4);
+  const pt = cy + 340;
+  const pg = ctx.createLinearGradient(0, pt - 70, 0, pt + 10);
+  pg.addColorStop(0, 'rgba(0,0,0,0)');
+  pg.addColorStop(1, 'rgba(0,0,0,.22)');
+  ctx.fillStyle = pg;
+  ctx.fillRect(cx, pt - 70, cw, 80);
+  studioRound(ctx, cx, pt, cw, ch, 34);
+  ctx.fillStyle = cream;
+  ctx.fill();
+  const tpx = studioFitPx(ctx, view.headline, 560, 58, 750, 36, -1);
+  studioText(ctx, view.headline, L - 2, pt + 92, studioF(750, tpx), ink, -1);
+  studioText(ctx, view.day, R, pt + 90, studioF(300, 64), acc, -1, 'right');
+  studioText(ctx, view.monthYear, R, pt + 122, studioF(600, 14), soft, 3.5, 'right');
+  const sub = studioWrap(ctx, view.summary, studioF(400, 25), 580, 2);
+  sub.forEach((t, i) => studioText(ctx, t, L, pt + 138 + i * 36, studioF(400, 25), soft));
+  ctx.fillStyle = hair;
+  ctx.fillRect(L, pt + 208, R - L, 1.5);
+  const row1 = [
+    {icon: 'score', label: 'PUNTOS', value: view.scoreMax ? view.scoreMain + ' / ' + view.scoreMax : view.scoreMain},
+    {icon: 'target', label: 'MEDIA', value: view.stats[2].value},
+    {icon: 'clock', label: 'DURACIÓN', value: view.stats[3].value}
+  ];
+  const c3 = (R - L) / 3;
+  row1.forEach((m, i) => {
+    const x = L + i * c3 + (i ? 30 : 0);
+    studioIcon(ctx, m.icon, x + 14, pt + 254, 28, acc, 2.4);
+    studioText(ctx, m.label, x, pt + 302, studioF(600, 14), soft, 3);
+    const bits = String(m.value).split(' / ');
+    const w0 = studioValue(ctx, bits[0], x, pt + 348, studioF(750, 42), studioF(600, 22), ink, soft);
+    if (bits[1]) studioText(ctx, '/ ' + bits[1], x + w0 + 8, pt + 348, studioF(600, 22), soft);
+    if (i) {
+      ctx.fillStyle = hair;
+      ctx.fillRect(L + i * c3, pt + 236, 1.5, 120);
+    }
+  });
+  ctx.fillStyle = hair;
+  ctx.fillRect(L, pt + 380, R - L, 1.5);
+  const row2 = [{icon: 'arrow', label: 'FLECHAS', value: view.stats[0].value}, {icon: 'series', label: 'SERIES', value: view.stats[1].value}];
+  const c2 = (R - L) / 2;
+  row2.forEach((m, i) => {
+    const x = L + i * c2 + (i ? 30 : 0);
+    studioIcon(ctx, m.icon, x + 16, pt + 432, 30, acc, 2.4);
+    studioText(ctx, m.label, x + 54, pt + 420, studioF(600, 14), soft, 3);
+    studioText(ctx, m.value, x + 54, pt + 458, studioF(750, 36), ink);
+    if (i) {
+      ctx.fillStyle = hair;
+      ctx.fillRect(L + c2, pt + 400, 1.5, 70);
+    }
+  });
+  const mx = L, my = pt + 494, mw = R - L, mh = 184;
+  ctx.save();
+  studioRound(ctx, mx, my, mw, mh, 24);
+  ctx.fillStyle = block;
+  ctx.fill();
+  ctx.clip();
+  const gx = mx + mw * 0.66, gy = my + mh / 2, GR = mh * 1.3;
+  [[1, 'rgba(60,50,38,.035)'], [0.8, 'rgba(60,50,38,.03)'], [0.6, 'rgba(60,50,38,.03)'], [0.4, studioRgba(acc, 0.1)], [0.2, studioRgba(acc, 0.14)]].forEach(z => {
+    ctx.beginPath();
+    ctx.arc(gx, gy, GR * z[0], 0, Math.PI * 2);
+    ctx.fillStyle = z[1];
+    ctx.fill();
+  });
+  [1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1].forEach(k => {
+    ctx.beginPath();
+    ctx.arc(gx, gy, GR * k, 0, Math.PI * 2);
+    ctx.strokeStyle = k * 10 % 2 ? 'rgba(60,50,38,.09)' : 'rgba(60,50,38,.17)';
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+  });
+  const pts = (view.impacts || []).map(p => studioClip(p, 1.02));
+  pts.forEach((p, i) => {
+    const last = i === pts.length - 1;
+    ctx.beginPath();
+    ctx.arc(gx + p.x * GR, gy + p.y * GR, last ? 9 : 6.5, 0, Math.PI * 2);
+    ctx.fillStyle = last ? acc : '#2b2824';
+    ctx.fill();
+    ctx.lineWidth = 2.2;
+    ctx.strokeStyle = block;
+    ctx.stroke();
+  });
+  if (pts.length >= 2) {
+    const c = StudioScore.groupCenter(pts);
+    ctx.strokeStyle = acc;
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.moveTo(gx + c.x * GR - 12, gy + c.y * GR);
+    ctx.lineTo(gx + c.x * GR + 12, gy + c.y * GR);
+    ctx.moveTo(gx + c.x * GR, gy + c.y * GR - 12);
+    ctx.lineTo(gx + c.x * GR, gy + c.y * GR + 12);
+    ctx.stroke();
+  }
+  const fadeL = ctx.createLinearGradient(mx, 0, mx + mw * 0.55, 0);
+  fadeL.addColorStop(0, block);
+  fadeL.addColorStop(0.62, studioRgba(block, 0.9));
+  fadeL.addColorStop(1, studioRgba(block, 0));
+  ctx.fillStyle = fadeL;
+  ctx.fillRect(mx, my, mw * 0.55, mh);
+  ctx.restore();
+  studioText(ctx, 'MAPA DE IMPACTOS', mx + 28, my + 44, studioF(600, 13.5), soft, 3);
+  studioText(ctx, view.impacts.length ? view.impacts.length + ' impactos' : 'Sin impactos', mx + 28, my + 88, studioF(700, 30), ink);
+  studioText(ctx, view.groupText, mx + 28, my + 122, studioF(400, 21), soft);
+  if (view.impacts.length >= 2) {
+    ctx.strokeStyle = acc;
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.moveTo(mx + 28, my + 152);
+    ctx.lineTo(mx + 46, my + 152);
+    ctx.moveTo(mx + 37, my + 143);
+    ctx.lineTo(mx + 37, my + 161);
+    ctx.stroke();
+    studioText(ctx, 'centro del grupo', mx + 58, my + 158, studioF(500, 15), soft);
+  }
+  const ky = my + mh + 16, kh = 124;
+  studioRound(ctx, mx, ky, mw, kh, 24);
+  ctx.fillStyle = block;
+  ctx.fill();
+  const vals = view.chartValues || [];
+  const max = vals.length ? Math.max.apply(null, vals) : 0;
+  const ax = mx + 104, aw = mw - 136, ay = ky + 46, ah = 44;
+  studioText(ctx, 'AGRUPACIÓN POR SERIE', mx + 26, ky + 30, studioF(600, 12.5), soft, 2.6);
+  studioText(ctx, 'menor es mejor', R - 22, ky + 30, studioF(500, 14), soft, 0, 'right');
+  studioText(ctx, max ? studioAvgText(max) + (view.chartUnit ? ' ' + view.chartUnit : '') : '', mx + 26, ay + 10, studioF(500, 14), soft);
+  studioText(ctx, '0', mx + 26, ay + ah, studioF(500, 14), soft);
+  ctx.fillStyle = hair;
+  ctx.fillRect(ax, ay + ah, aw, 1.5);
+  ctx.setLineDash([3, 6]);
+  ctx.strokeStyle = 'rgba(28,27,25,.12)';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(ax, ay);
+  ctx.lineTo(ax + aw, ay);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  const sp = studioSpark(ctx, ax, ay, aw, ah, vals, acc, {fill: 0.34, zero: true, dot: 4.5, dotFill: block, dotLine: true, lw: 3, empty: 'rgba(28,27,25,.2)'});
+  sp.forEach((p, i) => studioText(ctx, 'S' + (view.chartLabels[i] || i + 1), p.x, ky + kh - 12, studioF(600, 13), soft, 1.5, 'center'));
+  const fy = ky + kh + 24;
+  ctx.fillStyle = hair;
+  ctx.fillRect(L, fy, R - L, 1.5);
+  studioText(ctx, 'Cada flecha cuenta.', L, fy + 50, 'italic 400 30px ' + studioItalic, ink);
+  studioText(ctx, view.serial ? 'SESIÓN ' + view.serial : 'ARCHERY WATCH', R, fy + 46, studioF(600, 13), soft, 3.5, 'right');
+  ctx.restore();
+}
+
+function studioPaintObsidian(ctx, view, theme, tilt, photo) {
+  const W = 1080, H = 1350, acc = theme.acc;
+  const ink = '#f1efea', soft = '#8e8a83', hair = 'rgba(255,255,255,.09)';
+  const stone = ctx.createLinearGradient(0, 0, 0, H);
+  stone.addColorStop(0, '#141416');
+  stone.addColorStop(1, '#070708');
+  ctx.fillStyle = stone;
+  ctx.fillRect(0, 0, W, H);
+  if (photo) ctx.drawImage(studioPhotoCanvas(photo, view.photo, W, 760, {focus: view.focus, bright: 0.6, fade: 0.42}), 0, 0);
+  const lift = ctx.createRadialGradient(W * 0.72, H * 0.86, 20, W * 0.72, H * 0.86, 700);
+  lift.addColorStop(0, studioRgba(acc, 0.07));
+  lift.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = lift;
+  ctx.fillRect(0, 0, W, H);
+  const top = ctx.createLinearGradient(0, 0, 0, 220);
+  top.addColorStop(0, 'rgba(0,0,0,.45)');
+  top.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = top;
+  ctx.fillRect(0, 0, W, 220);
+  const L = 84, R = W - 84;
+  studioText(ctx, 'ARCHERY WATCH', L, 96, studioF(600, 17), 'rgba(255,255,255,.88)', 6);
+  studioText(ctx, view.date, R, 96, studioF(500, 17), 'rgba(255,255,255,.7)', 4, 'right');
+  studioText(ctx, view.kicker, L, 610, studioF(600, 17), studioMix(acc, '#ffffff', 0.2), 5);
+  const tpx = studioFitPx(ctx, view.title, R - L, 56, 300, 34, -0.5);
+  studioText(ctx, view.title, L - 2, 676, studioF(300, tpx), ink, -0.5);
+  const sw = studioText(ctx, view.scoreMain, L - 10, 914, studioF(200, 236), ink, -8);
+  if (view.scoreMax) studioText(ctx, '/ ' + view.scoreMax, L + sw + 6, 914, studioF(300, 50), soft);
+  studioText(ctx, view.breakdown || view.scoreNote, L, 966, studioF(400, 22), soft, 1);
+  studioMedal(ctx, R - 118, 826, 116, view.impacts, acc, ink, 'rgba(255,255,255,.16)');
+  ctx.fillStyle = hair;
+  ctx.fillRect(L, 1012, R - L, 1.5);
+  const colW = (R - L) / 4;
+  view.stats.forEach((cell, i) => {
+    const x = L + colW * i;
+    studioText(ctx, cell.label.toUpperCase(), x, 1066, studioF(500, 14), soft, 3.5);
+    studioValue(ctx, cell.value, x - 2, 1128, studioF(300, 54), studioF(400, 24), ink, soft);
+  });
+  ctx.fillStyle = hair;
+  ctx.fillRect(L, 1168, R - L, 1.5);
+  studioText(ctx, 'AGRUPACIÓN', L, 1222, studioF(500, 14), soft, 3.5);
+  studioText(ctx, 'por serie · menor es mejor', L, 1252, studioF(400, 18), 'rgba(255,255,255,.42)');
+  studioSpark(ctx, L + 360, 1196, R - L - 360, 60, view.chartValues, acc, {fill: 0.22, dot: 4, dotFill: '#0b0b0c', dotLine: true, lw: 2.6});
+  studioText(ctx, 'CADA FLECHA CUENTA', L, 1306, studioF(500, 12.5), 'rgba(255,255,255,.4)', 5);
+  studioText(ctx, view.serial || '', R, 1306, studioF(500, 12.5), 'rgba(255,255,255,.4)', 4, 'right');
+  studioCardSheen(ctx, 0, 0, W, H, 0, tilt, 0.06, acc);
+  const rim = ctx.createLinearGradient(0, 0, 0, 3);
+  rim.addColorStop(0, 'rgba(255,255,255,.16)');
+  rim.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = rim;
+  ctx.fillRect(0, 0, W, 3);
+}
+
 function studioPaintCard(ctx, w, h, layout) {
   const view = studioCardView(layout || Studio.card.layout);
   const theme = Studio.theme();
-  const finish = Studio.FINISHES.some(f => f.id === Studio.card.finish) ? Studio.card.finish : 'metal';
-  const ink = studioFinishInk(finish);
+  const style = Studio.FINISHES.some(f => f.id === Studio.card.finish) ? Studio.card.finish : Studio.FINISHES[0].id;
   const tilt = Studio.card.tilt || {x: 0, y: 0};
   const s = w / 1080;
-  const W = 1080, H = 1350, rad = 44;
+  studioFace(ctx);
   ctx.setTransform(s, 0, 0, s, 0, 0);
-  ctx.clearRect(0, 0, W, H);
-  ctx.fillStyle = '#050506';
-  ctx.fillRect(0, 0, W, H);
-  ctx.save();
-  studioRound(ctx, 0, 0, W, H, rad);
-  ctx.clip();
-  studioPaintFinish(ctx, finish, theme.acc, tilt);
+  ctx.clearRect(0, 0, 1080, 1350);
   const photo = studioHeaderImage(view.photo);
-  if (photo) ctx.drawImage(studioGradedPhoto(photo, view.photo), 0, 0);
-  const left = 72, right = 1008;
-  ctx.textBaseline = 'alphabetic';
-  ctx.font = '600 18px ' + studioSans;
-  ctx.textAlign = 'left';
-  ctx.save();
-  ctx.shadowColor = 'rgba(0,0,0,.45)';
-  ctx.shadowBlur = 8;
-  studioTrackAt(ctx, view.brand, left, 78, 4.2, ink.onPhoto, '');
-  ctx.restore();
-  ctx.font = '600 18px ' + studioSans;
-  ctx.textAlign = 'right';
-  ctx.save();
-  ctx.shadowColor = 'rgba(0,0,0,.45)';
-  ctx.shadowBlur = 8;
-  studioFill(ctx, view.date || '', right, 78, ink.onPhoto, '');
-  ctx.restore();
-  ctx.textAlign = 'left';
-  const title = view.headline || '';
-  const titlePx = studioFit(ctx, title, right - left - 210, 42, '560', studioSans);
-  ctx.font = '560 ' + titlePx + 'px ' + studioSans;
-  studioFill(ctx, title, left, 792, ink.ink, ink.label);
-  ctx.font = '600 18px ' + studioSans;
-  studioTrackAt(ctx, String(view.subtitle || '').toUpperCase(), left, 838, 2.6, ink.muted, ink.label);
-  const scoreRelief = finish === 'metal' ? 'emboss' : '';
-  studioScorePaint(ctx, view.scoreLine, left, 1004, right - left - 250, ink.score, ink.scoreMuted, scoreRelief, 'left');
-  studioTargetFace(ctx, right - 108, 968, 96, view.impacts, view.center, theme.acc);
-  const stats = (view.stats || []).slice(0, 4);
-  const colW = (right - left) / Math.max(1, stats.length);
-  stats.forEach((cell, i) => {
-    const cx = left + colW * i + colW / 2;
-    studioStatIcon(ctx, cell.id, cx, 1116, 26, theme.acc);
-    ctx.textAlign = 'center';
-    const value = cell.value || '–';
-    const px = studioFit(ctx, value, colW - 16, 36, '600', studioNum);
-    ctx.font = '600 ' + px + 'px ' + studioNum;
-    studioFill(ctx, value, cx, 1172, ink.ink, ink.label);
-    ctx.font = '600 14px ' + studioSans;
-    const label = String(cell.label || '').toUpperCase();
-    const lw = studioTrackWidth(ctx, label, 1.6);
-    studioTrackAt(ctx, label, cx - lw / 2, 1206, 1.6, ink.muted, ink.label);
-  });
-  ctx.textAlign = 'left';
-  ctx.font = '600 16px ' + studioSans;
-  studioTrackAt(ctx, String(view.chart || 'AGRUPACIÓN').toUpperCase(), left, 1264, 2, ink.muted, ink.label);
-  const note = String(view.chartNote || '').toUpperCase();
-  ctx.font = '500 14px ' + studioSans;
-  const noteW = studioTrackWidth(ctx, note, 1.3);
-  studioTrackAt(ctx, note, right - noteW, 1264, 1.3, ink.muted, '');
-  const bars = (view.bars || []).slice(-8);
-  if (bars.length) studioSparkline(ctx, left, 1284, right - left, 36, bars, theme.acc);
-  else {
-    ctx.strokeStyle = studioRgba(theme.acc, 0.55);
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.moveTo(left, 1302);
-    ctx.lineTo(right, 1302);
-    ctx.stroke();
-  }
-  ctx.font = '600 14px ' + studioSans;
-  ctx.textAlign = 'left';
-  studioTrackAt(ctx, 'CADA FLECHA CUENTA', left, 1334, 3, ink.muted, ink.label);
-  const gloss = ink.gloss;
-  studioCardSheen(ctx, 0, 0, W, H, rad, tilt, gloss, theme.acc);
-  ctx.restore();
-  ctx.lineWidth = finish === 'metal' ? 2.5 : 1.75;
-  ctx.strokeStyle = finish === 'glass' || finish === 'carbon' ? studioRgba(theme.acc, 0.75) : ink.edge;
-  studioRound(ctx, 1.5, 1.5, W - 3, H - 3, rad);
-  ctx.stroke();
+  if (style === 'editorial') studioPaintEditorial(ctx, view, theme, tilt, photo);
+  else if (style === 'obsidian') studioPaintObsidian(ctx, view, theme, tilt, photo);
+  else studioPaintGlass(ctx, view, theme, tilt, photo);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
 }
 
