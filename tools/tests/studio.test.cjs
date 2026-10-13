@@ -132,7 +132,10 @@ test('the share card is a portrait holographic collectible with a short score li
   assert.equal(best.index, 2);
   assert.equal(best.sum, 20);
   assert.deepEqual(Studio.LAYOUTS.map(t => t.id), ['session', 'profile', 'best']);
-  assert.deepEqual([Studio.SIZES.card.w, Studio.SIZES.card.h], [1080, 1350]);
+  assert.deepEqual(Studio.FINISHES.map(t => t.id), ['metal', 'obsidian', 'glass', 'carbon']);
+  assert.deepEqual(Studio.PRESETS.map(t => t.id), ['range', 'field', 'targets', 'bow']);
+  assert.equal(Studio.card.finish, 'metal');
+  assert.equal(Studio.SIZES.card.w / Studio.SIZES.card.h, 1080 / 1350);
 });
 
 test('the training calendar counts a day and skips the future', () => {

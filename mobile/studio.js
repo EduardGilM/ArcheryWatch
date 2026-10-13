@@ -3,6 +3,7 @@ const StudioScore = (typeof module !== 'undefined') ? require('./score.js') : Sc
 const StudioGoals = (typeof module !== 'undefined') ? require('./goals.js') : Goals;
 const studioSans = "'Geist', system-ui, sans-serif";
 const studioNum = "'Barlow Condensed', sans-serif";
+const studioSerif = "'Liberation Serif', 'DejaVu Serif', Georgia, 'Times New Roman', serif";
 const Studio = {
   lens: 'all',
   picks: new Set(),
@@ -11,7 +12,19 @@ const Studio = {
   picking: false,
   shareOpen: false,
   shareKind: 'session',
-  card: {layout: 'session', tilt: {x: 0, y: 0}, tone: 'dark'},
+  card: {layout: 'session', tilt: {x: 0, y: 0}, tone: 'dark', finish: 'metal', preset: 'range', photo: ''},
+  FINISHES: [
+    {id: 'metal', name: 'Metal'},
+    {id: 'obsidian', name: 'Obsidiana'},
+    {id: 'glass', name: 'Cristal'},
+    {id: 'carbon', name: 'Carbono'}
+  ],
+  PRESETS: [
+    {id: 'range', name: 'Campo', src: 'photos/range.jpg'},
+    {id: 'field', name: 'Pradera', src: 'photos/field.jpg'},
+    {id: 'targets', name: 'Dianas', src: 'photos/targets.jpg'},
+    {id: 'bow', name: 'Arco', src: 'photos/bow.jpg'}
+  ],
   THEMES: [
     {id: 'amber', name: 'Ámbar', acc: '#FF8A1F', acc2: '#FFC15E', glow: 'rgba(255,138,31,.28)', ink: '#1b0f05', soft: 'rgba(255,138,31,.12)', line: 'rgba(255,138,31,.45)'},
     {id: 'electric', name: 'Azul', acc: '#2F6BFF', acc2: '#9DB6FF', glow: 'rgba(47,107,255,.35)', ink: '#06101f', soft: 'rgba(47,107,255,.16)', line: 'rgba(47,107,255,.55)'},
@@ -618,13 +631,51 @@ function studioMount() {
   }
   const gyroBtn = $('shareGyro');
   if (gyroBtn) gyroBtn.onclick = () => studioListenGyro(true);
-  const tone = $('shareTone');
-  if (tone) tone.onclick = e => {
-    const b = e.target.closest('[data-tone]');
-    if (!b) return;
-    Studio.card.tone = b.dataset.tone === 'light' ? 'light' : 'dark';
+  const finishBar = $('shareFinish');
+  if (finishBar) finishBar.onclick = e => {
+    const b = e.target.closest('[data-finish]');
+    if (!b || !Studio.FINISHES.some(f => f.id === b.dataset.finish)) return;
+    Studio.card.finish = b.dataset.finish;
     studioDrawShare();
   };
+  const presets = $('sharePresets');
+  if (presets) {
+    presets.innerHTML = Studio.PRESETS.map(p => `<button type="button" data-preset="${p.id}" aria-label="${p.name}"><img src="${p.src}" alt=""></button>`).join('');
+    presets.onclick = e => {
+      const b = e.target.closest('[data-preset]');
+      if (!b) return;
+      Studio.card.preset = b.dataset.preset;
+      studioSetCardPhoto('');
+    };
+  }
+  const cam = $('shareCam'), camFile = $('shareCamFile'), lib = $('shareLib'), libFile = $('shareLibFile');
+  if (cam && camFile) cam.onclick = () => camFile.click();
+  if (lib && libFile) lib.onclick = () => libFile.click();
+  const onPhotoFile = file => { if (file) studioOpenCrop(file); };
+  if (camFile) camFile.onchange = () => { onPhotoFile(camFile.files && camFile.files[0]); camFile.value = ''; };
+  if (libFile) libFile.onchange = () => { onPhotoFile(libFile.files && libFile.files[0]); libFile.value = ''; };
+  const clearPhoto = $('sharePhotoClear');
+  if (clearPhoto) clearPhoto.onclick = () => studioSetCardPhoto('');
+  const cropCanvas = $('cropCanvas');
+  if (cropCanvas) {
+    cropCanvas.onpointerdown = e => { studioCrop.drag = {x: e.clientX, y: e.clientY, ox: studioCrop.x, oy: studioCrop.y}; cropCanvas.setPointerCapture?.(e.pointerId); };
+    cropCanvas.onpointermove = e => {
+      if (!studioCrop.drag) return;
+      const rect = cropCanvas.getBoundingClientRect();
+      const sx = cropCanvas.width / Math.max(1, rect.width);
+      const sy = cropCanvas.height / Math.max(1, rect.height);
+      studioCrop.x = studioCrop.drag.ox + (e.clientX - studioCrop.drag.x) * sx;
+      studioCrop.y = studioCrop.drag.oy + (e.clientY - studioCrop.drag.y) * sy;
+      studioDrawCrop();
+    };
+    cropCanvas.onpointerup = cropCanvas.onpointercancel = () => { studioCrop.drag = null; };
+  }
+  const cropZoom = $('cropZoom');
+  if (cropZoom) cropZoom.oninput = () => studioCropZoom(Number(cropZoom.value));
+  const cropUse = $('cropUse');
+  if (cropUse) cropUse.onclick = () => studioCommitCrop();
+  const cropCancel = $('cropCancel');
+  if (cropCancel) cropCancel.onclick = () => studioCloseCrop();
   if (typeof DeviceOrientationEvent === 'undefined' || typeof DeviceOrientationEvent.requestPermission !== 'function') {
     if (gyroBtn) gyroBtn.hidden = true;
     studioListenGyro(false);
@@ -837,8 +888,15 @@ function studioModes() {
 function studioSyncShare() {
   const box = document.getElementById('shareThumbs');
   if (box) box.querySelectorAll('[data-layout]').forEach(b => b.classList.toggle('on', b.dataset.layout === Studio.card.layout));
-  const tone = document.getElementById('shareTone');
-  if (tone) tone.querySelectorAll('[data-tone]').forEach(b => b.classList.toggle('sel', b.dataset.tone === (Studio.card.tone === 'light' ? 'light' : 'dark')));
+  const finish = Studio.card.finish || 'metal';
+  document.querySelectorAll('#shareFinish [data-finish]').forEach(b => {
+    const on = b.dataset.finish === finish;
+    b.classList.toggle('sel', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+  document.querySelectorAll('#sharePresets [data-preset]').forEach(b => b.classList.toggle('on', !Studio.card.photo && b.dataset.preset === Studio.card.preset));
+  const clear = document.getElementById('sharePhotoClear');
+  if (clear) clear.hidden = !Studio.card.photo;
 }
 
 function studioTilt(rx, ry) {
@@ -1128,7 +1186,7 @@ function studioCardView(layout) {
     duration = anySpan ? span : null;
     bars = sessions.slice(-12).map((s, i) => ({n: i + 1, rows: Studio.scorePool(s.shots)}));
     chart = bars.some(b => studioSpread(b.rows) != null) ? 'Agrupación' : 'Estabilidad de puntería';
-    return studioCardPack(headline, subtitle, when, shots, sets.length, duration, bars, chart, grouped, profile.photo || '');
+    return studioCardPack(headline, subtitle, when, shots, sets.length, duration, bars, chart, grouped, studioPhotoSrc());
   }
   if (layout === 'best') {
     const best = Studio.bestSet(sessionShots.length ? sessionShots : history);
@@ -1141,7 +1199,7 @@ function studioCardView(layout) {
   }
   chart = bars.some(b => studioSpread(b.rows) != null) ? 'Agrupación' : 'Estabilidad de puntería';
   const sets = studioSetsOf(shots);
-  return studioCardPack(headline, subtitle, when, shots, sets.length, duration, bars, chart, format, profile.photo || '');
+  return studioCardPack(headline, subtitle, when, shots, sets.length, duration, bars, chart, format, studioPhotoSrc());
 }
 function studioCardPack(headline, subtitle, when, shots, series, duration, bars, chart, format, photo) {
   const totals = StudioScore.totals(shots);
@@ -1160,8 +1218,8 @@ function studioCardPack(headline, subtitle, when, shots, series, duration, bars,
     stats: [
       {id: 'arrows', label: 'Flechas', value: String(totals.arrows || 0)},
       {id: 'series', label: 'Series', value: String(series || 0)},
-      {id: 'time', label: 'Duración', value: studioDurationText(duration)},
-      {id: 'avg', label: 'Media', value: studioAvgText(totals.avg)}
+      {id: 'avg', label: 'Media', value: studioAvgText(totals.avg)},
+      {id: 'time', label: 'Duración', value: studioDurationText(duration)}
     ],
     chart, chartNote: 'Menor es mejor',
     bars: measured.slice(-12),
@@ -1170,8 +1228,8 @@ function studioCardPack(headline, subtitle, when, shots, series, duration, bars,
 }
 
 function studioPalette(tone) {
-  if (tone === 'light') return {bg: '#f6f3ec', ink: '#16161a', muted: '#5c5c66', onPhoto: '#ffffff'};
-  return {bg: '#121316', ink: '#f4f5f7', muted: '#a3a3ab', onPhoto: '#ffffff'};
+  if (tone === 'light') return {field: '#e6e1d6', glass: '#f6f3ec', ink: '#1b1916', muted: '#6d685f', onPhoto: '#f7f4ee'};
+  return {field: '#050506', glass: '#0c0c0e', ink: '#f3f1ec', muted: '#9b968d', onPhoto: '#f7f4ee'};
 }
 function studioHeaderImage(src) {
   if (!src || typeof Image === 'undefined') return null;
@@ -1185,78 +1243,308 @@ function studioHeaderImage(src) {
   }
   return Studio.card.photoImg && Studio.card.photoImg.complete && Studio.card.photoImg.naturalWidth ? Studio.card.photoImg : null;
 }
-function studioRangeScene(tone, accent) {
-  const key = tone + '|' + accent;
-  if (Studio.card.rangeKey === key && Studio.card.rangeCanvas) return Studio.card.rangeCanvas;
-  const c = document.createElement('canvas');
-  c.width = 540;
-  c.height = 680;
-  const x = c.getContext('2d');
-  const w = 540, h = 680;
-  const sky = x.createLinearGradient(0, 0, 0, h);
-  if (tone === 'light') {
-    sky.addColorStop(0, '#c5d7e8');
-    sky.addColorStop(0.38, '#f3e6d2');
-    sky.addColorStop(0.62, '#d7c4a4');
-    sky.addColorStop(1, '#b7c48a');
-  } else {
-    sky.addColorStop(0, '#17283c');
-    sky.addColorStop(0.34, '#3d5168');
-    sky.addColorStop(0.58, '#8a6244');
-    sky.addColorStop(1, '#2c3424');
-  }
-  x.fillStyle = sky;
-  x.fillRect(0, 0, w, h);
-  const sun = x.createRadialGradient(w * 0.74, h * 0.2, 6, w * 0.74, h * 0.2, 180);
-  sun.addColorStop(0, studioRgba(accent, tone === 'light' ? 0.7 : 0.55));
-  sun.addColorStop(1, 'rgba(0,0,0,0)');
-  x.fillStyle = sun;
-  x.fillRect(0, 0, w, h);
-  x.fillStyle = tone === 'light' ? '#6e8a52' : '#243222';
-  x.beginPath();
-  x.moveTo(0, h * 0.66);
-  for (let i = 0; i <= 14; i++) x.lineTo((i / 14) * w, h * (0.56 + (i % 3) * 0.018));
-  x.lineTo(w, h);
-  x.lineTo(0, h);
-  x.fill();
-  x.fillStyle = tone === 'light' ? '#8fa86c' : '#3a4a30';
-  x.fillRect(0, h * 0.64, w, h);
-  [0.16, 0.34, 0.52, 0.7, 0.86].forEach((fx, i) => {
-    const bx = w * fx, by = h * 0.55, bw = 26 + (i % 2) * 6, bh = 52;
-    x.fillStyle = tone === 'light' ? '#d9c7ae' : '#6d5c49';
-    x.fillRect(bx, by, 4, bh);
-    x.fillRect(bx + bw, by, 4, bh);
-    x.fillRect(bx, by + bh - 6, bw + 4, 6);
-    x.beginPath();
-    x.arc(bx + bw / 2, by + 18, 16, 0, Math.PI * 2);
-    x.fillStyle = i % 2 ? '#3e6278' : '#a34b48';
-    x.fill();
-    x.beginPath();
-    x.arc(bx + bw / 2, by + 18, 7, 0, Math.PI * 2);
-    x.fillStyle = '#f0e2b8';
-    x.fill();
-  });
-  Studio.card.rangeKey = key;
-  Studio.card.rangeCanvas = c;
-  return c;
+function studioSetCardPhoto(url) {
+  Studio.card.photo = url || '';
+  Studio.card.photoSrc = '';
+  Studio.card.photoImg = null;
+  Studio.card.gradeKey = '';
+  Studio.card.gradeCanvas = null;
+  if (Studio.shareOpen) studioDrawShare();
+  if (typeof studioSyncShare === 'function') studioSyncShare();
 }
-function studioCardSheen(ctx, x, y, w, h, r, tilt, tone) {
-  const shift = tilt && Number.isFinite(tilt.y) ? tilt.y : 8;
+const studioCrop = {img: null, url: '', zoom: 1, x: 0, y: 0, drag: null, ready: false};
+function studioCropBox() {
+  const canvas = document.getElementById('cropCanvas');
+  return {canvas, w: canvas ? canvas.width : 900, h: canvas ? canvas.height : 620};
+}
+function studioCropScale() {
+  const img = studioCrop.img;
+  const {w, h} = studioCropBox();
+  if (!img) return 1;
+  return Math.max(w / img.naturalWidth, h / img.naturalHeight) * studioCrop.zoom;
+}
+function studioDrawCrop() {
+  const {canvas, w, h} = studioCropBox();
+  const img = studioCrop.img;
+  if (!canvas || !img) return;
+  const s = studioCropScale();
+  const dw = img.naturalWidth * s, dh = img.naturalHeight * s;
+  if (studioCrop.x > 0) studioCrop.x = 0;
+  if (studioCrop.y > 0) studioCrop.y = 0;
+  if (studioCrop.x + dw < w) studioCrop.x = w - dw;
+  if (studioCrop.y + dh < h) studioCrop.y = h - dh;
+  const x = canvas.getContext('2d');
+  x.clearRect(0, 0, w, h);
+  x.drawImage(img, studioCrop.x, studioCrop.y, dw, dh);
+}
+function studioCropZoom(z) {
+  const img = studioCrop.img;
+  if (!img) return;
+  const {w, h} = studioCropBox();
+  const prev = studioCropScale();
+  const cx = w / 2, cy = h / 2;
+  const ix = (cx - studioCrop.x) / prev;
+  const iy = (cy - studioCrop.y) / prev;
+  studioCrop.zoom = Math.max(1, Math.min(3, z || 1));
+  const next = studioCropScale();
+  studioCrop.x = cx - ix * next;
+  studioCrop.y = cy - iy * next;
+  studioDrawCrop();
+}
+function studioOpenCrop(file) {
+  const img = new Image();
+  const url = URL.createObjectURL(file);
+  img.onload = () => {
+    studioCrop.img = img;
+    studioCrop.url = url;
+    studioCrop.zoom = 1;
+    studioCrop.ready = false;
+    const {w, h} = studioCropBox();
+    const s = Math.max(w / img.naturalWidth, h / img.naturalHeight);
+    studioCrop.x = (w - img.naturalWidth * s) / 2;
+    studioCrop.y = (h - img.naturalHeight * s) / 2;
+    const sheet = document.getElementById('cropSheet');
+    const zoom = document.getElementById('cropZoom');
+    if (zoom) zoom.value = '1';
+    if (sheet) sheet.hidden = false;
+    studioDrawCrop();
+  };
+  img.onerror = () => URL.revokeObjectURL(url);
+  img.src = url;
+}
+function studioCloseCrop() {
+  const sheet = document.getElementById('cropSheet');
+  if (sheet) sheet.hidden = true;
+  if (studioCrop.url) URL.revokeObjectURL(studioCrop.url);
+  studioCrop.img = null;
+  studioCrop.url = '';
+  studioCrop.drag = null;
+}
+function studioCommitCrop() {
+  const img = studioCrop.img;
+  if (!img) return;
+  const {w, h} = studioCropBox();
+  const outW = 1080, outH = Math.round(1080 * h / w);
+  const k = outW / w;
+  const c = document.createElement('canvas');
+  c.width = outW;
+  c.height = outH;
+  const s = studioCropScale() * k;
+  c.getContext('2d').drawImage(img, studioCrop.x * k, studioCrop.y * k, img.naturalWidth * s, img.naturalHeight * s);
+  let q = 0.84, url = c.toDataURL('image/jpeg', q);
+  while (url.length > 480000 && q > 0.5) { q -= 0.08; url = c.toDataURL('image/jpeg', q); }
+  studioCloseCrop();
+  studioSetCardPhoto(url);
+}
+function studioCardSheen(ctx, x, y, w, h, r, tilt, gloss, accent) {
+  const rx = tilt && Number.isFinite(tilt.x) ? tilt.x : 0;
+  const ry = tilt && Number.isFinite(tilt.y) ? tilt.y : 0;
+  const amount = Number.isFinite(gloss) ? gloss : 0.2;
   ctx.save();
-  studioRound(ctx, x, y, w, h, r);
-  ctx.clip();
-  ctx.translate(x + w * 0.55 + shift * 12, y + h * 0.32);
-  ctx.rotate(-0.6);
-  const g = ctx.createLinearGradient(-w, 0, w, 0);
-  const a = tone === 'light' ? 0.2 : 0.12;
+  if (r > 0) { studioRound(ctx, x, y, w, h, r); ctx.clip(); }
+  ctx.translate(x + w * 0.22 + (20 + ry) * 14, y + h * 0.06 - rx * 12);
+  ctx.rotate(-0.72);
+  const g = ctx.createLinearGradient(-w * 0.05, 0, w * 0.72, 0);
   g.addColorStop(0, 'rgba(255,255,255,0)');
-  g.addColorStop(0.46, 'rgba(255,255,255,0)');
-  g.addColorStop(0.5, 'rgba(255,255,255,' + a + ')');
-  g.addColorStop(0.55, 'rgba(255,255,255,0)');
+  g.addColorStop(0.36, 'rgba(255,255,255,0)');
+  g.addColorStop(0.46, studioRgba(accent || '#fff', amount * 0.16));
+  g.addColorStop(0.5, 'rgba(255,255,255,' + (0.06 + amount * 0.5) + ')');
+  g.addColorStop(0.55, 'rgba(186,210,255,' + (amount * 0.1) + ')');
+  g.addColorStop(0.64, 'rgba(255,255,255,0)');
   g.addColorStop(1, 'rgba(255,255,255,0)');
   ctx.fillStyle = g;
-  ctx.fillRect(-w * 1.6, -h, w * 3.2, h * 2);
+  ctx.fillRect(-w * 1.6, -h, w * 3.4, h * 2.8);
   ctx.restore();
+}
+function studioPhotoSrc() {
+  if (Studio.card.photo) return Studio.card.photo;
+  const list = Studio.PRESETS || [];
+  const hit = list.find(p => p.id === Studio.card.preset) || list[0];
+  return hit ? hit.src : '';
+}
+function studioRand(seed) {
+  let s = seed || 1;
+  return () => { s = (s * 48271) % 2147483647; return s / 2147483647; };
+}
+function studioMetalBrush() {
+  if (Studio.card.metalBrush) return Studio.card.metalBrush;
+  const c = document.createElement('canvas');
+  c.width = 48; c.height = 320;
+  const x = c.getContext('2d');
+  const g = x.createLinearGradient(0, 0, 0, 320);
+  g.addColorStop(0, '#c5cad0');
+  g.addColorStop(0.42, '#8e949b');
+  g.addColorStop(1, '#6a7076');
+  x.fillStyle = g;
+  x.fillRect(0, 0, 48, 320);
+  const rnd = studioRand(19);
+  for (let i = 0; i < 900; i++) {
+    const yy = rnd() * 320;
+    x.strokeStyle = rnd() > 0.55 ? 'rgba(255,255,255,.28)' : 'rgba(0,0,0,.18)';
+    x.lineWidth = 1;
+    x.beginPath();
+    x.moveTo(0, yy);
+    x.lineTo(48, yy + (rnd() - 0.5) * 1.2);
+    x.stroke();
+  }
+  Studio.card.metalBrush = c;
+  return c;
+}
+function studioNoiseTile() {
+  if (Studio.card.noiseTile) return Studio.card.noiseTile;
+  const n = 160;
+  const c = document.createElement('canvas');
+  c.width = c.height = n;
+  const x = c.getContext('2d');
+  const img = x.createImageData(n, n);
+  const rnd = studioRand(73);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const v = Math.floor(rnd() * 255);
+    img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
+    img.data[i + 3] = 255;
+  }
+  x.putImageData(img, 0, 0);
+  Studio.card.noiseTile = c;
+  return c;
+}
+function studioCarbonTile() {
+  if (Studio.card.carbonTile) return Studio.card.carbonTile;
+  const cell = 10;
+  const c = document.createElement('canvas');
+  c.width = cell * 4; c.height = cell * 4;
+  const x = c.getContext('2d');
+  for (let yy = 0; yy < 4; yy++) for (let xx = 0; xx < 4; xx++) {
+    const twill = ((xx + yy) % 4) < 2;
+    x.fillStyle = twill ? '#2a2e32' : '#101214';
+    x.fillRect(xx * cell, yy * cell, cell, cell);
+    x.fillStyle = twill ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.35)';
+    x.fillRect(xx * cell, yy * cell, cell, 2);
+  }
+  Studio.card.carbonTile = c;
+  return c;
+}
+function studioPaintFinish(ctx, id, accent, tilt) {
+  const W = 1080, H = 1350;
+  if (id === 'obsidian') {
+    const g = ctx.createLinearGradient(0, 0, W, H);
+    g.addColorStop(0, '#23262c');
+    g.addColorStop(0.45, '#101114');
+    g.addColorStop(1, '#1a1c20');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    ctx.save();
+    ctx.globalAlpha = 0.22;
+    ctx.fillStyle = ctx.createPattern(studioNoiseTile(), 'repeat');
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+    const ox = (tilt && tilt.y || 0) * 10;
+    const oy = (tilt && tilt.x || 0) * -8;
+    ctx.save();
+    ctx.lineWidth = 2;
+    [[180 + ox, 980 + oy, 260, 0.2, 1.7], [860 + ox, 640 + oy, 190, 3.6, 5.2], [420 + ox, 1180 + oy, 340, 0.8, 2.1]].forEach(arc => {
+      ctx.beginPath();
+      ctx.arc(arc[0], arc[1], arc[2], arc[3], arc[4]);
+      ctx.strokeStyle = 'rgba(255,255,255,.09)';
+      ctx.stroke();
+    });
+    ctx.restore();
+    const gloss = ctx.createRadialGradient(W * 0.3 + ox, 180 + oy, 10, W * 0.45, 280, 520);
+    gloss.addColorStop(0, 'rgba(255,255,255,.16)');
+    gloss.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = gloss;
+    ctx.fillRect(0, 0, W, H);
+    return;
+  }
+  if (id === 'carbon') {
+    ctx.fillStyle = ctx.createPattern(studioCarbonTile(), 'repeat');
+    ctx.fillRect(0, 0, W, H);
+    const g = ctx.createLinearGradient(0, 0, W, H);
+    g.addColorStop(0, 'rgba(255,255,255,.05)');
+    g.addColorStop(0.5, 'rgba(0,0,0,.18)');
+    g.addColorStop(1, 'rgba(0,0,0,.28)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    return;
+  }
+  if (id === 'glass') {
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#1a1d26');
+    g.addColorStop(1, '#0b0c10');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    const glow = ctx.createRadialGradient(W * 0.5, 160, 20, W * 0.5, 420, 640);
+    glow.addColorStop(0, studioRgba(accent, 0.2));
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, W, H);
+    const frost = ctx.createLinearGradient(0, 0, 0, 260);
+    frost.addColorStop(0, 'rgba(255,255,255,.1)');
+    frost.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = frost;
+    ctx.fillRect(0, 0, W, 260);
+    return;
+  }
+  ctx.drawImage(studioMetalBrush(), 0, 0, W, H);
+  ctx.fillStyle = studioRgba(accent, 0.07);
+  ctx.fillRect(0, 0, W, H);
+  const shade = ctx.createLinearGradient(0, 0, 0, H);
+  shade.addColorStop(0, 'rgba(255,255,255,.16)');
+  shade.addColorStop(0.35, 'rgba(255,255,255,0)');
+  shade.addColorStop(1, 'rgba(0,0,0,.2)');
+  ctx.fillStyle = shade;
+  ctx.fillRect(0, 0, W, H);
+}
+function studioGradedPhoto(img, src) {
+  const key = String(src) + '|v3';
+  if (Studio.card.gradeKey === key && Studio.card.gradeCanvas) return Studio.card.gradeCanvas;
+  const W = 1080, H = 700;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const x = c.getContext('2d');
+  const scale = Math.max(W / img.naturalWidth, H / img.naturalHeight);
+  const dw = img.naturalWidth * scale, dh = img.naturalHeight * scale;
+  x.filter = 'grayscale(1) contrast(1.05) brightness(0.8)';
+  x.drawImage(img, (W - dw) / 2, Math.min(0, (H - dh) / 2), dw, dh);
+  x.filter = 'none';
+  x.fillStyle = 'rgba(92, 94, 98, 0.46)';
+  x.fillRect(0, 0, W, H);
+  const top = x.createLinearGradient(0, 0, 0, 150);
+  top.addColorStop(0, 'rgba(10,10,12,.55)');
+  top.addColorStop(1, 'rgba(10,10,12,0)');
+  x.fillStyle = top;
+  x.fillRect(0, 0, W, 150);
+  x.globalCompositeOperation = 'destination-out';
+  const fade = x.createLinearGradient(0, 400, 0, H);
+  fade.addColorStop(0, 'rgba(0,0,0,0)');
+  fade.addColorStop(1, 'rgba(0,0,0,1)');
+  x.fillStyle = fade;
+  x.fillRect(0, 400, W, H - 400);
+  Studio.card.gradeKey = key;
+  Studio.card.gradeCanvas = c;
+  return c;
+}
+function studioFill(ctx, text, x, y, color, relief) {
+  if (relief === 'emboss') {
+    ctx.fillStyle = 'rgba(0,0,0,.42)';
+    ctx.fillText(text, x + 1.5, y + 2);
+    ctx.fillStyle = 'rgba(255,255,255,.62)';
+    ctx.fillText(text, x - 0.7, y - 0.8);
+  } else if (relief === 'engrave') {
+    ctx.fillStyle = 'rgba(255,255,255,.4)';
+    ctx.fillText(text, x - 0.7, y - 0.7);
+    ctx.fillStyle = 'rgba(0,0,0,.4)';
+    ctx.fillText(text, x + 1, y + 1.2);
+  }
+  ctx.fillStyle = color;
+  ctx.fillText(text, x, y);
+}
+function studioTrackAt(ctx, text, x, y, tracking, color, relief) {
+  let cx = x;
+  const s = String(text || '');
+  for (const ch of s) {
+    studioFill(ctx, ch, cx, y, color, relief);
+    cx += ctx.measureText(ch).width + tracking;
+  }
 }
 function studioTrackWidth(ctx, text, tracking) {
   let w = 0;
@@ -1315,9 +1603,12 @@ function studioStatIcon(ctx, id, x, y, s, color) {
 }
 function studioTargetFace(ctx, cx, cy, R, impacts, center, accent) {
   ctx.save();
-  ctx.fillStyle = 'rgba(0,0,0,.16)';
+  const shade = ctx.createRadialGradient(cx, cy + R * 0.92, R * 0.08, cx, cy + R * 0.98, R * 0.95);
+  shade.addColorStop(0, 'rgba(0,0,0,.32)');
+  shade.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = shade;
   ctx.beginPath();
-  ctx.ellipse(cx, cy + R + 16, R * 0.62, 12, 0, 0, Math.PI * 2);
+  ctx.ellipse(cx, cy + R * 0.96, R * 0.78, R * 0.11, 0, 0, Math.PI * 2);
   ctx.fill();
   const disk = (k, color) => {
     ctx.beginPath();
@@ -1325,191 +1616,214 @@ function studioTargetFace(ctx, cx, cy, R, impacts, center, accent) {
     ctx.fillStyle = color;
     ctx.fill();
   };
-  disk(1, '#3E6278');
-  disk(0.8, '#A34B48');
-  disk(0.4, '#E6CC8E');
-  disk(0.2, '#F6E7C2');
-  ctx.strokeStyle = 'rgba(28,22,16,.5)';
-  ctx.lineWidth = Math.max(1.5, R * 0.012);
-  [1, 0.8, 0.6, 0.4, 0.2, 0.1].forEach(k => {
+  disk(1.045, '#f4f0e6');
+  disk(1, '#1a6f9c');
+  disk(0.8, '#c4232c');
+  disk(0.4, '#e4be55');
+  disk(0.2, '#f0d78a');
+  const hair = Math.max(1.25, R * 0.008);
+  const ring = (k, color) => {
     ctx.beginPath();
     ctx.arc(cx, cy, R * k, 0, Math.PI * 2);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = hair;
     ctx.stroke();
-  });
+  };
+  ring(1, 'rgba(255,255,255,.42)');
+  ring(0.8, 'rgba(255,255,255,.38)');
+  ring(0.6, 'rgba(255,255,255,.28)');
+  ring(0.4, 'rgba(42,28,8,.42)');
+  ring(0.2, 'rgba(42,28,8,.38)');
+  ring(0.1, 'rgba(42,28,8,.5)');
+  const gloss = ctx.createRadialGradient(cx - R * 0.28, cy - R * 0.34, R * 0.04, cx, cy, R * 1.05);
+  gloss.addColorStop(0, 'rgba(255,255,255,.3)');
+  gloss.addColorStop(0.42, 'rgba(255,255,255,0)');
+  ctx.fillStyle = gloss;
+  disk(1, gloss);
+  ctx.beginPath();
+  ctx.arc(cx, cy, R, 0, Math.PI * 2);
+  ctx.fill();
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = '600 ' + Math.round(R * 0.072) + 'px ' + studioSans;
-  const num = (text, r, color) => { ctx.fillStyle = color; ctx.fillText(text, cx, cy - r); };
-  num('6', R * 0.9, 'rgba(236,242,246,.9)');
-  num('7', R * 0.7, 'rgba(42,18,18,.72)');
-  num('8', R * 0.5, 'rgba(42,18,18,.72)');
-  num('9', R * 0.3, 'rgba(44,36,22,.7)');
-  num('10', R * 0.15, 'rgba(44,36,22,.7)');
+  if (R >= 88) {
+    ctx.font = '600 ' + Math.round(R * 0.062) + 'px ' + studioSans;
+    const num = (text, r, color) => { ctx.fillStyle = color; ctx.fillText(text, cx, cy - r); };
+    num('6', R * 0.9, 'rgba(244,248,252,.88)');
+    num('7', R * 0.7, 'rgba(255,236,232,.8)');
+    num('8', R * 0.5, 'rgba(255,236,232,.72)');
+    num('9', R * 0.3, 'rgba(48,32,8,.62)');
+    num('10', R * 0.15, 'rgba(48,32,8,.7)');
+  }
   if (center) {
-    ctx.fillStyle = 'rgba(44,36,22,.78)';
-    ctx.font = '700 ' + Math.round(R * 0.085) + 'px ' + studioSans;
-    ctx.fillText(center, cx, cy + R * 0.01);
+    ctx.fillStyle = 'rgba(48,32,8,.78)';
+    ctx.font = '600 ' + Math.round(R * 0.07) + 'px ' + studioSerif;
+    ctx.fillText(center, cx, cy + R * 0.012);
   }
   (impacts || []).forEach((p, i) => {
     const rr = Math.hypot(p.x, p.y);
-    const lim = 1.06;
+    const lim = 1.02;
     const sx = rr > lim ? p.x * lim / rr : p.x;
     const sy = rr > lim ? p.y * lim / rr : p.y;
     const last = i === impacts.length - 1;
     ctx.beginPath();
-    ctx.arc(cx + sx * R, cy + sy * R, last ? R * 0.042 : R * 0.03, 0, Math.PI * 2);
-    ctx.fillStyle = last ? accent : '#F7F4EE';
+    ctx.arc(cx + sx * R, cy + sy * R, last ? R * 0.038 : R * 0.026, 0, Math.PI * 2);
+    ctx.fillStyle = last ? accent : '#f7f4ee';
     ctx.fill();
-    ctx.lineWidth = Math.max(1.4, R * 0.01);
-    ctx.strokeStyle = 'rgba(20,16,12,.8)';
+    ctx.lineWidth = Math.max(1.2, R * 0.008);
+    ctx.strokeStyle = 'rgba(16,12,8,.82)';
     ctx.stroke();
   });
   ctx.restore();
 }
+function studioSparkline(ctx, x, y, w, h, bars, accent) {
+  if (!bars || !bars.length) return;
+  const vals = bars.map(b => b.value);
+  const max = Math.max.apply(null, vals);
+  const min = Math.min.apply(null, vals);
+  const span = max - min || 1;
+  const pts = vals.map((v, i) => ({
+    x: x + (vals.length === 1 ? w / 2 : (i / (vals.length - 1)) * w),
+    y: y + h - ((v - min) / span) * (h * 0.86) - h * 0.08
+  }));
+  ctx.beginPath();
+  pts.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+  ctx.lineTo(pts[pts.length - 1].x, y + h);
+  ctx.lineTo(pts[0].x, y + h);
+  ctx.closePath();
+  const fill = ctx.createLinearGradient(0, y, 0, y + h);
+  fill.addColorStop(0, studioRgba(accent, 0.28));
+  fill.addColorStop(1, studioRgba(accent, 0));
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.beginPath();
+  pts.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+  ctx.strokeStyle = accent;
+  ctx.lineWidth = 3.5;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.stroke();
+  const last = pts[pts.length - 1];
+  ctx.beginPath();
+  ctx.arc(last.x, last.y, 5.5, 0, Math.PI * 2);
+  ctx.fillStyle = accent;
+  ctx.fill();
+}
+function studioScorePaint(ctx, line, cx, baseline, maxW, ink, muted, relief, align) {
+  const bits = String(line || '–').split(' / ');
+  let big = 132;
+  const fontBig = n => 'normal ' + n + 'px ' + studioSerif;
+  const fontSmall = n => 'normal ' + Math.round(n * 0.42) + 'px ' + studioSerif;
+  const widthOf = () => {
+    ctx.font = fontBig(big);
+    const a = ctx.measureText(bits[0]).width;
+    ctx.font = fontSmall(big);
+    const b = bits[1] ? ctx.measureText(' / ' + bits[1]).width : 0;
+    return {a, b};
+  };
+  let box = widthOf();
+  while (big > 72 && box.a + box.b > maxW) { big -= 4; box = widthOf(); }
+  const x = align === 'left' ? cx : cx - (box.a + box.b) / 2;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.font = fontBig(big);
+  studioFill(ctx, bits[0], x, baseline, ink, relief);
+  if (bits[1]) {
+    ctx.font = fontSmall(big);
+    studioFill(ctx, ' / ' + bits[1], x + box.a, baseline, muted, relief);
+  }
+}
+function studioFinishInk(id) {
+  if (id === 'metal') return {ink: '#2a2d31', muted: '#3c4148', score: '#f6f7f8', scoreMuted: 'rgba(255,255,255,.62)', onPhoto: 'rgba(255,255,255,.9)', relief: 'emboss', label: 'engrave', gloss: 0.62, edge: 'rgba(255,255,255,.7)'};
+  if (id === 'carbon') return {ink: '#f3f0ea', muted: '#b7b2a8', score: '#f7f4ee', scoreMuted: 'rgba(243,240,234,.55)', onPhoto: 'rgba(255,255,255,.9)', relief: '', label: '', gloss: 0.22, edge: ''};
+  if (id === 'glass') return {ink: '#f4f1ea', muted: '#c2bdb4', score: '#f7f4ee', scoreMuted: 'rgba(247,244,238,.5)', onPhoto: 'rgba(255,255,255,.9)', relief: '', label: '', gloss: 0.18, edge: ''};
+  return {ink: '#f4f1ea', muted: '#c8c2b8', score: '#f7f4ee', scoreMuted: 'rgba(247,244,238,.5)', onPhoto: 'rgba(255,255,255,.9)', relief: '', label: '', gloss: 0.28, edge: 'rgba(255,255,255,.22)'};
+}
 function studioPaintCard(ctx, w, h, layout) {
   const view = studioCardView(layout || Studio.card.layout);
   const theme = Studio.theme();
-  const tone = Studio.card.tone === 'light' ? 'light' : 'dark';
-  const pal = studioPalette(tone);
+  const finish = Studio.FINISHES.some(f => f.id === Studio.card.finish) ? Studio.card.finish : 'metal';
+  const ink = studioFinishInk(finish);
   const tilt = Studio.card.tilt || {x: 0, y: 0};
   const s = w / 1080;
+  const W = 1080, H = 1350, rad = 44;
   ctx.setTransform(s, 0, 0, s, 0, 0);
-  ctx.clearRect(0, 0, 1080, 1350);
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#050506';
+  ctx.fillRect(0, 0, W, H);
   ctx.save();
-  studioRound(ctx, 0, 0, 1080, 1350, 56);
+  studioRound(ctx, 0, 0, W, H, rad);
   ctx.clip();
-  ctx.filter = 'blur(28px)';
-  const img = studioHeaderImage(view.photo);
-  if (img) {
-    const scale = Math.max(1180 / img.naturalWidth, 1480 / img.naturalHeight);
-    const dw = img.naturalWidth * scale, dh = img.naturalHeight * scale;
-    ctx.drawImage(img, (1080 - dw) / 2, (1350 - dh) / 2, dw, dh);
-    ctx.filter = 'none';
-    ctx.fillStyle = tone === 'light' ? 'rgba(255,255,255,.3)' : 'rgba(0,0,0,.32)';
-    ctx.fillRect(0, 0, 1080, 1350);
-  } else {
-    const scene = studioRangeScene(tone, theme.acc);
-    ctx.drawImage(scene, -48, -40, 1176, 1460);
-    ctx.filter = 'none';
-  }
-  const vig = ctx.createRadialGradient(540, 640, 180, 540, 700, 820);
-  vig.addColorStop(0, 'rgba(0,0,0,0)');
-  vig.addColorStop(1, tone === 'light' ? 'rgba(70,55,35,.16)' : 'rgba(0,0,0,.38)');
-  ctx.fillStyle = vig;
-  ctx.fillRect(0, 0, 1080, 1350);
-  ctx.restore();
-  const gx = 46, gy = 46, gw = 988, gh = 1258, gr = 46;
-  ctx.save();
-  ctx.shadowColor = 'rgba(0,0,0,.28)';
-  ctx.shadowBlur = 36;
-  ctx.shadowOffsetY = 16;
-  studioRound(ctx, gx, gy, gw, gh, gr);
-  ctx.fillStyle = tone === 'light' ? 'rgba(255,252,248,.88)' : 'rgba(14,15,18,.78)';
-  ctx.fill();
-  ctx.shadowColor = 'transparent';
-  ctx.shadowBlur = 0;
-  ctx.shadowOffsetY = 0;
-  const gloss = ctx.createLinearGradient(gx, gy, gx, gy + 280);
-  gloss.addColorStop(0, tone === 'light' ? 'rgba(255,255,255,.55)' : 'rgba(255,255,255,.07)');
-  gloss.addColorStop(1, 'rgba(255,255,255,0)');
-  ctx.fillStyle = gloss;
-  studioRound(ctx, gx, gy, gw, gh, gr);
-  ctx.fill();
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = studioRgba(theme.acc, tone === 'light' ? 0.28 : 0.4);
-  studioRound(ctx, gx, gy, gw, gh, gr);
-  ctx.stroke();
-  ctx.restore();
-  const left = 96, right = 984, mid = 540;
+  studioPaintFinish(ctx, finish, theme.acc, tilt);
+  const photo = studioHeaderImage(view.photo);
+  if (photo) ctx.drawImage(studioGradedPhoto(photo, view.photo), 0, 0);
+  const left = 72, right = 1008;
   ctx.textBaseline = 'alphabetic';
-  ctx.fillStyle = pal.muted;
-  ctx.font = '600 20px ' + studioSans;
+  ctx.font = '600 18px ' + studioSans;
   ctx.textAlign = 'left';
-  studioTrack(ctx, view.brand, left, 128, 3.4);
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,.45)';
+  ctx.shadowBlur = 8;
+  studioTrackAt(ctx, view.brand, left, 78, 4.2, ink.onPhoto, '');
+  ctx.restore();
+  ctx.font = '600 18px ' + studioSans;
   ctx.textAlign = 'right';
-  ctx.font = '600 20px ' + studioSans;
-  ctx.fillText(view.date || '', right, 128);
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,.45)';
+  ctx.shadowBlur = 8;
+  studioFill(ctx, view.date || '', right, 78, ink.onPhoto, '');
+  ctx.restore();
   ctx.textAlign = 'left';
-  ctx.fillStyle = pal.ink;
   const title = view.headline || '';
-  const titlePx = studioFit(ctx, title, right - left, 58, '700', studioSans);
-  ctx.font = '650 ' + titlePx + 'px ' + studioSans;
-  ctx.fillText(title, left, 206);
-  ctx.fillStyle = pal.muted;
-  ctx.font = '600 22px ' + studioSans;
-  const sub = String(view.subtitle || '').toUpperCase();
-  studioTrack(ctx, sub, left, 256, 2.4);
-  studioTargetFace(ctx, mid, 492, 196, view.impacts, view.center, theme.acc);
-  const bits = String(view.scoreLine || '–').split(' / ');
-  ctx.textAlign = 'left';
-  ctx.font = '600 108px ' + studioNum;
-  const scoreW = ctx.measureText(bits[0]).width;
-  ctx.font = '500 64px ' + studioNum;
-  const maxW = bits[1] ? ctx.measureText(' / ' + bits[1]).width : 0;
-  const scoreX = mid - (scoreW + maxW) / 2;
-  ctx.font = '600 108px ' + studioNum;
-  ctx.fillStyle = pal.ink;
-  ctx.fillText(bits[0], scoreX, 808);
-  if (bits[1]) {
-    ctx.font = '500 64px ' + studioNum;
-    ctx.fillStyle = pal.muted;
-    ctx.fillText(' / ' + bits[1], scoreX + scoreW, 808);
-  }
+  const titlePx = studioFit(ctx, title, right - left - 210, 42, '560', studioSans);
+  ctx.font = '560 ' + titlePx + 'px ' + studioSans;
+  studioFill(ctx, title, left, 792, ink.ink, ink.label);
+  ctx.font = '600 18px ' + studioSans;
+  studioTrackAt(ctx, String(view.subtitle || '').toUpperCase(), left, 838, 2.6, ink.muted, ink.label);
+  const scoreRelief = finish === 'metal' ? 'emboss' : '';
+  studioScorePaint(ctx, view.scoreLine, left, 1004, right - left - 250, ink.score, ink.scoreMuted, scoreRelief, 'left');
+  studioTargetFace(ctx, right - 108, 968, 96, view.impacts, view.center, theme.acc);
   const stats = (view.stats || []).slice(0, 4);
   const colW = (right - left) / Math.max(1, stats.length);
   stats.forEach((cell, i) => {
     const cx = left + colW * i + colW / 2;
-    studioStatIcon(ctx, cell.id, cx, 888, 36, theme.acc);
+    studioStatIcon(ctx, cell.id, cx, 1116, 26, theme.acc);
     ctx.textAlign = 'center';
-    ctx.fillStyle = pal.ink;
     const value = cell.value || '–';
-    const px = studioFit(ctx, value, colW - 12, 40, '600', studioNum);
+    const px = studioFit(ctx, value, colW - 16, 36, '600', studioNum);
     ctx.font = '600 ' + px + 'px ' + studioNum;
-    ctx.fillText(value, cx, 948);
-    ctx.fillStyle = pal.muted;
-    ctx.font = '600 16px ' + studioSans;
-    ctx.fillText(cell.label, cx, 978);
+    studioFill(ctx, value, cx, 1172, ink.ink, ink.label);
+    ctx.font = '600 14px ' + studioSans;
+    const label = String(cell.label || '').toUpperCase();
+    const lw = studioTrackWidth(ctx, label, 1.6);
+    studioTrackAt(ctx, label, cx - lw / 2, 1206, 1.6, ink.muted, ink.label);
   });
-  const bars = view.bars || [];
-  if (bars.length) {
-    ctx.textAlign = 'left';
-    ctx.fillStyle = pal.ink;
-    ctx.font = '600 22px ' + studioSans;
-    ctx.fillText(view.chart || '', left, 1056);
-    ctx.textAlign = 'right';
-    ctx.fillStyle = pal.muted;
-    ctx.font = '500 18px ' + studioSans;
-    ctx.fillText(view.chartNote || '', right, 1056);
-    const max = Math.max.apply(null, bars.map(b => b.value));
-    const gap = 10;
-    const bw = Math.min(48, (right - left - gap * (bars.length - 1)) / bars.length);
-    const total = bw * bars.length + gap * (bars.length - 1);
-    const x0 = left + (right - left - total) / 2;
-    const base = 1192;
-    const best = Math.min.apply(null, bars.map(b => b.value));
-    bars.forEach((b, i) => {
-      const bh = max > 0 ? Math.max(8, (b.value / max) * 108) : 8;
-      const x = x0 + i * (bw + gap);
-      const tight = b.value === best;
-      ctx.fillStyle = studioRgba(theme.acc, tight ? 0.95 : 0.38);
-      studioRound(ctx, x, base - bh, bw, bh, 8);
-      ctx.fill();
-      if (bars.length <= 12) {
-        ctx.fillStyle = pal.muted;
-        ctx.font = '500 14px ' + studioSans;
-        ctx.textAlign = 'center';
-        ctx.fillText(String(b.n), x + bw / 2, base + 24);
-      }
-    });
-  }
   ctx.textAlign = 'left';
-  ctx.fillStyle = pal.muted;
   ctx.font = '600 16px ' + studioSans;
-  studioTrack(ctx, 'CADA FLECHA CUENTA', left, 1272, 2.2);
-  const foot = 'ARCHERY WATCH';
-  const fw = studioTrackWidth(ctx, foot, 2.2);
-  studioTrack(ctx, foot, right - fw, 1272, 2.2);
-  studioCardSheen(ctx, gx, gy, gw, gh, gr, tilt, tone);
+  studioTrackAt(ctx, String(view.chart || 'AGRUPACIÓN').toUpperCase(), left, 1264, 2, ink.muted, ink.label);
+  const note = String(view.chartNote || '').toUpperCase();
+  ctx.font = '500 14px ' + studioSans;
+  const noteW = studioTrackWidth(ctx, note, 1.3);
+  studioTrackAt(ctx, note, right - noteW, 1264, 1.3, ink.muted, '');
+  const bars = (view.bars || []).slice(-8);
+  if (bars.length) studioSparkline(ctx, left, 1284, right - left, 36, bars, theme.acc);
+  else {
+    ctx.strokeStyle = studioRgba(theme.acc, 0.55);
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(left, 1302);
+    ctx.lineTo(right, 1302);
+    ctx.stroke();
+  }
+  ctx.font = '600 14px ' + studioSans;
+  ctx.textAlign = 'left';
+  studioTrackAt(ctx, 'CADA FLECHA CUENTA', left, 1334, 3, ink.muted, ink.label);
+  const gloss = ink.gloss;
+  studioCardSheen(ctx, 0, 0, W, H, rad, tilt, gloss, theme.acc);
+  ctx.restore();
+  ctx.lineWidth = finish === 'metal' ? 2.5 : 1.75;
+  ctx.strokeStyle = finish === 'glass' || finish === 'carbon' ? studioRgba(theme.acc, 0.75) : ink.edge;
+  studioRound(ctx, 1.5, 1.5, W - 3, H - 3, rad);
+  ctx.stroke();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
 }
 

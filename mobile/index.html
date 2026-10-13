@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="aw-version" content="4.34">
+<meta name="aw-version" content="4.35">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#000000">
 <link rel="manifest" href="manifest.json">
@@ -340,7 +340,18 @@
   .holoTilt { position:relative; transform-style:preserve-3d; transition:transform .08s linear, box-shadow .08s linear; border-radius:18px; }
   .holoSheen { position:absolute; inset:0; border-radius:18px; pointer-events:none; mix-blend-mode:soft-light;
     background:linear-gradient(115deg, transparent 42%, rgba(255,255,255,.45) 50%, transparent 58%);
-    background-size:220% 220%; background-position:40% 40%; opacity:.55; }
+    background-size:220% 220%; background-position:40% 40%; opacity:.22; }
+  .sharePhoto { display:flex; gap:8px; }
+  .sharePhoto button { flex:1; min-height:40px; border-radius:12px; border:1px solid var(--line-2); background:#16161a; color:var(--txt); font-size:13px; font-weight:600; }
+  .presetRow { display:flex; gap:8px; }
+  .presetRow button { flex:1; height:54px; padding:0; border-radius:10px; border:1px solid transparent; overflow:hidden; background:#111; }
+  .presetRow button.on { border-color:var(--acc); }
+  .presetRow img { width:100%; height:54px; object-fit:cover; display:block; }
+  #cropSheet:not([hidden]) { display:flex; position:fixed; inset:0; z-index:70; background:rgba(0,0,0,.88); align-items:flex-end; justify-content:center; }
+  .cropPanel { width:min(100%, 460px); background:#0b0b0d; border-radius:20px 20px 0 0; padding:16px 16px 22px; display:grid; gap:12px; }
+  .cropPanel p { font-size:13px; letter-spacing:.12em; text-transform:uppercase; color:var(--txt-2); }
+  #cropCanvas { width:100%; height:auto; border-radius:14px; background:#111; touch-action:none; display:block; }
+  #cropZoom { width:100%; }
   #shareCanvas { width:100%; height:auto; border-radius:18px; display:block; background:transparent; }
   .cardThumbs { display:flex; gap:10px; justify-content:center; }
   .cardThumbs button { width:72px; padding:0; border-radius:10px; border:1px solid transparent; background:#07080c; overflow:hidden; }
@@ -592,13 +603,32 @@
       </div>
     </div>
     <div class="cardThumbs" id="shareThumbs"></div>
-    <div class="tracebar" id="shareTone">
-      <button type="button" data-tone="dark" class="sel">Oscuro</button>
-      <button type="button" data-tone="light">Claro</button>
+    <div class="tracebar" id="shareFinish">
+      <button type="button" data-finish="metal" class="sel">Metal</button>
+      <button type="button" data-finish="obsidian">Obsidiana</button>
+      <button type="button" data-finish="glass">Cristal</button>
+      <button type="button" data-finish="carbon">Carbono</button>
     </div>
+    <div class="sharePhoto">
+      <button type="button" id="shareCam">Cámara</button>
+      <button type="button" id="shareLib">Galería</button>
+      <button type="button" id="sharePhotoClear" hidden>Quitar</button>
+    </div>
+    <div class="presetRow" id="sharePresets"></div>
+    <input id="shareCamFile" type="file" accept="image/*" capture="environment" hidden>
+    <input id="shareLibFile" type="file" accept="image/*" hidden>
     <button type="button" id="shareGyro">Inclinar</button>
     <button type="button" class="btnPrimary" id="shareExport">Compartir</button>
     <button type="button" class="btnSecondary" id="shareClose">Cerrar</button>
+  </div>
+</div>
+<div id="cropSheet" hidden>
+  <div class="cropPanel">
+    <p>Encuadra la foto</p>
+    <canvas id="cropCanvas" width="900" height="620" aria-label="Recorte"></canvas>
+    <input id="cropZoom" type="range" min="1" max="3" step="0.01" value="1" aria-label="Zoom">
+    <button type="button" class="btnPrimary" id="cropUse">Usar foto</button>
+    <button type="button" class="btnSecondary" id="cropCancel">Cancelar</button>
   </div>
 </div>
 <div id="askModal" hidden role="dialog" aria-modal="true"><div class="ask"><p id="askMsg"></p>
