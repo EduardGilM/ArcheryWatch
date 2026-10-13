@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="aw-version" content="4.24">
+<meta name="aw-version" content="4.25">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#000000">
 <link rel="manifest" href="manifest.json">
@@ -83,7 +83,7 @@
   .cardTitle small { font-size:12px; font-weight:400; color:var(--txt-3); }
   .aimwrap { display:flex; justify-content:center; align-items:center; width:100%; position:relative; }
   #aim, #aimSet, #cmpAim, .face, #sessionGroup { width:min(100%,340px); max-width:100%; height:auto; aspect-ratio:1/1; display:block; flex:0 0 auto; }
-  .face { touch-action:none; margin:0 auto 10px; cursor:crosshair; }
+  .face { touch-action:none; overscroll-behavior:none; user-select:none; -webkit-user-select:none; margin:0 auto 10px; cursor:crosshair; }
   .target { position:relative; background:var(--surface); border:1px solid var(--line); border-radius:20px; padding:8px 8px 4px; }
   .tclock { position:absolute; left:16px; top:12px; font:500 11px/1 var(--font); letter-spacing:.12em; text-transform:uppercase; color:var(--txt-2); }
   .tlClock { position:absolute; right:16px; top:10px; font:600 15px/1 var(--num); color:var(--acc); letter-spacing:.02em; }
@@ -821,17 +821,300 @@ function placeArrow(t_ms, x, y) {
   commitScore(t_ms, shot => Score.place(shot, x, y));
 }
 const FACE_SCALE = 0.46;
-function facePoint(canvas, ev) {
-  const side = canvas.clientWidth || canvas.getBoundingClientRect?.().width || 320;
-  let px = ev.offsetX, py = ev.offsetY;
-  if (!Number.isFinite(px) || !Number.isFinite(py)) {
-    const rect = canvas.getBoundingClientRect?.() || {left: 0, top: 0};
-    px = (ev.clientX || 0) - rect.left;
-    py = (ev.clientY || 0) - rect.top;
-  }
-  const x = (px - side / 2) / (side * FACE_SCALE);
-  const y = (py - side / 2) / (side * FACE_SCALE);
+const FACE_ZOOM_MAX = 4;
+const FACE_DOT = 11;
+const FACE_HIT = 16;
+const FACE_SLOP = 8;
+const FACE_TAP_MS = 300;
+const faceView = {};
+const facePtr = {};
+function faceKey(canvas) { return (canvas && canvas.id) || ''; }
+function faceRead(canvas) { return faceView[faceKey(canvas)] || {z: 1, tx: 0, ty: 0}; }
+function faceState(canvas) {
+  const id = faceKey(canvas) || 'face';
+  if (!faceView[id]) faceView[id] = {z: 1, tx: 0, ty: 0};
+  return faceView[id];
+}
+function faceSide(canvas) { return canvas.clientWidth || canvas.getBoundingClientRect?.().width || 320; }
+function faceScreenToTarget(canvas, sx, sy) {
+  const side = faceSide(canvas), v = faceRead(canvas);
+  const z = Math.min(FACE_ZOOM_MAX, Math.max(1, Number(v.z) || 1));
+  const x = (v.tx || 0) + (sx - side / 2) / (side * FACE_SCALE * z);
+  const y = (v.ty || 0) + (sy - side / 2) / (side * FACE_SCALE * z);
   return Number.isFinite(x) && Number.isFinite(y) ? {x, y} : null;
+}
+function faceTargetToScreen(canvas, tx, ty) {
+  const side = faceSide(canvas), v = faceRead(canvas);
+  const z = Math.min(FACE_ZOOM_MAX, Math.max(1, Number(v.z) || 1));
+  return {
+    x: side / 2 + (tx - (v.tx || 0)) * side * FACE_SCALE * z,
+    y: side / 2 + (ty - (v.ty || 0)) * side * FACE_SCALE * z
+  };
+}
+function faceClampView(v) {
+  if (!v) return;
+  let z = Number(v.z);
+  if (!Number.isFinite(z) || z < 1) z = 1;
+  if (z > FACE_ZOOM_MAX) z = FACE_ZOOM_MAX;
+  v.z = z;
+  if (z <= 1) { v.tx = 0; v.ty = 0; return; }
+  let tx = Number(v.tx), ty = Number(v.ty);
+  if (!Number.isFinite(tx)) tx = 0;
+  if (!Number.isFinite(ty)) ty = 0;
+  const r = Math.hypot(tx, ty);
+  if (r > Score.FACE) { tx *= Score.FACE / r; ty *= Score.FACE / r; }
+  v.tx = tx; v.ty = ty;
+}
+function faceLocal(canvas, ev) {
+  const rect = canvas.getBoundingClientRect?.();
+  if (rect && Number.isFinite(ev.clientX) && Number.isFinite(ev.clientY) && (rect.width || rect.height)) {
+    return {x: ev.clientX - rect.left, y: ev.clientY - rect.top};
+  }
+  if (Number.isFinite(ev.offsetX) && Number.isFinite(ev.offsetY)) return {x: ev.offsetX, y: ev.offsetY};
+  return null;
+}
+function facePoint(canvas, ev) {
+  const loc = faceLocal(canvas, ev);
+  return loc ? faceScreenToTarget(canvas, loc.x, loc.y) : null;
+}
+function faceDots(shots) {
+  const out = [];
+  (shots || []).forEach((s, i) => {
+    if (!s || s.candidate || Score.points(s.result && s.result.value) == null) return;
+    const p = s.result && s.result.impact;
+    if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y)) return;
+    out.push({x: p.x, y: p.y, t: s.t_ms, n: i + 1, shot: s});
+  });
+  return out;
+}
+function faceHit(canvas, shots, sx, sy) {
+  let best = null, bestD = FACE_HIT;
+  for (const p of faceDots(shots)) {
+    const s = faceTargetToScreen(canvas, p.x, p.y);
+    const d = Math.hypot(s.x - sx, s.y - sy);
+    if (d <= bestD) { best = p; bestD = d; }
+  }
+  return best;
+}
+function faceGesture(canvas) {
+  const id = faceKey(canvas) || 'face';
+  if (!facePtr[id]) facePtr[id] = {pts: new Map(), mode: 'idle', pending: null, timer: 0, lastTap: 0, eatTap: false, moved: 0};
+  return facePtr[id];
+}
+function faceCancelPending(g) {
+  if (g.timer) clearTimeout(g.timer);
+  g.timer = 0; g.pending = null;
+}
+function facePair(g) {
+  const pts = [...g.pts.values()];
+  return pts.length >= 2 ? [pts[0], pts[1]] : null;
+}
+function faceRefreshSlots(canvas, shots) {
+  let root = canvas.parentElement;
+  while (root && !root.querySelectorAll?.('[data-score-t]')?.length) root = root.parentElement;
+  if (root && root.querySelectorAll) {
+    const focus = focusedArrow(shots);
+    const current = (shots || []).find(s => s.t_ms === focus);
+    root.querySelectorAll('[data-score-t]').forEach(btn => {
+      const t = +(btn.dataset?.scoreT ?? btn.getAttribute?.('data-score-t'));
+      const s = (shots || []).find(x => x.t_ms === t);
+      const b = btn.querySelector?.('b');
+      if (b) b.textContent = (s && s.result && s.result.value) || '·';
+    });
+    root.querySelectorAll('[data-score]').forEach(btn => {
+      const v = btn.dataset?.score ?? btn.getAttribute?.('data-score');
+      btn.classList?.toggle('on', v !== 'clear' && !!(current && current.result && current.result.value === v));
+    });
+  }
+  if (view === 'Set') {
+    const pts = Score.totals(shots);
+    const el = document.getElementById('setHeadScore');
+    if (el) el.textContent = pts.scored ? pts.score : '–';
+  }
+}
+function faceRedraw(canvas, g, focus) {
+  drawFace(canvas, g.shots, focus);
+  faceRefreshSlots(canvas, g.shots);
+}
+function faceRevertDrag(canvas, g) {
+  if (g.shot) {
+    if (g.snap) g.shot.result = JSON.parse(JSON.stringify(g.snap));
+    else delete g.shot.result;
+  }
+  g.shot = null; g.snap = null; g.hit = null;
+  faceRedraw(canvas, g, focusedArrow(g.shots));
+}
+function facePinchStart(canvas, g) {
+  const pair = facePair(g);
+  if (!pair) return;
+  const dist = Math.hypot(pair[0].x - pair[1].x, pair[0].y - pair[1].y);
+  const mid = {x: (pair[0].x + pair[1].x) / 2, y: (pair[0].y + pair[1].y) / 2};
+  const anchor = faceScreenToTarget(canvas, mid.x, mid.y) || {x: 0, y: 0};
+  const v = faceState(canvas);
+  g.pinch = {dist: Math.max(dist, 1), z0: v.z || 1, ax: anchor.x, ay: anchor.y};
+}
+function facePinchMove(canvas, g) {
+  const pair = facePair(g);
+  if (!pair || !g.pinch) return;
+  const dist = Math.max(1, Math.hypot(pair[0].x - pair[1].x, pair[0].y - pair[1].y));
+  const mid = {x: (pair[0].x + pair[1].x) / 2, y: (pair[0].y + pair[1].y) / 2};
+  const side = faceSide(canvas);
+  const v = faceState(canvas);
+  v.z = g.pinch.z0 * (dist / g.pinch.dist);
+  faceClampView(v);
+  if (v.z > 1) {
+    const den = side * FACE_SCALE * v.z;
+    v.tx = g.pinch.ax - (mid.x - side / 2) / den;
+    v.ty = g.pinch.ay - (mid.y - side / 2) / den;
+    faceClampView(v);
+  }
+  faceRedraw(canvas, g, focusedArrow(g.shots));
+}
+function faceResetZoom(canvas, g) {
+  const v = faceState(canvas);
+  v.z = 1; v.tx = 0; v.ty = 0;
+  faceRedraw(canvas, g, focusedArrow(g.shots));
+}
+function scoreFaceTap(canvas, sx, sy) {
+  const shots = (faceGesture(canvas).shots || []).filter(s => s && !s.candidate);
+  const pt = faceScreenToTarget(canvas, sx, sy);
+  const t = focusedArrow(shots);
+  if (!pt || t == null) return;
+  const i = shots.findIndex(s => s.t_ms === t);
+  const blank = shots.find((s, j) => j > i && Score.points(s.result && s.result.value) == null);
+  scoreFocus = blank ? blank.t_ms : (shots[Math.min(shots.length - 1, i + 1)]?.t_ms ?? t);
+  placeArrow(t, pt.x, pt.y);
+}
+function faceScheduleTap(canvas, g, fn) {
+  faceCancelPending(g);
+  g.pending = fn;
+  g.lastTap = Date.now();
+  g.timer = setTimeout(() => {
+    const run = g.pending;
+    g.pending = null; g.timer = 0;
+    if (run) run();
+  }, FACE_TAP_MS);
+}
+function faceFocusDot(hit) {
+  scoreFocus = hit.t;
+  if (view === 'Shot') {
+    const i = data.shots.findIndex(s => s.t_ms === scoreFocus);
+    if (i >= 0) cur = i;
+  }
+  render();
+}
+function faceDown(canvas, ev) {
+  ev.preventDefault?.();
+  ev.stopPropagation?.();
+  const loc = faceLocal(canvas, ev);
+  if (!loc) return;
+  const g = faceGesture(canvas);
+  const pid = ev.pointerId ?? 1;
+  g.pts.set(pid, loc);
+  try { canvas.setPointerCapture?.(pid); } catch (e) {}
+  if (g.pts.size >= 2) {
+    faceCancelPending(g);
+    g.eatTap = false;
+    if (g.mode === 'drag' || g.mode === 'arm-drag') faceRevertDrag(canvas, g);
+    g.mode = 'pinch';
+    facePinchStart(canvas, g);
+    return;
+  }
+  if (g.mode === 'dead' || g.mode === 'pinch') return;
+  if (g.pending && g.lastTap && Date.now() - g.lastTap < FACE_TAP_MS) {
+    faceCancelPending(g);
+    g.eatTap = true;
+  }
+  g.origin = loc; g.moved = 0; g.sx = loc.x; g.sy = loc.y;
+  const hit = faceHit(canvas, g.shots, loc.x, loc.y);
+  if (hit) {
+    g.mode = 'arm-drag';
+    g.shot = hit.shot; g.hit = hit;
+    g.snap = hit.shot.result ? JSON.parse(JSON.stringify(hit.shot.result)) : null;
+  } else {
+    g.mode = 'arm-tap';
+    g.shot = null; g.hit = null; g.snap = null;
+  }
+}
+function faceMove(canvas, ev) {
+  ev.preventDefault?.();
+  const loc = faceLocal(canvas, ev);
+  if (!loc) return;
+  const g = faceGesture(canvas);
+  const pid = ev.pointerId ?? 1;
+  if (!g.pts.has(pid)) return;
+  g.pts.set(pid, loc);
+  if (g.mode === 'pinch') { if (g.pts.size >= 2) facePinchMove(canvas, g); return; }
+  if (g.mode === 'dead' || !g.origin) return;
+  const d = Math.hypot(loc.x - g.origin.x, loc.y - g.origin.y);
+  g.moved = d;
+  if (g.mode === 'arm-tap') { if (d >= FACE_SLOP) g.mode = 'slide'; return; }
+  if (g.mode === 'arm-drag' || g.mode === 'drag') {
+    if (d < FACE_SLOP && g.mode === 'arm-drag') return;
+    g.mode = 'drag'; g.eatTap = false;
+    const pt = faceScreenToTarget(canvas, loc.x, loc.y);
+    if (pt && Score.place(g.shot, pt.x, pt.y)) faceRedraw(canvas, g, g.shot.t_ms);
+  }
+}
+function faceUp(canvas, ev) {
+  ev.preventDefault?.();
+  const g = faceGesture(canvas);
+  const pid = ev.pointerId ?? 1;
+  if (!g.pts.has(pid)) return;
+  g.pts.delete(pid);
+  if (g.mode === 'pinch') {
+    if (g.pts.size >= 2) facePinchStart(canvas, g);
+    else if (g.pts.size === 1) g.mode = 'dead';
+    else g.mode = 'idle';
+    return;
+  }
+  if (g.mode === 'dead') { if (g.pts.size === 0) g.mode = 'idle'; return; }
+  if (g.pts.size > 0) return;
+  const mode = g.mode;
+  g.mode = 'idle';
+  if (mode === 'drag') {
+    g.eatTap = false;
+    const shot = g.shot;
+    const result = shot && shot.result ? JSON.parse(JSON.stringify(shot.result)) : null;
+    if (result) commitScore(shot.t_ms, s => { s.result = result; return true; });
+    return;
+  }
+  if (g.eatTap) { g.eatTap = false; g.lastTap = 0; faceResetZoom(canvas, g); return; }
+  if (mode === 'slide') return;
+  if (mode === 'arm-drag' && g.hit) { const hit = g.hit; faceScheduleTap(canvas, g, () => faceFocusDot(hit)); return; }
+  if (mode === 'arm-tap') { const sx = g.sx, sy = g.sy; faceScheduleTap(canvas, g, () => scoreFaceTap(canvas, sx, sy)); }
+}
+function faceAbort(canvas, ev) {
+  const g = faceGesture(canvas);
+  const pid = ev.pointerId ?? 1;
+  g.pts.delete(pid);
+  faceCancelPending(g);
+  if (g.mode === 'drag' || g.mode === 'arm-drag') faceRevertDrag(canvas, g);
+  g.eatTap = false;
+  g.mode = g.pts.size ? 'dead' : 'idle';
+}
+function faceFlush(canvas) {
+  const g = faceGesture(canvas);
+  const fn = g.pending;
+  faceCancelPending(g);
+  if (fn) fn();
+}
+function bindFace(canvas, shots) {
+  if (!canvas) return;
+  const g = faceGesture(canvas);
+  g.shots = shots;
+  canvas.style.touchAction = 'none';
+  canvas.onpointerdown = ev => faceDown(canvas, ev);
+  canvas.onpointermove = ev => faceMove(canvas, ev);
+  canvas.onpointerup = ev => faceUp(canvas, ev);
+  canvas.onpointercancel = ev => faceAbort(canvas, ev);
+  canvas.ontouchmove = ev => ev.preventDefault?.();
+  if (!canvas._awTouch) {
+    canvas._awTouch = true;
+    canvas.addEventListener?.('touchmove', ev => ev.preventDefault(), {passive: false});
+    canvas.addEventListener?.('gesturestart', ev => ev.preventDefault());
+    canvas.addEventListener?.('gesturechange', ev => ev.preventDefault());
+  }
 }
 function paintScore(id, shots) {
   const root = document.getElementById(id);
@@ -847,17 +1130,9 @@ function paintScore(id, shots) {
     `<div class="scoreSlots">${real.map((s, i) => `<button type="button" data-score-t="${s.t_ms}" class="${s.t_ms === focus ? 'on' : ''}" aria-label="Flecha ${i + 1}">${i + 1}<b>${s.result?.value || '·'}</b></button>`).join('')}</div>` +
     `<div class="scorepad" role="group" aria-label="Valor de la flecha">${Score.VALUES.map(v => `<button type="button" data-score="${v}" class="${current?.result?.value === v ? 'on' : ''}">${v}</button>`).join('')}<button type="button" class="clear" data-score="clear">Borrar</button></div>`;
   const face = document.getElementById(faceId);
+  if (face && !face.id) face.id = faceId;
   drawFace(face, real, focus);
-  if (face) face.onclick = ev => {
-    ev.stopPropagation?.();
-    const pt = facePoint(face, ev);
-    const t = focusedArrow(real);
-    if (!pt || t == null) return;
-    const i = real.findIndex(s => s.t_ms === t);
-    const blank = real.find((s, j) => j > i && Score.points(s.result && s.result.value) == null);
-    scoreFocus = blank ? blank.t_ms : (real[Math.min(real.length - 1, i + 1)]?.t_ms ?? t);
-    placeArrow(t, pt.x, pt.y);
-  };
+  bindFace(face, real);
   root.onclick = ev => {
     const slot = ev.target.closest?.('[data-score-t]');
     if (slot) {
@@ -1369,14 +1644,17 @@ function niceStep(maxDeg) {
 function drawFace(c, shots, focus) {
   if (!c) return;
   const [x, sz] = canvasFit(c, null);
-  const cx = sz / 2, cy = sz / 2, R = sz * FACE_SCALE;
+  const v = faceRead(c);
+  const z = Math.min(FACE_ZOOM_MAX, Math.max(1, Number(v.z) || 1));
+  const origin = faceTargetToScreen(c, 0, 0);
+  const cx = origin.x, cy = origin.y, R = sz * FACE_SCALE * z, base = sz * FACE_SCALE;
   const disk = (r, color) => { x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.fillStyle = color; x.fill(); };
   disk(R, '#3F5F78');
   disk(R * 0.8, '#8F4A4C');
   disk(R * 0.4, '#C2A36A');
   x.lineWidth = 1; x.strokeStyle = 'rgba(0,0,0,.62)';
   for (const k of [1, 0.8, 0.6, 0.4, 0.2, 0.1]) { x.beginPath(); x.arc(cx, cy, R * k, 0, Math.PI * 2); x.stroke(); }
-  const fs = Math.max(9, Math.min(13, Math.round(R * 0.055)));
+  const fs = Math.max(9, Math.min(13, Math.round(base * 0.055)));
   x.textAlign = 'center'; x.textBaseline = 'middle';
   x.font = '600 ' + Math.max(8, Math.round(fs * 0.75)) + 'px ' + MONO;
   x.fillStyle = 'rgba(44,36,22,.7)'; x.fillText('X', cx, cy);
@@ -1388,16 +1666,26 @@ function drawFace(c, shots, focus) {
   num('7', R * 0.7, 'rgba(42,18,18,.76)');
   num('6', R * 0.9, 'rgba(236,242,246,.82)');
   const pts = Score.impacts(shots);
-  for (const p of pts) {
-    const on = focus != null && p.t === focus;
-    x.beginPath(); x.arc(cx + p.x * R, cy + p.y * R, on ? 4.4 : 3.3, 0, Math.PI * 2);
-    x.fillStyle = on ? '#FF8A1F' : '#F3F0E8'; x.fill();
-    x.lineWidth = 1; x.strokeStyle = 'rgba(12,10,8,.8)'; x.stroke();
-  }
   if (pts.length >= 2) {
     const g = Score.groupCenter(pts);
+    const s = faceTargetToScreen(c, g.x, g.y);
     x.strokeStyle = 'rgba(255,255,255,.32)'; x.lineWidth = 1;
-    x.beginPath(); x.arc(cx + g.x * R, cy + g.y * R, 3.2, 0, Math.PI * 2); x.stroke();
+    x.beginPath(); x.arc(s.x, s.y, 3.2, 0, Math.PI * 2); x.stroke();
+  }
+  const numbered = c.id === 'faceShot' || c.id === 'faceSet';
+  for (const p of faceDots(shots)) {
+    const s = faceTargetToScreen(c, p.x, p.y);
+    const on = focus != null && p.t === focus;
+    const rad = numbered ? (on ? 12.5 : FACE_DOT) : (on ? 4.4 : 3.3);
+    x.beginPath(); x.arc(s.x, s.y, rad, 0, Math.PI * 2);
+    x.fillStyle = on ? '#FF8A1F' : '#F3F0E8'; x.fill();
+    x.lineWidth = 1; x.strokeStyle = 'rgba(12,10,8,.8)'; x.stroke();
+    if (numbered) {
+      x.fillStyle = '#1A140C';
+      x.font = '700 13px ' + MONO;
+      x.textAlign = 'center'; x.textBaseline = 'middle';
+      x.fillText(String(p.n), s.x, s.y);
+    }
   }
 }
 function drawSplit(points) {
