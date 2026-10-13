@@ -138,6 +138,18 @@ test('the share card is a portrait holographic collectible with a short score li
   assert.equal(Studio.SIZES.card.w / Studio.SIZES.card.h, 1080 / 1350);
 });
 
+test('preset photos ship as data URLs so the card canvas stays exportable from file://', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const sw = fs.readFileSync(path.join(__dirname, '../../mobile/sw.js'), 'utf8');
+  Studio.PRESETS.forEach(p => {
+    assert.match(p.src, /^photos\/[a-z]+\.js$/);
+    const body = fs.readFileSync(path.join(__dirname, '../../mobile', p.src), 'utf8');
+    assert.ok(body.startsWith(`(window.AWPhotos = window.AWPhotos || {})['${p.id}'] = 'data:image/jpeg;base64,`));
+    assert.ok(sw.includes(`'./${p.src}'`));
+  });
+});
+
 test('the training calendar counts a day and skips the future', () => {
   const now = new Date(2026, 9, 13, 15);
   const tomorrow = new Date(2026, 9, 14, 15);

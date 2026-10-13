@@ -4,7 +4,6 @@ const StudioGoals = (typeof module !== 'undefined') ? require('./goals.js') : Go
 const studioSans = "'Geist', system-ui, sans-serif";
 const studioNum = "'Barlow Condensed', sans-serif";
 const studioGeist = "'Geist', system-ui, -apple-system, sans-serif";
-const studioItalic = "Georgia, 'Noto Serif', 'DejaVu Serif', serif";
 const Studio = {
   lens: 'all',
   picks: new Set(),
@@ -20,9 +19,9 @@ const Studio = {
     {id: 'obsidian', name: 'Obsidiana'}
   ],
   PRESETS: [
-    {id: 'campo', name: 'Campo', src: 'photos/campo.jpg', focus: 0.4},
-    {id: 'diana', name: 'Diana', src: 'photos/diana.jpg', focus: 0.45},
-    {id: 'visor', name: 'Visor', src: 'photos/visor.jpg', focus: 0.35}
+    {id: 'campo', name: 'Campo', src: 'photos/campo.js', focus: 0.4},
+    {id: 'diana', name: 'Diana', src: 'photos/diana.js', focus: 0.45},
+    {id: 'visor', name: 'Visor', src: 'photos/visor.js', focus: 0.35}
   ],
   THEMES: [
     {id: 'amber', name: 'Ámbar', acc: '#FF8A1F', acc2: '#FFC15E', glow: 'rgba(255,138,31,.28)', ink: '#1b0f05', soft: 'rgba(255,138,31,.12)', line: 'rgba(255,138,31,.45)'},
@@ -639,7 +638,7 @@ function studioMount() {
   };
   const presets = $('sharePresets');
   if (presets) {
-    presets.innerHTML = Studio.PRESETS.map(p => `<button type="button" data-preset="${p.id}" aria-label="${p.name}"><img src="${p.src}" alt=""></button>`).join('');
+    presets.innerHTML = Studio.PRESETS.map(p => `<button type="button" data-preset="${p.id}" aria-label="${p.name}"><img alt=""></button>`).join('');
     presets.onclick = e => {
       const b = e.target.closest('[data-preset]');
       if (!b) return;
@@ -893,7 +892,13 @@ function studioSyncShare() {
     b.classList.toggle('sel', on);
     b.setAttribute('aria-pressed', on ? 'true' : 'false');
   });
-  document.querySelectorAll('#sharePresets [data-preset]').forEach(b => b.classList.toggle('on', !Studio.card.photo && b.dataset.preset === Studio.card.preset));
+  document.querySelectorAll('#sharePresets [data-preset]').forEach(b => {
+    b.classList.toggle('on', !Studio.card.photo && b.dataset.preset === Studio.card.preset);
+    const img = b.querySelector('img');
+    const preset = Studio.PRESETS.find(p => p.id === b.dataset.preset);
+    const url = preset ? studioPresetUrl(preset) : '';
+    if (img && url && img.getAttribute('src') !== url) img.src = url;
+  });
   const clear = document.getElementById('sharePhotoClear');
   if (clear) clear.hidden = !Studio.card.photo;
 }
@@ -1246,8 +1251,6 @@ function studioCardPack(headline, subtitle, when, shots, series, duration, bars,
   const d = new Date(when);
   const months = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
   const arrows = totals.arrows || 0;
-  const summary = (info.title || subtitle || 'Entrenamiento') + ', ' + arrows + ' flechas en ' + (series || 0) + ' series. ' +
-    (best ? 'Mejor serie: S' + best.index + ' con ' + best.sum + ' puntos.' : 'Sin puntuación marcada.');
   return {
     brand: 'ARCHERY WATCH',
     headline, subtitle,
@@ -1255,7 +1258,6 @@ function studioCardPack(headline, subtitle, when, shots, series, duration, bars,
     title: info.title || subtitle || '',
     modeLine: info.modeLine || subtitle || '',
     serial: info.serial || '',
-    summary,
     date: studioCornerDate(when),
     day: Number.isFinite(d.getTime()) ? String(d.getDate()) : '',
     monthYear: Number.isFinite(d.getTime()) ? months[d.getMonth()] + ' ' + d.getFullYear() : '',
@@ -1265,7 +1267,8 @@ function studioCardPack(headline, subtitle, when, shots, series, duration, bars,
     scoreNote: totals.score != null ? '' : 'flechas registradas',
     pct: totals.score != null && max ? totals.score / max : null,
     breakdown: Studio.breakdown(shots),
-    groupText: spread != null ? 'Agrupación media de ' + studioAvgText(spread * 10) + ' cm' : 'Marca los impactos en la diana',
+    best: best ? {index: best.index, sum: best.sum} : null,
+    spreadText: spread != null ? studioAvgText(spread * 10) + ' cm' : '–',
     center,
     impacts: StudioScore.impacts(shots).slice(-80),
     stats: [
@@ -1391,7 +1394,38 @@ function studioCommitCrop() {
 function studioPhotoSrc() {
   if (Studio.card.photo) return Studio.card.photo;
   const hit = studioPreset();
-  return hit ? hit.src : '';
+  return hit ? studioPresetUrl(hit) : '';
+}
+// Android loads the app from file://, where a canvas that drew a file:// image can no longer be exported.
+// Presets ship as data URLs inside scripts so the card always stays exportable.
+function studioPresetUrl(preset) {
+  if (typeof window === 'undefined') return '';
+  const bank = window.AWPhotos || (window.AWPhotos = {});
+  if (bank[preset.id]) return bank[preset.id];
+  const asked = Studio.card.presetLoads || (Studio.card.presetLoads = {});
+  if (!asked[preset.id] && typeof document !== 'undefined') {
+    const script = document.createElement('script');
+    script.src = preset.src;
+    script.onload = () => {
+      if (!Studio.shareOpen) return;
+      studioDrawShare();
+    };
+    script.onerror = () => { delete asked[preset.id]; };
+    asked[preset.id] = script;
+    document.head.appendChild(script);
+  }
+  return '';
+}
+function studioPhotoReady() {
+  const src = studioPhotoSrc();
+  const img = studioHeaderImage(src);
+  if (img || !src || !Studio.card.photoImg) return Promise.resolve();
+  const pending = Studio.card.photoImg;
+  return new Promise(resolve => {
+    pending.addEventListener('load', resolve, {once: true});
+    pending.addEventListener('error', resolve, {once: true});
+    setTimeout(resolve, 3000);
+  });
 }
 function studioPreset() {
   const list = Studio.PRESETS || [];
@@ -1719,160 +1753,179 @@ function studioMedal(ctx, cx, cy, R, impacts, accent, ink, line) {
   });
   ctx.restore();
 }
-function studioRing(ctx, cx, cy, R, pct, accent, track, lw) {
-  ctx.save();
-  ctx.lineWidth = lw;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.arc(cx, cy, R, 0, Math.PI * 2);
-  ctx.strokeStyle = track;
-  ctx.stroke();
-  if (pct > 0) {
-    ctx.beginPath();
-    ctx.arc(cx, cy, R, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, pct));
-    ctx.strokeStyle = accent;
-    ctx.shadowColor = studioRgba(accent, 0.55);
-    ctx.shadowBlur = 18;
-    ctx.stroke();
-  }
-  ctx.restore();
-}
 function studioFace(ctx) {
   if (typeof document === 'undefined' || !document.fonts || !document.fonts.load) return;
   if (Studio.card.fontsAsked) return;
   Studio.card.fontsAsked = true;
-  Promise.all([300, 400, 500, 600, 700, 200].map(w => document.fonts.load(studioF(w, 40)))).then(() => {
+  Promise.all([300, 400, 500, 600, 700, 200].map(w => document.fonts.load(studioF(w, 40))).concat(document.fonts.load(studioF(600, 40, studioNum)))).then(() => {
     if (Studio.shareOpen) studioDrawShare();
   }).catch(() => {});
 }
 
+function studioGauge(ctx, cx, cy, R, pct, acc, acc2, lw) {
+  const a0 = Math.PI * 0.75, sweep = Math.PI * 1.5;
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineWidth = lw;
+  ctx.beginPath();
+  ctx.arc(cx, cy, R, a0, a0 + sweep);
+  ctx.strokeStyle = 'rgba(255,255,255,.08)';
+  ctx.stroke();
+  const p = Math.max(0, Math.min(1, pct || 0));
+  if (p > 0) {
+    const end = a0 + sweep * p;
+    const g = ctx.createLinearGradient(cx - R, cy + R, cx + R, cy - R);
+    g.addColorStop(0, acc);
+    g.addColorStop(1, acc2);
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, a0, end);
+    ctx.strokeStyle = g;
+    ctx.shadowColor = studioRgba(acc, 0.5);
+    ctx.shadowBlur = 26;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    const kx = cx + Math.cos(end) * R, ky = cy + Math.sin(end) * R;
+    ctx.beginPath();
+    ctx.arc(kx, ky, lw * 0.64, 0, Math.PI * 2);
+    ctx.fillStyle = '#0b0b0d';
+    ctx.fill();
+    ctx.lineWidth = lw * 0.34;
+    ctx.strokeStyle = acc2;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+function studioPanel(ctx, x, y, w, h, r, fill, line) {
+  studioRound(ctx, x, y, w, h, r);
+  ctx.fillStyle = fill;
+  ctx.fill();
+  const sheen = ctx.createLinearGradient(0, y, 0, y + h * 0.5);
+  sheen.addColorStop(0, 'rgba(255,255,255,.035)');
+  sheen.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = sheen;
+  ctx.fill();
+  studioRound(ctx, x + 0.75, y + 0.75, w - 1.5, h - 1.5, r);
+  ctx.strokeStyle = line;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+}
+
 function studioPaintGlass(ctx, view, theme, tilt, photo) {
-  const W = 1080, H = 1350, acc = theme.acc;
-  const bg = ctx.createLinearGradient(0, 0, W, H);
-  bg.addColorStop(0, '#8d9ee8');
-  bg.addColorStop(0.5, studioMix(acc, '#eadff0', 0.78));
-  bg.addColorStop(1, studioMix(acc, '#fbe1cc', 0.55));
-  ctx.fillStyle = bg;
+  const W = 1080, H = 1350, acc = theme.acc, acc2 = theme.acc2 || studioMix(acc, '#ffffff', 0.45);
+  const txt2 = '#9a9aa2', line = 'rgba(255,255,255,.08)';
+  const num = px => studioF(600, px, studioNum);
+  ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, W, H);
-  [[90, 1180, 620, 'rgba(110,132,236,.55)'], [1010, 90, 560, studioRgba(studioMix(acc, '#ffd2ad', 0.45), 0.55)], [960, 1050, 520, 'rgba(206,182,246,.4)']].forEach(b => {
+  if (photo) {
+    ctx.save();
+    ctx.filter = 'blur(42px)';
+    ctx.globalAlpha = 0.6;
+    ctx.drawImage(studioPhotoCanvas(photo, view.photo, 540, 675, {focus: view.focus, bright: 0.62}), -90, -90, W + 180, H + 180);
+    ctx.restore();
+  }
+  [[W * 0.1, H * 0.94, 760, 0.3], [W * 0.96, H * 0.04, 600, 0.14]].forEach(b => {
     const g = ctx.createRadialGradient(b[0], b[1], 0, b[0], b[1], b[2]);
-    g.addColorStop(0, b[3]);
-    g.addColorStop(1, 'rgba(255,255,255,0)');
+    g.addColorStop(0, studioRgba(acc, b[3]));
+    g.addColorStop(1, studioRgba(acc, 0));
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
   });
-  const cx = 128, cy = 56, cw = 824, ch = 1232, r = 46;
+  const cx = 60, cy = 60, cw = 960, ch = 1230, r = 52;
   ctx.save();
-  ctx.shadowColor = 'rgba(30,32,72,.42)';
-  ctx.shadowBlur = 80;
-  ctx.shadowOffsetY = 36;
+  ctx.shadowColor = 'rgba(0,0,0,.75)';
+  ctx.shadowBlur = 90;
+  ctx.shadowOffsetY = 30;
   studioRound(ctx, cx, cy, cw, ch, r);
-  ctx.fillStyle = '#161920';
+  ctx.fillStyle = '#0b0b0d';
   ctx.fill();
   ctx.restore();
   ctx.save();
   studioRound(ctx, cx, cy, cw, ch, r);
   ctx.clip();
   const base = ctx.createLinearGradient(0, cy, 0, cy + ch);
-  base.addColorStop(0, '#1d2029');
-  base.addColorStop(1, '#111318');
+  base.addColorStop(0, '#141417');
+  base.addColorStop(1, '#09090b');
   ctx.fillStyle = base;
   ctx.fillRect(cx, cy, cw, ch);
-  const ph = 640;
-  if (photo) ctx.drawImage(studioPhotoCanvas(photo, view.photo, cw, ph, {focus: view.focus, bright: 0.66, fade: 0.5, tint: 'rgba(96,108,140,.55)'}), cx, cy);
-  const topShade = ctx.createLinearGradient(0, cy, 0, cy + 220);
-  topShade.addColorStop(0, 'rgba(8,10,16,.42)');
-  topShade.addColorStop(1, 'rgba(8,10,16,0)');
+  if (photo) ctx.drawImage(studioPhotoCanvas(photo, view.photo, cw, 640, {focus: view.focus, bright: 0.72, fade: 0.4}), cx, cy);
+  const warm = ctx.createRadialGradient(cx, cy + ch, 0, cx, cy + ch, 720);
+  warm.addColorStop(0, studioRgba(acc, 0.13));
+  warm.addColorStop(1, studioRgba(acc, 0));
+  ctx.fillStyle = warm;
+  ctx.fillRect(cx, cy, cw, ch);
+  const topShade = ctx.createLinearGradient(0, cy, 0, cy + 200);
+  topShade.addColorStop(0, 'rgba(0,0,0,.5)');
+  topShade.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = topShade;
-  ctx.fillRect(cx, cy, cw, 220);
-  const L = cx + 58, R = cx + cw - 58;
-  const onPhoto = 'rgba(255,255,255,.9)';
-  studioText(ctx, 'CADA FLECHA', L, cy + 96, studioF(500, 18), onPhoto, 5.5);
-  studioText(ctx, 'CUENTA', L, cy + 126, studioF(500, 18), onPhoto, 5.5);
-  ctx.fillStyle = studioRgba(acc, 0.9);
-  ctx.fillRect(L, cy + 150, 36, 2.5);
-  studioText(ctx, 'ARCHERY WATCH', R, cy + 96, studioF(600, 15), 'rgba(255,255,255,.7)', 4, 'right');
-  const titleFont = studioF(700, 78);
-  const lines = studioWrap(ctx, view.headline, titleFont, cw - 120, 2);
-  const lastBase = cy + 566;
-  const firstBase = lastBase - (lines.length - 1) * 82;
-  studioText(ctx, view.date, L, firstBase - 92, studioF(500, 19), 'rgba(255,255,255,.76)', 4.5);
-  lines.forEach((t, i) => studioText(ctx, t, L - 3, firstBase + i * 82, titleFont, '#ffffff', -1.5));
-  studioText(ctx, view.kicker, L, lastBase + 50, studioF(500, 18), 'rgba(255,255,255,.6)', 5);
-  const px = cx + 30, pw = cw - 60, py = cy + 660, pH = 224;
-  studioRound(ctx, px, py, pw, pH, 30);
-  ctx.fillStyle = 'rgba(255,255,255,.045)';
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,.075)';
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-  ctx.fillStyle = 'rgba(255,255,255,.07)';
-  ctx.fillRect(px + pw / 2, py + 30, 1.5, pH - 60);
-  ctx.fillRect(px + 30, py + pH / 2, pw - 60, 1.5);
-  const tones = [acc, '#7b93ff', '#f07a93', '#4cc98a'];
-  const icons = {arrows: 'arrow', series: 'series', avg: 'target', time: 'clock'};
-  view.stats.forEach((cell, i) => {
-    const colX = px + (i % 2) * (pw / 2) + 30;
-    const rowC = py + (i < 2 ? pH * 0.25 : pH * 0.75);
-    const tone = tones[i];
-    ctx.beginPath();
-    ctx.arc(colX + 34, rowC, 34, 0, Math.PI * 2);
-    ctx.fillStyle = studioRgba(tone, 0.2);
-    ctx.fill();
-    ctx.strokeStyle = studioRgba(tone, 0.32);
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    studioIcon(ctx, icons[cell.id] || 'target', colX + 34, rowC, 30, studioMix(tone, '#ffffff', 0.25), 2.4);
-    studioText(ctx, cell.label.toUpperCase(), colX + 92, rowC - 12, studioF(600, 14), '#9ea4b2', 3);
-    studioValue(ctx, cell.value, colX + 92, rowC + 34, studioF(600, 44), studioF(500, 22), '#ffffff', '#9ea4b2');
-  });
-  const by = py + pH + 18, bh = 164;
-  studioRound(ctx, px, by, pw, bh, 30);
-  const band = ctx.createLinearGradient(px, by, px + pw, by + bh);
-  band.addColorStop(0, studioRgba(acc, 0.26));
-  band.addColorStop(1, studioRgba(acc, 0.07));
-  ctx.fillStyle = band;
-  ctx.fill();
-  ctx.strokeStyle = studioRgba(acc, 0.34);
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-  const ringX = px + 100, ringY = by + bh / 2;
-  studioRing(ctx, ringX, ringY, 56, view.pct || 0, acc, 'rgba(255,255,255,.1)', 10);
-  studioText(ctx, view.pct != null ? Math.round(view.pct * 100) + '%' : '–', ringX, ringY + 11, studioF(600, 30), '#ffffff', 0, 'center');
-  const tx = px + 196;
-  studioText(ctx, 'PUNTUACIÓN', tx, by + 50, studioF(600, 15), studioMix(acc, '#ffffff', 0.3), 4);
-  const sw = studioText(ctx, view.scoreMain, tx - 2, by + 110, studioF(700, 60), '#ffffff', -1);
-  if (view.scoreMax) studioText(ctx, '/ ' + view.scoreMax, tx + sw + 12, by + 110, studioF(500, 30), 'rgba(255,255,255,.55)');
-  studioText(ctx, view.breakdown || view.scoreNote, tx, by + 142, studioF(400, 21), 'rgba(255,255,255,.72)');
-  const fy = by + bh + 22;
-  ctx.fillStyle = 'rgba(255,255,255,.08)';
-  ctx.fillRect(px, fy, pw, 1.5);
-  const fc = fy + 58;
+  ctx.fillRect(cx, cy, cw, 200);
+  const L = cx + 56, R = cx + cw - 56;
+  ctx.save();
   ctx.beginPath();
-  ctx.arc(px + 30, fc, 30, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(255,255,255,.07)';
+  ctx.arc(L + 6, cy + 82, 6.5, 0, Math.PI * 2);
+  ctx.fillStyle = acc;
+  ctx.shadowColor = studioRgba(acc, 0.8);
+  ctx.shadowBlur = 16;
   ctx.fill();
-  studioIcon(ctx, 'bow', px + 30, fc, 30, 'rgba(255,255,255,.88)', 2.2);
-  studioText(ctx, 'MODALIDAD', px + 80, fc - 10, studioF(600, 14), '#9ea4b2', 3);
-  const mpx = studioFitPx(ctx, view.modeLine, pw / 2 - 110, 26, 600, 18);
-  studioText(ctx, view.modeLine, px + 80, fc + 24, studioF(600, mpx), '#ffffff');
-  ctx.fillStyle = 'rgba(255,255,255,.08)';
-  ctx.fillRect(px + pw / 2, fy + 22, 1.5, 72);
-  const sx = px + pw / 2 + 34, sW = pw / 2 - 44;
-  studioText(ctx, 'AGRUPACIÓN', sx, fc - 30, studioF(600, 14), '#9ea4b2', 3);
-  studioSpark(ctx, sx, fc - 16, sW, 44, view.chartValues, acc, {fill: 0.3, dot: 3.5, dotFill: '#1a1d25', dotLine: true, lw: 2.6});
-  studioCardSheen(ctx, cx, cy, cw, ch, r, tilt, 0.07, acc);
   ctx.restore();
+  studioText(ctx, 'ARCHERY WATCH', L + 26, cy + 89, studioF(600, 17), 'rgba(255,255,255,.92)', 4.5);
+  studioText(ctx, view.date, R, cy + 89, studioF(500, 17), 'rgba(255,255,255,.7)', 3.5, 'right');
+  studioText(ctx, view.kicker, L, cy + 440, studioF(500, 18), studioMix(acc, '#ffffff', 0.25), 4.5);
+  const hpx = studioFitPx(ctx, view.headline, cw - 112, 78, 400, 48, -2.5);
+  studioText(ctx, view.headline, L - 3, cy + 522, studioF(400, hpx), '#ffffff', -2.5);
+  studioText(ctx, view.title, L, cy + 570, studioF(400, 27), 'rgba(255,255,255,.62)');
+  const fill = 'rgba(11,11,13,.8)';
+  const hx = cx + 28, hw = cw - 56, hy = cy + 608, hh = 322;
+  studioPanel(ctx, hx, hy, hw, hh, 40, fill, line);
+  const gx = hx + 190, gy = hy + hh / 2 + 6, GR = 122;
+  studioGauge(ctx, gx, gy, GR, view.pct, acc, acc2, 18);
+  studioText(ctx, view.scoreMain, gx, gy + 30, num(122), acc, 0, 'center');
+  studioText(ctx, view.scoreMax ? 'PUNTOS' : 'FLECHAS', gx, gy + 70, studioF(500, 15), txt2, 3.5, 'center');
+  if (view.scoreMax) studioText(ctx, '/ ' + view.scoreMax, gx, gy + GR + 6, num(36), 'rgba(255,255,255,.5)', 0, 'center');
+  ctx.fillStyle = line;
+  ctx.fillRect(hx + 376, hy + 44, 1.5, hh - 88);
+  const gridX = hx + 420, colW = (hx + hw - 30 - gridX) / 2;
+  view.stats.forEach((cell, i) => {
+    const x = gridX + (i % 2) * colW;
+    const top = hy + (i < 2 ? 44 : 182);
+    studioText(ctx, cell.label.toUpperCase(), x, top + 22, studioF(500, 16), txt2, 3.5);
+    studioValue(ctx, cell.value, x - 2, top + 104, num(86), studioF(500, 25), '#ffffff', txt2);
+  });
+  const sy = hy + hh + 20, sh = 166;
+  studioPanel(ctx, hx, sy, hw, sh, 36, fill, line);
+  const c3 = hw / 3;
+  [1, 2].forEach(i => {
+    ctx.fillStyle = line;
+    ctx.fillRect(hx + c3 * i, sy + 34, 1.5, sh - 68);
+  });
+  const sL = i => hx + c3 * i + 36;
+  studioText(ctx, 'MEJOR SERIE', sL(0), sy + 54, studioF(500, 15), txt2, 3.5);
+  if (view.best) {
+    const bw = studioText(ctx, String(view.best.sum), sL(0) - 2, sy + 134, num(76), acc);
+    studioText(ctx, 'S' + view.best.index, sL(0) + bw + 10, sy + 134, studioF(500, 24), txt2);
+  } else studioText(ctx, '–', sL(0), sy + 134, num(76), '#ffffff');
+  studioText(ctx, 'AGRUPACIÓN', sL(1), sy + 54, studioF(500, 15), txt2, 3.5);
+  studioValue(ctx, view.spreadText, sL(1) - 2, sy + 134, num(76), studioF(500, 24), '#ffffff', txt2);
+  studioText(ctx, 'PRECISIÓN', sL(2), sy + 54, studioF(500, 15), txt2, 3.5);
+  studioValue(ctx, view.pct != null ? Math.round(view.pct * 100) + '%' : '–', sL(2) - 2, sy + 134, num(76), studioF(500, 24), '#ffffff', txt2);
+  const fy = sy + sh;
+  const fc = fy + (cy + ch - fy) / 2;
+  studioText(ctx, view.breakdown || view.scoreNote || '', L, fc + 8, studioF(500, 21), txt2, 1);
+  studioSpark(ctx, R - 330, fc - 22, 330, 44, view.chartValues, acc, {fill: 0.28, dot: 3.5, dotFill: '#0b0b0d', dotLine: true, lw: 2.6});
+  studioCardSheen(ctx, cx, cy, cw, ch, r, tilt, 0.05, acc);
+  ctx.restore();
+  const rim = ctx.createLinearGradient(cx, cy, cx + cw, cy + ch);
+  rim.addColorStop(0, studioRgba(acc, 0.6));
+  rim.addColorStop(0.32, 'rgba(255,255,255,.1)');
+  rim.addColorStop(1, 'rgba(255,255,255,.05)');
   studioRound(ctx, cx + 0.75, cy + 0.75, cw - 1.5, ch - 1.5, r);
-  ctx.strokeStyle = 'rgba(255,255,255,.12)';
+  ctx.strokeStyle = rim;
   ctx.lineWidth = 1.5;
   ctx.stroke();
-  studioText(ctx, 'ARCHERY WATCH', W / 2, H - 22, studioF(600, 14), 'rgba(28,30,58,.5)', 6, 'center');
 }
 
 function studioPaintEditorial(ctx, view, theme, tilt, photo) {
   const W = 1080, H = 1350, acc = theme.acc;
-  const cream = '#f7f3ec', ink = '#1c1b19', soft = '#716b63', hair = 'rgba(28,27,25,.09)', block = '#ede7dc';
+  const cream = '#f7f3ec', ink = '#1c1b19', soft = '#7a746b', hair = 'rgba(28,27,25,.09)', block = '#efe9df';
   ctx.fillStyle = '#3a3936';
   ctx.fillRect(0, 0, W, H);
   if (photo) {
@@ -1895,13 +1948,14 @@ function studioPaintEditorial(ctx, view, theme, tilt, photo) {
   ctx.save();
   studioRound(ctx, cx, cy, cw, ch, r);
   ctx.clip();
-  if (photo) ctx.drawImage(studioPhotoCanvas(photo, view.photo, cw, 380, {focus: view.focus, bright: 0.72, tint: 'rgba(150,140,120,.4)'}), cx, cy);
+  const ph = 450;
+  if (photo) ctx.drawImage(studioPhotoCanvas(photo, view.photo, cw, ph, {focus: view.focus, bright: 0.74, tint: 'rgba(150,140,120,.4)'}), cx, cy);
   else {
     ctx.fillStyle = '#4a4844';
-    ctx.fillRect(cx, cy, cw, 380);
+    ctx.fillRect(cx, cy, cw, ph);
   }
   const shade = ctx.createLinearGradient(0, cy, 0, cy + 200);
-  shade.addColorStop(0, 'rgba(10,10,10,.4)');
+  shade.addColorStop(0, 'rgba(10,10,10,.42)');
   shade.addColorStop(1, 'rgba(10,10,10,0)');
   ctx.fillStyle = shade;
   ctx.fillRect(cx, cy, cw, 200);
@@ -1909,75 +1963,72 @@ function studioPaintEditorial(ctx, view, theme, tilt, photo) {
   ctx.save();
   ctx.strokeStyle = 'rgba(255,255,255,.92)';
   ctx.lineWidth = 2.2;
+  [17, 8].forEach(k => {
+    ctx.beginPath();
+    ctx.arc(L + 18, cy + 76, k, 0, Math.PI * 2);
+    ctx.stroke();
+  });
   ctx.beginPath();
-  ctx.arc(L + 18, cy + 72, 17, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(L + 18, cy + 72, 8, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(L + 18, cy + 72, 2.6, 0, Math.PI * 2);
+  ctx.arc(L + 18, cy + 76, 2.6, 0, Math.PI * 2);
   ctx.fillStyle = acc;
   ctx.fill();
   ctx.restore();
-  studioText(ctx, 'ARCHERY WATCH', L + 50, cy + 70, studioF(600, 16), 'rgba(255,255,255,.95)', 5);
-  studioText(ctx, 'CADA FLECHA CUENTA', L + 50, cy + 96, studioF(500, 12.5), 'rgba(255,255,255,.66)', 4);
-  const pt = cy + 340;
-  const pg = ctx.createLinearGradient(0, pt - 70, 0, pt + 10);
+  studioText(ctx, 'ARCHERY WATCH', L + 50, cy + 82, studioF(600, 16), 'rgba(255,255,255,.95)', 5);
+  const pt = cy + ph - 40;
+  const pg = ctx.createLinearGradient(0, pt - 90, 0, pt + 10);
   pg.addColorStop(0, 'rgba(0,0,0,0)');
-  pg.addColorStop(1, 'rgba(0,0,0,.22)');
+  pg.addColorStop(1, 'rgba(0,0,0,.24)');
   ctx.fillStyle = pg;
-  ctx.fillRect(cx, pt - 70, cw, 80);
+  ctx.fillRect(cx, pt - 90, cw, 100);
   studioRound(ctx, cx, pt, cw, ch, 34);
   ctx.fillStyle = cream;
   ctx.fill();
   const tpx = studioFitPx(ctx, view.headline, 560, 58, 750, 36, -1);
-  studioText(ctx, view.headline, L - 2, pt + 92, studioF(750, tpx), ink, -1);
-  studioText(ctx, view.day, R, pt + 90, studioF(300, 64), acc, -1, 'right');
-  studioText(ctx, view.monthYear, R, pt + 122, studioF(600, 14), soft, 3.5, 'right');
-  const sub = studioWrap(ctx, view.summary, studioF(400, 25), 580, 2);
-  sub.forEach((t, i) => studioText(ctx, t, L, pt + 138 + i * 36, studioF(400, 25), soft));
+  studioText(ctx, view.headline, L - 2, pt + 94, studioF(750, tpx), ink, -1);
+  studioText(ctx, view.title, L, pt + 140, studioF(400, 27), soft);
+  studioText(ctx, view.day, R, pt + 92, studioF(300, 64), acc, -1, 'right');
+  studioText(ctx, view.monthYear, R, pt + 124, studioF(600, 14), soft, 3.5, 'right');
   ctx.fillStyle = hair;
-  ctx.fillRect(L, pt + 208, R - L, 1.5);
+  ctx.fillRect(L, pt + 180, R - L, 1.5);
   const row1 = [
     {icon: 'score', label: 'PUNTOS', value: view.scoreMax ? view.scoreMain + ' / ' + view.scoreMax : view.scoreMain},
     {icon: 'target', label: 'MEDIA', value: view.stats[2].value},
-    {icon: 'clock', label: 'DURACIÓN', value: view.stats[3].value}
+    {icon: 'clock', label: 'TIEMPO', value: view.stats[3].value}
   ];
   const c3 = (R - L) / 3;
   row1.forEach((m, i) => {
     const x = L + i * c3 + (i ? 30 : 0);
-    studioIcon(ctx, m.icon, x + 14, pt + 254, 28, acc, 2.4);
-    studioText(ctx, m.label, x, pt + 302, studioF(600, 14), soft, 3);
+    studioIcon(ctx, m.icon, x + 14, pt + 226, 28, acc, 2.4);
+    studioText(ctx, m.label, x, pt + 274, studioF(600, 14), soft, 3);
     const bits = String(m.value).split(' / ');
-    const w0 = studioValue(ctx, bits[0], x, pt + 348, studioF(750, 42), studioF(600, 22), ink, soft);
-    if (bits[1]) studioText(ctx, '/ ' + bits[1], x + w0 + 8, pt + 348, studioF(600, 22), soft);
+    const w0 = studioValue(ctx, bits[0], x, pt + 320, studioF(750, 42), studioF(600, 22), ink, soft);
+    if (bits[1]) studioText(ctx, '/ ' + bits[1], x + w0 + 8, pt + 320, studioF(600, 22), soft);
     if (i) {
       ctx.fillStyle = hair;
-      ctx.fillRect(L + i * c3, pt + 236, 1.5, 120);
+      ctx.fillRect(L + i * c3, pt + 208, 1.5, 120);
     }
   });
   ctx.fillStyle = hair;
-  ctx.fillRect(L, pt + 380, R - L, 1.5);
+  ctx.fillRect(L, pt + 352, R - L, 1.5);
   const row2 = [{icon: 'arrow', label: 'FLECHAS', value: view.stats[0].value}, {icon: 'series', label: 'SERIES', value: view.stats[1].value}];
   const c2 = (R - L) / 2;
   row2.forEach((m, i) => {
     const x = L + i * c2 + (i ? 30 : 0);
-    studioIcon(ctx, m.icon, x + 16, pt + 432, 30, acc, 2.4);
-    studioText(ctx, m.label, x + 54, pt + 420, studioF(600, 14), soft, 3);
-    studioText(ctx, m.value, x + 54, pt + 458, studioF(750, 36), ink);
+    studioIcon(ctx, m.icon, x + 16, pt + 404, 30, acc, 2.4);
+    studioText(ctx, m.label, x + 54, pt + 392, studioF(600, 14), soft, 3);
+    studioText(ctx, m.value, x + 54, pt + 430, studioF(750, 36), ink);
     if (i) {
       ctx.fillStyle = hair;
-      ctx.fillRect(L + c2, pt + 400, 1.5, 70);
+      ctx.fillRect(L + c2, pt + 372, 1.5, 70);
     }
   });
-  const mx = L, my = pt + 494, mw = R - L, mh = 184;
+  const mx = L, my = pt + 470, mw = R - L, mh = 196;
   ctx.save();
   studioRound(ctx, mx, my, mw, mh, 24);
   ctx.fillStyle = block;
   ctx.fill();
   ctx.clip();
-  const gx = mx + mw * 0.66, gy = my + mh / 2, GR = mh * 1.3;
+  const gx = mx + mw * 0.68, gy = my + mh / 2, GR = mh * 1.3;
   [[1, 'rgba(60,50,38,.035)'], [0.8, 'rgba(60,50,38,.03)'], [0.6, 'rgba(60,50,38,.03)'], [0.4, studioRgba(acc, 0.1)], [0.2, studioRgba(acc, 0.14)]].forEach(z => {
     ctx.beginPath();
     ctx.arc(gx, gy, GR * z[0], 0, Math.PI * 2);
@@ -2013,72 +2064,163 @@ function studioPaintEditorial(ctx, view, theme, tilt, photo) {
     ctx.lineTo(gx + c.x * GR, gy + c.y * GR + 12);
     ctx.stroke();
   }
-  const fadeL = ctx.createLinearGradient(mx, 0, mx + mw * 0.55, 0);
+  const fadeL = ctx.createLinearGradient(mx, 0, mx + mw * 0.5, 0);
   fadeL.addColorStop(0, block);
-  fadeL.addColorStop(0.62, studioRgba(block, 0.9));
+  fadeL.addColorStop(0.6, studioRgba(block, 0.9));
   fadeL.addColorStop(1, studioRgba(block, 0));
   ctx.fillStyle = fadeL;
-  ctx.fillRect(mx, my, mw * 0.55, mh);
+  ctx.fillRect(mx, my, mw * 0.5, mh);
   ctx.restore();
-  studioText(ctx, 'MAPA DE IMPACTOS', mx + 28, my + 44, studioF(600, 13.5), soft, 3);
-  studioText(ctx, view.impacts.length ? view.impacts.length + ' impactos' : 'Sin impactos', mx + 28, my + 88, studioF(700, 30), ink);
-  studioText(ctx, view.groupText, mx + 28, my + 122, studioF(400, 21), soft);
-  if (view.impacts.length >= 2) {
-    ctx.strokeStyle = acc;
-    ctx.lineWidth = 2.2;
-    ctx.beginPath();
-    ctx.moveTo(mx + 28, my + 152);
-    ctx.lineTo(mx + 46, my + 152);
-    ctx.moveTo(mx + 37, my + 143);
-    ctx.lineTo(mx + 37, my + 161);
-    ctx.stroke();
-    studioText(ctx, 'centro del grupo', mx + 58, my + 158, studioF(500, 15), soft);
-  }
-  const ky = my + mh + 16, kh = 124;
+  studioText(ctx, 'AGRUPACIÓN', mx + 30, my + 50, studioF(600, 13.5), soft, 3);
+  studioValue(ctx, view.spreadText, mx + 28, my + 130, studioF(750, 60), studioF(600, 28), ink, soft);
+  const vals = view.chartValues || [];
+  const ky = my + mh + 16, kh = 140;
   studioRound(ctx, mx, ky, mw, kh, 24);
   ctx.fillStyle = block;
   ctx.fill();
-  const vals = view.chartValues || [];
-  const max = vals.length ? Math.max.apply(null, vals) : 0;
-  const ax = mx + 104, aw = mw - 136, ay = ky + 46, ah = 44;
-  studioText(ctx, 'AGRUPACIÓN POR SERIE', mx + 26, ky + 30, studioF(600, 12.5), soft, 2.6);
-  studioText(ctx, 'menor es mejor', R - 22, ky + 30, studioF(500, 14), soft, 0, 'right');
-  studioText(ctx, max ? studioAvgText(max) + (view.chartUnit ? ' ' + view.chartUnit : '') : '', mx + 26, ay + 10, studioF(500, 14), soft);
-  studioText(ctx, '0', mx + 26, ay + ah, studioF(500, 14), soft);
+  studioText(ctx, 'POR SERIE', mx + 30, ky + 40, studioF(600, 13.5), soft, 3);
+  const ax = mx + 48, aw = mw - 96, ay = ky + 58, ah = 40;
   ctx.fillStyle = hair;
   ctx.fillRect(ax, ay + ah, aw, 1.5);
-  ctx.setLineDash([3, 6]);
-  ctx.strokeStyle = 'rgba(28,27,25,.12)';
-  ctx.lineWidth = 1.2;
-  ctx.beginPath();
-  ctx.moveTo(ax, ay);
-  ctx.lineTo(ax + aw, ay);
-  ctx.stroke();
-  ctx.setLineDash([]);
   const sp = studioSpark(ctx, ax, ay, aw, ah, vals, acc, {fill: 0.34, zero: true, dot: 4.5, dotFill: block, dotLine: true, lw: 3, empty: 'rgba(28,27,25,.2)'});
-  sp.forEach((p, i) => studioText(ctx, 'S' + (view.chartLabels[i] || i + 1), p.x, ky + kh - 12, studioF(600, 13), soft, 1.5, 'center'));
-  const fy = ky + kh + 24;
-  ctx.fillStyle = hair;
-  ctx.fillRect(L, fy, R - L, 1.5);
-  studioText(ctx, 'Cada flecha cuenta.', L, fy + 50, 'italic 400 30px ' + studioItalic, ink);
-  studioText(ctx, view.serial ? 'SESIÓN ' + view.serial : 'ARCHERY WATCH', R, fy + 46, studioF(600, 13), soft, 3.5, 'right');
+  sp.forEach((p, i) => studioText(ctx, 'S' + (view.chartLabels[i] || i + 1), p.x, ky + kh - 14, studioF(600, 13), soft, 1.5, 'center'));
   ctx.restore();
+}
+
+function studioRandom(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function studioValueNoise(rnd) {
+  const perm = new Uint8Array(512), val = new Float32Array(256);
+  for (let i = 0; i < 256; i++) { perm[i] = i; val[i] = rnd(); }
+  for (let i = 255; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); const t = perm[i]; perm[i] = perm[j]; perm[j] = t; }
+  for (let i = 0; i < 256; i++) perm[i + 256] = perm[i];
+  const at = (x, y) => val[perm[(x & 255) + perm[y & 255]]];
+  return (x, y) => {
+    const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
+    const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+    const a = at(xi, yi), b = at(xi + 1, yi), c = at(xi, yi + 1), d = at(xi + 1, yi + 1);
+    return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+  };
+}
+// Obsidian: smoky mottling, conchoidal ripples, faint veins and mineral flecks under a polished sheen.
+function studioStone(w, h, acc) {
+  const key = w + 'x' + h + ':' + acc;
+  const cache = Studio.card.stone || (Studio.card.stone = {});
+  if (cache.key === key) return cache.canvas;
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const x = c.getContext('2d');
+  const rnd = studioRandom(1307);
+  const base = x.createLinearGradient(0, 0, w * 0.45, h);
+  base.addColorStop(0, '#111113');
+  base.addColorStop(0.55, '#0a0a0c');
+  base.addColorStop(1, '#050506');
+  x.fillStyle = base;
+  x.fillRect(0, 0, w, h);
+  const noise = studioValueNoise(rnd);
+  const fbm = (px, py) => {
+    let sum = 0, amp = 0.5, f = 1;
+    for (let o = 0; o < 5; o++) { sum += amp * noise(px * f, py * f); f *= 2.03; amp *= 0.5; }
+    return sum;
+  };
+  const k = 3, lw = Math.ceil(w / k), lh = Math.ceil(h / k);
+  const low = document.createElement('canvas');
+  low.width = lw;
+  low.height = lh;
+  const lx = low.getContext('2d');
+  const img = lx.createImageData(lw, lh);
+  const s = 2.3 / lw;
+  for (let j = 0; j < lh; j++) {
+    for (let i = 0; i < lw; i++) {
+      const px = i * s, py = j * s;
+      const qx = fbm(px * 1.4, py * 1.4), qy = fbm(px * 1.4 + 5.2, py * 1.4 + 1.3);
+      const body = fbm(px + 2.4 * qx, py + 2.4 * qy);
+      const ridge = 1 - Math.abs(2 * fbm(px * 1.25 + 2.6 * qx + 1.7, py * 1.25 + 2.6 * qy + 9.2) - 1);
+      const vein = Math.pow(ridge, 34);
+      const haze = Math.pow(Math.max(0, body - 0.35), 1.6);
+      const lum = haze * 64 + vein * 26;
+      const o = (j * lw + i) * 4;
+      img.data[o] = lum;
+      img.data[o + 1] = lum;
+      img.data[o + 2] = lum * 1.06;
+      img.data[o + 3] = 255;
+    }
+  }
+  lx.putImageData(img, 0, 0);
+  x.save();
+  x.imageSmoothingEnabled = true;
+  x.imageSmoothingQuality = 'high';
+  x.globalCompositeOperation = 'lighter';
+  x.drawImage(low, 0, 0, lw * k, lh * k);
+  x.restore();
+  for (let i = 0; i < 1400; i++) {
+    const px = rnd() * w, py = rnd() * h, s = 0.4 + rnd() * rnd() * 1.6;
+    x.beginPath();
+    x.arc(px, py, s, 0, Math.PI * 2);
+    x.fillStyle = 'rgba(214,214,222,' + (0.04 + rnd() * rnd() * 0.22).toFixed(3) + ')';
+    x.fill();
+  }
+  const grain = x.getImageData(0, 0, w, h);
+  const d = grain.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const n = (rnd() - 0.5) * 7;
+    d[i] += n;
+    d[i + 1] += n;
+    d[i + 2] += n;
+  }
+  x.putImageData(grain, 0, 0);
+  const polish = x.createLinearGradient(w * 0.05, 0, w * 0.75, h * 0.6);
+  polish.addColorStop(0, 'rgba(255,255,255,0)');
+  polish.addColorStop(0.42, 'rgba(255,255,255,.035)');
+  polish.addColorStop(0.5, 'rgba(255,255,255,.06)');
+  polish.addColorStop(0.58, 'rgba(255,255,255,.02)');
+  polish.addColorStop(1, 'rgba(255,255,255,0)');
+  x.fillStyle = polish;
+  x.fillRect(0, 0, w, h);
+  const glow = x.createRadialGradient(w * 0.8, h * 0.88, 0, w * 0.8, h * 0.88, w * 0.7);
+  glow.addColorStop(0, studioRgba(acc, 0.06));
+  glow.addColorStop(1, studioRgba(acc, 0));
+  x.fillStyle = glow;
+  x.fillRect(0, 0, w, h);
+  const depth = x.createRadialGradient(w / 2, h * 0.55, Math.min(w, h) * 0.35, w / 2, h * 0.55, Math.max(w, h) * 0.78);
+  depth.addColorStop(0, 'rgba(0,0,0,0)');
+  depth.addColorStop(1, 'rgba(0,0,0,.55)');
+  x.fillStyle = depth;
+  x.fillRect(0, 0, w, h);
+  cache.key = key;
+  cache.canvas = c;
+  return c;
 }
 
 function studioPaintObsidian(ctx, view, theme, tilt, photo) {
   const W = 1080, H = 1350, acc = theme.acc;
-  const ink = '#f1efea', soft = '#8e8a83', hair = 'rgba(255,255,255,.09)';
-  const stone = ctx.createLinearGradient(0, 0, 0, H);
-  stone.addColorStop(0, '#141416');
-  stone.addColorStop(1, '#070708');
-  ctx.fillStyle = stone;
-  ctx.fillRect(0, 0, W, H);
-  if (photo) ctx.drawImage(studioPhotoCanvas(photo, view.photo, W, 760, {focus: view.focus, bright: 0.6, fade: 0.42}), 0, 0);
-  const lift = ctx.createRadialGradient(W * 0.72, H * 0.86, 20, W * 0.72, H * 0.86, 700);
-  lift.addColorStop(0, studioRgba(acc, 0.07));
-  lift.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = lift;
-  ctx.fillRect(0, 0, W, H);
+  const ink = '#f1efea', soft = '#8e8a83', hair = 'rgba(255,255,255,.1)';
+  const stone = studioStone(W, H, acc);
+  ctx.drawImage(stone, 0, 0);
+  if (photo) {
+    const shot = studioPhotoCanvas(photo, view.photo, W, 760, {focus: view.focus, bright: 0.66, fade: 0.4});
+    const lay = document.createElement('canvas');
+    lay.width = W;
+    lay.height = 760;
+    const lx = lay.getContext('2d');
+    lx.drawImage(shot, 0, 0);
+    lx.globalCompositeOperation = 'soft-light';
+    lx.globalAlpha = 0.28;
+    lx.drawImage(stone, 0, 0, W, 760, 0, 0, W, 760);
+    lx.globalAlpha = 1;
+    lx.globalCompositeOperation = 'destination-in';
+    lx.drawImage(shot, 0, 0);
+    ctx.drawImage(lay, 0, 0);
+  }
   const top = ctx.createLinearGradient(0, 0, 0, 220);
   top.addColorStop(0, 'rgba(0,0,0,.45)');
   top.addColorStop(1, 'rgba(0,0,0,0)');
@@ -2090,7 +2232,12 @@ function studioPaintObsidian(ctx, view, theme, tilt, photo) {
   studioText(ctx, view.kicker, L, 610, studioF(600, 17), studioMix(acc, '#ffffff', 0.2), 5);
   const tpx = studioFitPx(ctx, view.title, R - L, 56, 300, 34, -0.5);
   studioText(ctx, view.title, L - 2, 676, studioF(300, tpx), ink, -0.5);
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,.6)';
+  ctx.shadowBlur = 18;
+  ctx.shadowOffsetY = 4;
   const sw = studioText(ctx, view.scoreMain, L - 10, 914, studioF(200, 236), ink, -8);
+  ctx.restore();
   if (view.scoreMax) studioText(ctx, '/ ' + view.scoreMax, L + sw + 6, 914, studioF(300, 50), soft);
   studioText(ctx, view.breakdown || view.scoreNote, L, 966, studioF(400, 22), soft, 1);
   studioMedal(ctx, R - 118, 826, 116, view.impacts, acc, ink, 'rgba(255,255,255,.16)');
@@ -2105,11 +2252,10 @@ function studioPaintObsidian(ctx, view, theme, tilt, photo) {
   ctx.fillStyle = hair;
   ctx.fillRect(L, 1168, R - L, 1.5);
   studioText(ctx, 'AGRUPACIÓN', L, 1222, studioF(500, 14), soft, 3.5);
-  studioText(ctx, 'por serie · menor es mejor', L, 1252, studioF(400, 18), 'rgba(255,255,255,.42)');
+  studioValue(ctx, view.spreadText, L, 1262, studioF(300, 30), studioF(400, 18), ink, soft);
   studioSpark(ctx, L + 360, 1196, R - L - 360, 60, view.chartValues, acc, {fill: 0.22, dot: 4, dotFill: '#0b0b0c', dotLine: true, lw: 2.6});
-  studioText(ctx, 'CADA FLECHA CUENTA', L, 1306, studioF(500, 12.5), 'rgba(255,255,255,.4)', 5);
   studioText(ctx, view.serial || '', R, 1306, studioF(500, 12.5), 'rgba(255,255,255,.4)', 4, 'right');
-  studioCardSheen(ctx, 0, 0, W, H, 0, tilt, 0.06, acc);
+  studioCardSheen(ctx, 0, 0, W, H, 0, tilt, 0.05, acc);
   const rim = ctx.createLinearGradient(0, 0, 0, 3);
   rim.addColorStop(0, 'rgba(255,255,255,.16)');
   rim.addColorStop(1, 'rgba(255,255,255,0)');
@@ -2164,11 +2310,18 @@ function studioDrawShare(withThumbs) {
 async function studioExport() {
   const canvas = document.getElementById('shareCanvas');
   if (!canvas) return;
+  await studioPhotoReady();
   const tilt = {...(Studio.card.tilt || {x: 0, y: 0})};
   Studio.card.tilt = {x: -6, y: 10};
   studioDrawShare(false);
-  const png = canvas.toDataURL('image/png');
+  let png = '';
+  try { png = canvas.toDataURL('image/png'); } catch (e) {}
   Studio.card.tilt = tilt;
+  if (!png) {
+    if (Studio.shareOpen) studioDrawShare(false);
+    if (typeof notice === 'function') notice('No se pudo crear la imagen');
+    return;
+  }
   if (Studio.shareOpen) studioDrawShare(false);
   const raw = png.split(',')[1] || '';
   if (window.Native && Native.sharePng) { Native.sharePng(raw); return; }
