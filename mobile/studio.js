@@ -638,7 +638,7 @@ function studioMount() {
   };
   const presets = $('sharePresets');
   if (presets) {
-    presets.innerHTML = Studio.PRESETS.map(p => `<button type="button" data-preset="${p.id}" aria-label="${p.name}"><img alt=""></button>`).join('');
+    presets.innerHTML = Studio.PRESETS.map(p => `<button type="button" data-preset="${p.id}"><i><img alt=""></i><small>${p.name}</small></button>`).join('');
     presets.onclick = e => {
       const b = e.target.closest('[data-preset]');
       if (!b) return;
@@ -885,7 +885,11 @@ function studioModes() {
 
 function studioSyncShare() {
   const box = document.getElementById('shareThumbs');
-  if (box) box.querySelectorAll('[data-layout]').forEach(b => b.classList.toggle('on', b.dataset.layout === Studio.card.layout));
+  if (box) box.querySelectorAll('[data-layout]').forEach(b => {
+    const on = b.dataset.layout === Studio.card.layout;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-selected', on ? 'true' : 'false');
+  });
   const finish = Studio.card.finish || 'metal';
   document.querySelectorAll('#shareFinish [data-finish]').forEach(b => {
     const on = b.dataset.finish === finish;
@@ -901,6 +905,8 @@ function studioSyncShare() {
   });
   const clear = document.getElementById('sharePhotoClear');
   if (clear) clear.hidden = !Studio.card.photo;
+  const mine = document.getElementById('shareUserThumb');
+  if (mine && Studio.card.photo && mine.getAttribute('src') !== Studio.card.photo) mine.src = Studio.card.photo;
 }
 
 function studioTilt(rx, ry) {
@@ -2281,19 +2287,8 @@ function studioPaintCard(ctx, w, h, layout) {
 
 function studioPaintThumbs() {
   const host = document.getElementById('shareThumbs');
-  if (!host) return;
-  if (host.childElementCount !== Studio.LAYOUTS.length) {
-    host.innerHTML = Studio.LAYOUTS.map(t => `<button type="button" data-layout="${t.id}" aria-label="${t.name}"><canvas width="180" height="225"></canvas></button>`).join('');
-  }
-  const keep = Studio.card.layout;
-  host.querySelectorAll('[data-layout]').forEach(b => {
-    b.classList.toggle('on', b.dataset.layout === keep);
-    const canvas = b.querySelector('canvas');
-    if (!canvas) return;
-    Studio.card.layout = b.dataset.layout;
-    studioPaintCard(canvas.getContext('2d'), canvas.width, canvas.height, b.dataset.layout);
-  });
-  Studio.card.layout = keep;
+  if (!host || host.childElementCount === Studio.LAYOUTS.length) return;
+  host.innerHTML = Studio.LAYOUTS.map(t => `<button type="button" role="tab" data-layout="${t.id}">${t.name}</button>`).join('');
 }
 
 function studioDrawShare(withThumbs) {
