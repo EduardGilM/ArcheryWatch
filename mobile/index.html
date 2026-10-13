@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="aw-version" content="4.31">
+<meta name="aw-version" content="4.32">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#000000">
 <link rel="manifest" href="manifest.json">
@@ -282,14 +282,21 @@
   input, textarea { user-select:text; }
   .lensBar, .roundBar { display:flex; gap:6px; }
   .lensBar button, .roundBar button { flex:1; min-height:36px; border-radius:999px; background:var(--surface); color:var(--txt-2); border:1px solid var(--line); font-size:12px; font-weight:600; }
-  .lensBar button.on, .roundBar button.on, .modeSeg button.on { background:var(--acc-soft); color:var(--acc); border-color:var(--acc-line); }
+  .lensBar button.on, .roundBar button.on, .modeSeg button.on, .pickScope button.on { background:var(--acc-soft); color:var(--acc); border-color:var(--acc-line); }
   .roundBar[hidden], #openShare[hidden] { display:none !important; }
   .modeSeg { display:flex; gap:4px; grid-column:1 / -1; }
-  .modeSeg button { flex:1; min-width:0; min-height:30px; padding:4px 2px; border-radius:8px; background:var(--surface-2); color:var(--txt-2); border:1px solid var(--line); font-size:11px; font-weight:600; }
+  .modeSeg button { flex:1; min-width:0; min-height:40px; padding:8px 4px; border-radius:8px; background:var(--surface-2); color:var(--txt-2); border:1px solid var(--line); font-size:13px; font-weight:600; }
   .setModes { display:grid; gap:8px; padding:10px 12px; background:var(--surface); border:1px solid var(--line); border-radius:16px; }
-  .setModesTop { display:flex; align-items:center; justify-content:space-between; color:var(--txt-2); font-size:12px; }
-  .setModesTop button { background:none; border:none; color:var(--acc); font-weight:600; min-height:32px; padding:0 2px; }
+  .setModesTop { display:flex; align-items:center; justify-content:space-between; color:var(--txt-2); font-size:13px; }
+  .setModesTop button { background:none; border:none; color:var(--acc); font-weight:600; min-height:36px; padding:0 2px; }
+  .pickBar { background:var(--bg); }
+  .pickBar.on { position:sticky; top:0; z-index:2; padding:8px 0 10px; }
+  .pickStart { width:100%; min-height:44px; border-radius:12px; background:var(--surface); color:var(--txt); border:1px solid var(--line-2); font-size:14px; font-weight:600; }
+  .pickBarOn { display:grid; gap:8px; padding:10px 12px; background:var(--surface); border:1px solid var(--line); border-radius:16px; }
+  .pickScope { display:flex; gap:6px; }
+  .pickScope button { flex:1; min-height:40px; border-radius:10px; background:var(--surface-2); color:var(--txt-2); border:1px solid var(--line); font-size:13px; font-weight:600; }
   #setList details.picked { border-color:var(--acc); box-shadow:0 0 0 1px var(--acc-line); }
+  .trendRow.picked { background:var(--acc-soft); }
   .profileTop { display:grid; grid-template-columns:84px minmax(0,1fr); gap:12px; align-items:center; }
   .profilePhoto { width:84px; height:84px; border-radius:50%; border:1px solid var(--line-2); background:var(--surface-2); overflow:hidden; padding:0; color:var(--txt-2); font-size:28px; }
   .profilePhoto img { width:100%; height:100%; object-fit:cover; display:block; }
@@ -449,6 +456,7 @@
     <button type="button" data-round="score">Puntuable</button>
     <button type="button" data-round="">Libre</button>
   </div>
+  <div id="pickBar" class="pickBar" hidden></div>
   <div id="setList"></div>
   <button type="button" class="btnSecondary" id="openShare">Compartir sesión</button>
   <div id="trend" hidden></div>
@@ -2168,11 +2176,11 @@ function drawTrace(s) {
 }
 function phaseOfGroup(g) {
   const rows = g.map(j => data.shots[j]).filter(s => s && !s.candidate);
-  const src = rows.length ? rows : g.map(j => data.shots[j]);
-  let warm = 0, score = 0;
-  src.forEach(s => { if (s && s.phase === 'warm') warm++; else if (s && s.phase === 'score') score++; });
-  if (!warm && !score) return '';
-  return score > warm ? 'score' : 'warm';
+  const src = rows.length ? rows : g.map(j => data.shots[j]).filter(Boolean);
+  if (!src.length) return '';
+  const mark = s => (s && (s.phase === 'warm' || s.phase === 'score')) ? s.phase : '';
+  const phase = mark(src[0]);
+  return src.every(s => mark(s) === phase) ? phase : 'mixed';
 }
 function drawTrend(S) {
   const c = document.getElementById('trend'), list=document.getElementById('setList');
@@ -2189,9 +2197,12 @@ function drawTrend(S) {
     const sec = s.draw_ms != null ? esNum((s.draw_ms + 1200) / 1000, 1) + ' s' : '';
     const rad = aimRadius(s); const radTxt = rad == null ? '' : esNum(rad, 1) + '°';
     const meta = [sec, radTxt].filter(Boolean).join(' · ');
-    const aria=`${name}, ${label}${marked ? ', valor ' + marked : ''}, ${valid ? Math.round(v) + (candidates ? ' mG' : ' de estabilidad') : 'sin estabilidad'}`;
-    return `<button class="trendRow" data-shot="${i}" aria-current="${i===cur}" aria-label="${aria}" style="--c:${barOf(v)};--n:${numOf(v)}">`+
-      `<span class="trendLabel">${j + 1}${scoreBit}</span><span class="trendBar" aria-hidden="true"><span style="width:${valid?Math.max(0,Math.min(100,v/max*100)):0}%"></span></span><span class="trendMeta">${meta}</span><span class="trendValue">${valid?Math.round(v):'–'}</span></button>`;
+    const phaseName = s.phase === 'warm' ? 'Calentamiento' : s.phase === 'score' ? 'Puntuable' : '';
+    const phaseBit = phaseName ? `<small>${phaseName}</small>` : '';
+    const tAttr = Number.isFinite(Number(s.t_ms)) ? ` data-t="${Number(s.t_ms)}"` : '';
+    const aria=`${name}, ${label}${marked ? ', valor ' + marked : ''}${phaseName ? ', ' + phaseName : ''}, ${valid ? Math.round(v) + (candidates ? ' mG' : ' de estabilidad') : 'sin estabilidad'}`;
+    return `<button class="trendRow" data-shot="${i}"${tAttr} aria-current="${i===cur}" aria-label="${aria}" style="--c:${barOf(v)};--n:${numOf(v)}">`+
+      `<span class="trendLabel">${j + 1}${scoreBit}${phaseBit}</span><span class="trendBar" aria-hidden="true"><span style="width:${valid?Math.max(0,Math.min(100,v/max*100)):0}%"></span></span><span class="trendMeta">${meta}</span><span class="trendValue">${valid?Math.round(v):'–'}</span></button>`;
   }).join('');});
   if (c) c.innerHTML=rows.join('');
   list.innerHTML=S.map((g,i)=>{

@@ -6,6 +6,8 @@ const studioNum = "'Barlow Condensed', sans-serif";
 const Studio = {
   lens: 'all',
   picks: new Set(),
+  arrows: new Set(),
+  dayIds: new Set(),
   picking: false,
   shareOpen: false,
   shareKind: 'session',
@@ -64,14 +66,25 @@ const Studio = {
     if (mode !== 'warm' && mode !== 'score') return rows;
     return rows.filter(s => s && s.phase === mode);
   },
-  applyPhase(session, phase, setIds) {
-    const ids = new Set((setIds || []).map(v => String(v)));
+  dayKey(ms) {
+    const d = new Date(ms);
+    if (!Number.isFinite(d.getTime())) return '';
+    return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+  },
+  tag(session, phase, opts) {
+    const o = opts || {};
+    const sets = new Set((o.sets || []).map(v => String(v)));
+    const times = new Set((o.times || []).map(Number));
     (session && session.shots || []).forEach(s => {
-      if (!s || !ids.has(String(s.set_id))) return;
+      if (!s) return;
+      if (!o.all && !sets.has(String(s.set_id)) && !times.has(Number(s.t_ms))) return;
       if (phase === 'warm' || phase === 'score') s.phase = phase;
       else delete s.phase;
     });
     return session;
+  },
+  applyPhase(session, phase, setIds) {
+    return this.tag(session, phase, {sets: setIds});
   },
   startRound(session, phase) {
     if (!session) return session;
@@ -311,13 +324,153 @@ const Studio = {
   },
   onSetClick(e) {
     if (!this.picking || !e || !e.target || !e.target.closest) return false;
-    if (!e.target.closest('#setList summary')) return false;
-    if (e.preventDefault) e.preventDefault();
-    if (e.stopPropagation) e.stopPropagation();
-    return true;
+    if (e.target.closest('.r') || e.target.closest('.modeSeg') || e.target.closest('#pickBar')) return false;
+    if (e.target.closest('#setList summary') || e.target.closest('#setList .trendRow')) {
+      if (e.preventDefault) e.preventDefault();
+      if (e.stopPropagation) e.stopPropagation();
+      return true;
+    }
+    return false;
   }
 };
 if (typeof module !== 'undefined') module.exports = Studio;
+
+function studioClearPick() {
+  Studio.picking = false;
+  Studio.picks.clear();
+  Studio.arrows.clear();
+  Studio.dayIds.clear();
+}
+
+function studioSessionIds(session) {
+  const ids = [];
+  const seen = new Set();
+  (session && session.shots || []).forEach(s => {
+    if (!s || s.set_id == null) return;
+    const id = String(s.set_id);
+    if (seen.has(id)) return;
+    seen.add(id);
+    ids.push(id);
+  });
+  return ids;
+}
+
+function studioSameDay(session) {
+  if (!session || typeof store === 'undefined' || !store.list) return [];
+  const key = Studio.dayKey(session.id);
+  if (!key) return [];
+  return store.list().filter(s => s && s.id !== session.id && Studio.dayKey(s.id) === key);
+}
+
+function studioSessionFull(session) {
+  const ids = studioSessionIds(session);
+  return ids.length > 0 && ids.every(id => Studio.picks.has(id)) && Studio.arrows.size === 0;
+}
+
+function studioPickCount() {
+  let n = 0;
+  const session = typeof displayedSession === 'function' ? displayedSession() : null;
+  const cur = session && session.id;
+  (session && session.shots || []).forEach(s => {
+    if (!s) return;
+    if (Studio.picks.has(String(s.set_id)) || (Number.isFinite(Number(s.t_ms)) && Studio.arrows.has(Number(s.t_ms)))) n++;
+  });
+  if (typeof store !== 'undefined' && store.list && Studio.dayIds.size) {
+    store.list().forEach(s => {
+      if (!s || s.id === cur || !Studio.dayIds.has(s.id)) return;
+      (s.shots || []).forEach(a => { if (a) n++; });
+    });
+  }
+  return n;
+}
+
+function studioToggleSet(sid) {
+  if (sid == null) return;
+  const setId = String(sid);
+  const session = typeof displayedSession === 'function' ? displayedSession() : null;
+  (session && session.shots || []).forEach(s => {
+    if (s && String(s.set_id) === setId) Studio.arrows.delete(Number(s.t_ms));
+  });
+  if (Studio.picks.has(setId)) Studio.picks.delete(setId);
+  else Studio.picks.add(setId);
+}
+
+function studioToggleArrow(t, sid) {
+  const time = Number(t);
+  if (!Number.isFinite(time)) return;
+  const setId = sid == null ? '' : String(sid);
+  if (setId && Studio.picks.has(setId)) {
+    Studio.picks.delete(setId);
+    const session = typeof displayedSession === 'function' ? displayedSession() : null;
+    (session && session.shots || []).forEach(s => {
+      if (!s || String(s.set_id) !== setId) return;
+      const ms = Number(s.t_ms);
+      if (Number.isFinite(ms) && ms !== time) Studio.arrows.add(ms);
+    });
+    Studio.arrows.delete(time);
+    return;
+  }
+  if (Studio.arrows.has(time)) Studio.arrows.delete(time);
+  else Studio.arrows.add(time);
+}
+
+function studioPickSession() {
+  const session = typeof displayedSession === 'function' ? displayedSession() : null;
+  const ids = studioSessionIds(session);
+  const full = studioSessionFull(session) && Studio.dayIds.size === 0;
+  Studio.arrows.clear();
+  Studio.dayIds.clear();
+  Studio.picks.clear();
+  if (!full) ids.forEach(id => Studio.picks.add(id));
+}
+
+function studioPickDay() {
+  const session = typeof displayedSession === 'function' ? displayedSession() : null;
+  const ids = studioSessionIds(session);
+  const others = studioSameDay(session);
+  const full = studioSessionFull(session) && others.every(s => Studio.dayIds.has(s.id)) && Studio.dayIds.size === others.length;
+  Studio.arrows.clear();
+  Studio.picks.clear();
+  Studio.dayIds.clear();
+  if (full) return;
+  ids.forEach(id => Studio.picks.add(id));
+  others.forEach(s => Studio.dayIds.add(s.id));
+}
+
+function studioApplyPick(phase) {
+  if (!studioPickCount()) {
+    if (typeof notice === 'function') notice('Elige al menos una flecha.');
+    return;
+  }
+  const sets = [...Studio.picks];
+  const times = [...Studio.arrows];
+  const days = new Set(Studio.dayIds);
+  const current = typeof displayedSession === 'function' ? displayedSession() : null;
+  const currentId = current && current.id;
+  if (typeof store === 'undefined' || !store.list || !store.save) {
+    if (current) Studio.tag(current, phase, {sets, times});
+    studioClearPick();
+    if (typeof render === 'function') render();
+    return;
+  }
+  const L = store.list();
+  L.forEach(s => {
+    if (!s) return;
+    if (s.id === currentId) Studio.tag(s, phase, {sets, times});
+    else if (days.has(s.id)) Studio.tag(s, phase, {all: true});
+  });
+  store.save(L);
+  const fresh = L.find(s => s.id === currentId);
+  if (fresh && typeof historyMode !== 'undefined') {
+    const shown = historyMode ? histId : (curSess && curSess.id);
+    if (shown === fresh.id) {
+      data = {shots: fresh.shots};
+      if (!historyMode) curSess = fresh;
+    }
+  }
+  studioClearPick();
+  if (typeof render === 'function') render();
+}
 
 function studioMount() {
   if (typeof document === 'undefined' || !document.getElementById || Studio.mounted) return;
@@ -340,19 +493,28 @@ function studioMount() {
     studioCommit(s => Studio.startRound(s, b.dataset.round));
   };
   const list = $('setList');
+  const root = $('vSession') || list;
   let hold = 0, suppress = false, x0 = 0, y0 = 0;
   if (list) {
     list.addEventListener('pointerdown', e => {
-      if (e.target.closest && (e.target.closest('.modeSeg') || e.target.closest('.setModes'))) return;
-      const sum = e.target.closest && e.target.closest('summary');
-      if (!sum || (e.target.closest && e.target.closest('.trendRow'))) return;
+      if (!e.target.closest) return;
+      if (e.target.closest('.modeSeg') || e.target.closest('.r') || e.target.closest('#pickBar')) return;
+      const row = e.target.closest('.trendRow');
+      const sum = e.target.closest('summary');
+      if (!row && !sum) return;
       x0 = e.clientX; y0 = e.clientY;
       clearTimeout(hold);
-      const sid = sum.parentElement && sum.parentElement.dataset.sid;
+      const box = (row || sum).closest('details');
+      const sid = box && box.dataset.sid;
+      const t = row && row.dataset.t;
       hold = setTimeout(() => {
         Studio.picking = true;
-        if (sid != null) Studio.picks.add(sid);
+        if (row && t != null && t !== '') {
+          const time = Number(t);
+          if (Number.isFinite(time) && !(sid != null && Studio.picks.has(String(sid)))) Studio.arrows.add(time);
+        } else if (sid != null) Studio.picks.add(String(sid));
         suppress = true;
+        setTimeout(() => { suppress = false; }, 700);
         studioSync();
       }, 480);
     });
@@ -362,36 +524,67 @@ function studioMount() {
     list.addEventListener('pointermove', drop);
     list.addEventListener('pointerup', () => clearTimeout(hold));
     list.addEventListener('pointercancel', () => clearTimeout(hold));
-    list.addEventListener('contextmenu', e => { if (e.target.closest && e.target.closest('summary')) e.preventDefault(); });
-    list.addEventListener('click', e => {
-      const modeBtn = e.target.closest && e.target.closest('[data-mode]');
-      if (modeBtn) {
+    list.addEventListener('contextmenu', e => {
+      if (e.target.closest && (e.target.closest('summary') || e.target.closest('.trendRow'))) e.preventDefault();
+    });
+  }
+  if (root) {
+    root.addEventListener('click', e => {
+      if (!e.target.closest) return;
+      if (suppress) {
+        suppress = false;
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      const modeBtn = e.target.closest('[data-mode]');
+      if (modeBtn && modeBtn.closest('#setList')) {
         e.preventDefault();
         e.stopPropagation();
         const sid = modeBtn.closest('details') && modeBtn.closest('details').dataset.sid;
         if (sid != null) studioCommit(s => Studio.applyPhase(s, modeBtn.dataset.mode, [sid]));
         return;
       }
-      const bulk = e.target.closest && e.target.closest('[data-bulk]');
+      const start = e.target.closest('[data-pick="start"]');
+      if (start) {
+        e.preventDefault();
+        Studio.picking = true;
+        studioSync();
+        return;
+      }
+      const bulk = e.target.closest('[data-bulk]');
       if (bulk) {
         e.preventDefault();
         e.stopPropagation();
-        if (bulk.dataset.bulk === 'done') { Studio.picking = false; Studio.picks.clear(); studioSync(); return; }
-        const ids = [...Studio.picks];
-        Studio.picking = false;
-        Studio.picks.clear();
-        studioCommit(s => Studio.applyPhase(s, bulk.dataset.bulk, ids));
+        if (bulk.dataset.bulk === 'done') { studioClearPick(); studioSync(); return; }
+        studioApplyPick(bulk.dataset.bulk);
+        return;
+      }
+      const scope = e.target.closest('[data-scope]');
+      if (scope && Studio.picking) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (scope.dataset.scope === 'day') studioPickDay();
+        else studioPickSession();
+        studioSync();
         return;
       }
       if (!Studio.picking) return;
-      const sum = e.target.closest && e.target.closest('summary');
+      if (e.target.closest('.r') || e.target.closest('#pickBar')) return;
+      const row = e.target.closest('#setList .trendRow');
+      if (row) {
+        e.preventDefault();
+        e.stopPropagation();
+        const det = row.closest('details');
+        studioToggleArrow(row.dataset.t, det && det.dataset.sid);
+        studioSync();
+        return;
+      }
+      const sum = e.target.closest('#setList summary');
       if (!sum) return;
       e.preventDefault();
       e.stopPropagation();
-      if (suppress) { suppress = false; return; }
-      const sid = sum.parentElement && sum.parentElement.dataset.sid;
-      if (sid == null) return;
-      if (Studio.picks.has(sid)) Studio.picks.delete(sid); else Studio.picks.add(sid);
+      studioToggleSet(sum.parentElement && sum.parentElement.dataset.sid);
       studioSync();
     }, true);
   }
@@ -601,22 +794,47 @@ function studioSync() {
   const share = document.getElementById('openShare');
   if (share) share.hidden = !(typeof data !== 'undefined' && data && data.shots && data.shots.length);
   document.querySelectorAll('#setList details').forEach(d => {
-    d.classList.toggle('picked', Studio.picking && Studio.picks.has(d.dataset.sid));
+    const setOn = Studio.picking && Studio.picks.has(d.dataset.sid);
+    d.classList.toggle('picked', setOn);
     d.hidden = Studio.lens !== 'all' && d.dataset.phase !== Studio.lens;
+    d.querySelectorAll('.trendRow').forEach(row => {
+      const t = Number(row.dataset.t);
+      row.classList.toggle('picked', !!(Studio.picking && (setOn || (Number.isFinite(t) && Studio.arrows.has(t)))));
+    });
   });
   studioSyncShare();
 }
 
 function studioModes() {
-  const list = document.getElementById('setList');
-  if (!list) return;
-  const existing = document.getElementById('setModes');
-  if (!Studio.picking) { if (existing) existing.remove(); return; }
-  const fresh = !existing;
-  if (fresh) list.insertAdjacentHTML('afterbegin', '<div class="setModes" id="setModes"><div class="setModesTop"><span id="pickCount"></span><button type="button" data-bulk="done">Hecho</button></div><span class="modeSeg"><button type="button" data-bulk="warm">Calentamiento</button><button type="button" data-bulk="score">Puntuable</button><button type="button" data-bulk="">Libre</button></span></div>');
+  const bar = document.getElementById('pickBar');
+  if (!bar) return;
+  const session = typeof displayedSession === 'function' ? displayedSession() : null;
+  const hasShots = !!(session && session.shots && session.shots.length);
+  bar.hidden = !hasShots;
+  bar.classList.toggle('on', !!(hasShots && Studio.picking));
+  if (!hasShots) { bar.innerHTML = ''; return; }
+  if (!Studio.picking) {
+    if (!bar.querySelector('[data-pick="start"]')) bar.innerHTML = '<button type="button" class="pickStart" data-pick="start">Seleccionar</button>';
+    return;
+  }
+  if (!bar.querySelector('.pickBarOn')) {
+    bar.innerHTML = '<div class="pickBarOn"><div class="setModesTop"><span id="pickCount"></span><button type="button" data-bulk="done">Hecho</button></div><div class="pickScope"><button type="button" data-scope="session">Sesión</button><button type="button" data-scope="day">Día</button></div><span class="modeSeg"><button type="button" data-bulk="warm">Calentamiento</button><button type="button" data-bulk="score">Puntuable</button><button type="button" data-bulk="">Libre</button></span></div>';
+  }
   const count = document.getElementById('pickCount');
-  if (count) count.textContent = Studio.picks.size + (Studio.picks.size === 1 ? ' set' : ' sets');
-  if (fresh) document.getElementById('setModes').scrollIntoView({block: 'nearest'});
+  const n = studioPickCount();
+  if (count) {
+    const noun = n === 1 ? 'flecha' : 'flechas';
+    count.textContent = Studio.dayIds.size ? (n + ' ' + noun + ' · día') : (n + ' ' + noun);
+  }
+  const others = studioSameDay(session);
+  const full = studioSessionFull(session);
+  const dayOn = full && others.every(s => Studio.dayIds.has(s.id)) && Studio.dayIds.size === others.length;
+  const sessionOn = full && Studio.dayIds.size === 0;
+  bar.querySelectorAll('[data-scope]').forEach(b => {
+    const on = b.dataset.scope === 'day' ? dayOn : sessionOn;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
 }
 
 function studioSyncShare() {

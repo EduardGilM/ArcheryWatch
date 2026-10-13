@@ -23,6 +23,31 @@ test('assigning a phase does not touch the other sets', () => {
   assert.equal(session.shots[1].phase, undefined);
 });
 
+test('tagging can mark individual arrows or a whole session', () => {
+  const session = {shots: [
+    {set_id: 1, t_ms: 10, phase: 'warm'},
+    {set_id: 1, t_ms: 20},
+    {set_id: 2, t_ms: 30}
+  ]};
+  Studio.tag(session, 'score', {times: [20]});
+  assert.equal(session.shots[0].phase, 'warm');
+  assert.equal(session.shots[1].phase, 'score');
+  assert.equal(session.shots[2].phase, undefined);
+  Studio.tag(session, 'warm', {all: true});
+  session.shots.forEach(s => assert.equal(s.phase, 'warm'));
+  Studio.tag(session, '', {sets: [2]});
+  assert.equal(session.shots[0].phase, 'warm');
+  assert.equal(session.shots[2].phase, undefined);
+});
+
+test('dayKey uses the local calendar day', () => {
+  const ms = Date.UTC(2026, 9, 13, 15, 0, 0);
+  const d = new Date(ms);
+  assert.equal(Studio.dayKey(ms), d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate());
+  assert.equal(Studio.dayKey(NaN), '');
+  assert.equal(Studio.dayKey('nope'), '');
+});
+
 test('starting a round tags the current set and the next arrows', () => {
   const session = {currentSet: 2, shots: [{set_id: 1}, {set_id: 2}, {set_id: 2, candidate: true}]};
   Studio.startRound(session, 'score');
