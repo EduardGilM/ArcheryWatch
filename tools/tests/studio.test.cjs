@@ -35,6 +35,11 @@ test('starting a round tags the current set and the next arrows', () => {
   assert.equal(fresh.phase, 'warm');
   assert.equal(fresh.shots[0].phase, undefined);
   assert.equal(fresh.shots[1].phase, 'warm');
+  const libre = {phase: 'score', currentSet: 1, shots: [{set_id: 1, phase: 'score'}, {set_id: 2, phase: 'warm'}]};
+  Studio.startRound(libre, '');
+  assert.equal(libre.phase, undefined);
+  assert.equal(libre.shots[0].phase, undefined);
+  assert.equal(libre.shots[1].phase, 'warm');
 });
 
 test('radar turns points, grouping and rhythm into a 0-100 shape', () => {
@@ -79,5 +84,6 @@ test('amber stays the default accent', () => {
   assert.equal(Studio.THEMES[0].id, 'amber');
   assert.equal(Studio.theme().id, 'amber');
   assert.equal(Studio.theme().acc, '#FF8A1F');
-  assert.ok(Studio.THEMES.length >= 6);
+  assert.ok(Studio.THEMES.length >= 10);
+  assert.ok(Studio.THEMES.some(t => t.acc.toLowerCase() === '#2f6bff'));
 });

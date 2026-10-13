@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="aw-version" content="4.26">
+<meta name="aw-version" content="4.27">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#000000">
 <link rel="manifest" href="manifest.json">
@@ -237,7 +237,7 @@
   #setList details { background:var(--surface); border:1px solid var(--line); border-radius:16px; overflow:hidden; position:relative; }
   #setList details[open] { border-color:var(--line-2); }
   #setList details[open]::before { content:""; position:absolute; left:0; top:14px; width:2px; height:28px; border-radius:0 2px 2px 0; background:var(--acc); }
-  #setList summary { list-style:none; cursor:pointer; border:0; display:grid; grid-template-columns:minmax(46px,.7fr) minmax(28px,1fr) 70px 42px 14px; align-items:center; gap:8px; padding:0 14px; min-height:56px; }
+  #setList summary { list-style:none; cursor:pointer; border:0; display:grid; grid-template-columns:minmax(46px,.7fr) minmax(28px,1fr) 70px 42px 14px; align-items:center; gap:8px; padding:8px 14px 10px; min-height:56px; }
   .setPts { display:flex; align-items:baseline; justify-content:flex-end; gap:3px; font:600 22px/1 var(--num); color:var(--txt-3); }
   .setPts b { font:inherit; }
   .setPts small { font:500 11px/1 var(--font); letter-spacing:.04em; color:var(--txt-3); }
@@ -280,16 +280,16 @@
   main[data-empty="true"] > .emptyState { display:block; }
 
   input, textarea { user-select:text; }
-  .lensBar, .roundBar, .pickBar { display:flex; gap:6px; }
-  .lensBar button, .roundBar button, .pickBar button { flex:1; min-height:40px; border-radius:999px; background:var(--surface); color:var(--txt-2); border:1px solid var(--line); font-size:12.5px; font-weight:600; }
-  .lensBar button.on, .roundBar button.on { background:var(--acc-soft); color:var(--acc); border-color:var(--acc-line); }
-  .roundBar button { border-radius:12px; }
-  .pickBar { position:sticky; bottom:0; z-index:6; flex-wrap:wrap; padding:10px; background:#111; border:1px solid var(--line-2); border-radius:16px; }
-  .pickBar[hidden], .roundBar[hidden], #openShare[hidden] { display:none !important; }
-  .pickBar span { width:100%; font-size:12px; color:var(--txt-2); }
+  .lensBar, .roundBar { display:flex; gap:6px; }
+  .lensBar button, .roundBar button { flex:1; min-height:36px; border-radius:999px; background:var(--surface); color:var(--txt-2); border:1px solid var(--line); font-size:12px; font-weight:600; }
+  .lensBar button.on, .roundBar button.on, .modeSeg button.on { background:var(--acc-soft); color:var(--acc); border-color:var(--acc-line); }
+  .roundBar[hidden], #openShare[hidden] { display:none !important; }
+  .modeSeg { display:flex; gap:4px; grid-column:1 / -1; }
+  .modeSeg button { flex:1; min-width:0; min-height:30px; padding:4px 2px; border-radius:8px; background:var(--surface-2); color:var(--txt-2); border:1px solid var(--line); font-size:11px; font-weight:600; }
+  .setModes { display:grid; gap:8px; padding:10px 12px; background:var(--surface); border:1px solid var(--line); border-radius:16px; }
+  .setModesTop { display:flex; align-items:center; justify-content:space-between; color:var(--txt-2); font-size:12px; }
+  .setModesTop button { background:none; border:none; color:var(--acc); font-weight:600; min-height:32px; padding:0 2px; }
   #setList details.picked { border-color:var(--acc); box-shadow:0 0 0 1px var(--acc-line); }
-  #setList details[data-phase="warm"] summary b .phaseMark { color:var(--txt-2); }
-  .phaseMark { font-style:normal; font:600 9px/1 var(--font); letter-spacing:.12em; text-transform:uppercase; color:var(--acc); margin-left:4px; }
   .profileTop { display:grid; grid-template-columns:84px minmax(0,1fr); gap:12px; align-items:center; }
   .profilePhoto { width:84px; height:84px; border-radius:50%; border:1px solid var(--line-2); background:var(--surface-2); overflow:hidden; padding:0; color:var(--txt-2); font-size:28px; }
   .profilePhoto img { width:100%; height:100%; object-fit:cover; display:block; }
@@ -302,7 +302,7 @@
   #profileSpark { height:84px; }
   #profileRadar, #progressRadar { height:280px; }
   .swatches { display:flex; gap:8px 10px; flex-wrap:wrap; }
-  .swatches button { width:52px; height:auto; border:none; background:none; padding:0; display:flex; flex-direction:column; align-items:center; gap:6px; color:var(--txt-3); font-size:10px; font-weight:600; }
+  .swatches button { width:64px; height:auto; border:none; background:none; padding:0; display:flex; flex-direction:column; align-items:center; gap:6px; color:var(--txt-3); font-size:10px; font-weight:600; }
   .swatches button i { width:36px; height:36px; border-radius:50%; background:var(--sw); box-shadow:0 0 0 2px transparent; }
   .swatches button.on { color:var(--txt); }
   .swatches button.on i { box-shadow:0 0 0 2px #fff; }
@@ -435,18 +435,12 @@
     <button type="button" data-lens="score">Puntuable</button>
     <button type="button" data-lens="warm">Calentamiento</button>
   </div>
-  <div class="roundBar" id="roundBar">
-    <button type="button" data-round="warm">Empezar calentamiento</button>
-    <button type="button" data-round="score">Empezar puntuable</button>
+  <div class="roundBar" id="roundBar" aria-label="Siguiente ronda">
+    <button type="button" data-round="warm">Calentamiento</button>
+    <button type="button" data-round="score">Puntuable</button>
+    <button type="button" data-round="">Libre</button>
   </div>
   <div id="setList"></div>
-  <div class="pickBar" id="pickBar" hidden>
-    <span id="pickCount">0 sets</span>
-    <button type="button" data-assign="warm">Calentamiento</button>
-    <button type="button" data-assign="score">Puntuable</button>
-    <button type="button" data-assign="">Quitar</button>
-    <button type="button" data-assign="cancel">Listo</button>
-  </div>
   <button type="button" class="btnSecondary" id="openShare">Compartir sesión</button>
   <div id="trend" hidden></div>
   <button class="deleteAction" id="deleteCurrent" onclick="removeSelection('session')">Eliminar sesión</button>
@@ -2170,9 +2164,10 @@ function drawTrend(S) {
     const points=`<span class="setPts${pts.scored?' on':''}"><b>${pts.scored?pts.score:'–'}</b><small>pts</small></span>`;
     const mini=g.map(j=>{const v=data.shots[j].aim_score;const h=Number.isFinite(v)?Math.max(3,(Math.min(100,v)-40)/60*22):3;return `<i style="height:${h}px;background:${barOf(v)}"></i>`;}).join('');
     const phase = phaseOfGroup(g);
-    const mark = phase === 'warm' ? '<em class="phaseMark">Cal</em>' : phase === 'score' ? '<em class="phaseMark">Pts</em>' : '';
     const sid = escapeText(String(data.shots[g[0]].set_id));
-    return `<details data-set="${key}" data-sid="${sid}" data-phase="${phase}" ${opened.has(key)?'open':''}><summary class="setline"><b>${setLabel(S,i)} ${mark}</b><span class="mini">${mini}</span>${points}<span class="setVal" style="color:${numOf(sa)}">${Number.isFinite(sa)?sa:'–'}</span><span class="r"></span></summary>${rows[i]}</details>`;
+    const seg = (id, label) => `<button type="button" data-mode="${id}" class="${phase===id?'on':''}">${label}</button>`;
+    const modes = `<span class="modeSeg">${seg('warm','Calentamiento')}${seg('score','Puntuable')}${seg('','Libre')}</span>`;
+    return `<details data-set="${key}" data-sid="${sid}" data-phase="${phase}" ${opened.has(key)?'open':''}><summary class="setline"><b>${setLabel(S,i)}</b><span class="mini">${mini}</span>${points}<span class="setVal" style="color:${numOf(sa)}">${Number.isFinite(sa)?sa:'–'}</span><span class="r"></span>${modes}</summary>${rows[i]}</details>`;
   }).join('');
   c.onclick=list.onclick=e=>{if(typeof Studio!=='undefined'&&Studio.onSetClick&&Studio.onSetClick(e))return;const i=e.target.closest('[data-shot]')?.dataset.shot;if(i!=null){cur=+i;show('Shot');}};
 }

@@ -12,11 +12,15 @@ const Studio = {
   card: {layout: 'diana', name: true, radar: true, stab: true, bg: null},
   THEMES: [
     {id: 'amber', name: 'Ámbar', acc: '#FF8A1F', acc2: '#FFC15E', glow: 'rgba(255,138,31,.28)', ink: '#1b0f05', soft: 'rgba(255,138,31,.12)', line: 'rgba(255,138,31,.45)'},
+    {id: 'electric', name: 'Azul', acc: '#2F6BFF', acc2: '#9DB6FF', glow: 'rgba(47,107,255,.35)', ink: '#06101f', soft: 'rgba(47,107,255,.16)', line: 'rgba(47,107,255,.55)'},
+    {id: 'cyan', name: 'Cian', acc: '#00E5FF', acc2: '#B8FBFF', glow: 'rgba(0,229,255,.32)', ink: '#041416', soft: 'rgba(0,229,255,.14)', line: 'rgba(0,229,255,.55)'},
+    {id: 'lime', name: 'Lima', acc: '#C6FF3D', acc2: '#E7FF9C', glow: 'rgba(198,255,61,.28)', ink: '#141a04', soft: 'rgba(198,255,61,.14)', line: 'rgba(198,255,61,.5)'},
+    {id: 'magenta', name: 'Magenta', acc: '#FF2BD6', acc2: '#FFA6EE', glow: 'rgba(255,43,214,.3)', ink: '#1a0614', soft: 'rgba(255,43,214,.14)', line: 'rgba(255,43,214,.5)'},
+    {id: 'vivid', name: 'Naranja', acc: '#FF4D00', acc2: '#FFB088', glow: 'rgba(255,77,0,.32)', ink: '#1a0a04', soft: 'rgba(255,77,0,.14)', line: 'rgba(255,77,0,.5)'},
+    {id: 'violet', name: 'Violeta', acc: '#7B2BFF', acc2: '#D2B3FF', glow: 'rgba(123,43,255,.32)', ink: '#100818', soft: 'rgba(123,43,255,.16)', line: 'rgba(123,43,255,.55)'},
+    {id: 'red', name: 'Rojo', acc: '#FF2430', acc2: '#FF9AA0', glow: 'rgba(255,36,48,.32)', ink: '#1a0608', soft: 'rgba(255,36,48,.14)', line: 'rgba(255,36,48,.5)'},
     {id: 'gold', name: 'Oro', acc: '#E4C36A', acc2: '#F6E7B4', glow: 'rgba(228,195,106,.28)', ink: '#1a1406', soft: 'rgba(228,195,106,.14)', line: 'rgba(228,195,106,.5)'},
-    {id: 'ice', name: 'Hielo', acc: '#7EB6FF', acc2: '#D5E8FF', glow: 'rgba(126,182,255,.28)', ink: '#071018', soft: 'rgba(126,182,255,.14)', line: 'rgba(126,182,255,.5)'},
-    {id: 'forest', name: 'Bosque', acc: '#3DDC97', acc2: '#B6F3D4', glow: 'rgba(61,220,151,.26)', ink: '#04140d', soft: 'rgba(61,220,151,.14)', line: 'rgba(61,220,151,.48)'},
-    {id: 'rose', name: 'Rosa', acc: '#FF6B8A', acc2: '#FFC1CE', glow: 'rgba(255,107,138,.28)', ink: '#1a070c', soft: 'rgba(255,107,138,.14)', line: 'rgba(255,107,138,.48)'},
-    {id: 'violet', name: 'Violeta', acc: '#B48CFF', acc2: '#E4D4FF', glow: 'rgba(180,140,255,.28)', ink: '#100818', soft: 'rgba(180,140,255,.14)', line: 'rgba(180,140,255,.5)'}
+    {id: 'ice', name: 'Hielo', acc: '#7EB6FF', acc2: '#D5E8FF', glow: 'rgba(126,182,255,.28)', ink: '#071018', soft: 'rgba(126,182,255,.14)', line: 'rgba(126,182,255,.5)'}
   ],
   LAYOUTS: [
     {id: 'diana', name: 'Diana'},
@@ -70,14 +74,16 @@ const Studio = {
     return session;
   },
   startRound(session, phase) {
-    if (!session || (phase !== 'warm' && phase !== 'score')) return session;
-    session.phase = phase;
+    if (!session) return session;
+    const mark = phase === 'warm' || phase === 'score' ? phase : '';
+    if (mark) session.phase = mark;
+    else delete session.phase;
     const shots = session.shots || [];
     const real = shots.filter(s => s && !s.candidate);
     let setId = session.currentSet;
     const has = setId != null && real.some(s => String(s.set_id) === String(setId));
     if (!has) setId = real.length ? real[real.length - 1].set_id : (shots.length ? shots[shots.length - 1].set_id : null);
-    if (setId != null) this.applyPhase(session, phase, [setId]);
+    if (setId != null) this.applyPhase(session, mark, [setId]);
     return session;
   },
   radar(shots) {
@@ -213,21 +219,11 @@ function studioMount() {
     if (!b) return;
     studioCommit(s => Studio.startRound(s, b.dataset.round));
   };
-  const picks = $('pickBar');
-  if (picks) picks.onclick = e => {
-    const b = e.target.closest('[data-assign]');
-    if (!b) return;
-    const phase = b.dataset.assign;
-    if (phase === 'cancel') { Studio.picking = false; Studio.picks.clear(); studioSync(); return; }
-    const ids = [...Studio.picks];
-    studioCommit(s => Studio.applyPhase(s, phase, ids));
-    Studio.picking = false;
-    Studio.picks.clear();
-  };
   const list = $('setList');
   let hold = 0, suppress = false, x0 = 0, y0 = 0;
   if (list) {
     list.addEventListener('pointerdown', e => {
+      if (e.target.closest && (e.target.closest('.modeSeg') || e.target.closest('.setModes'))) return;
       const sum = e.target.closest && e.target.closest('summary');
       if (!sum || (e.target.closest && e.target.closest('.trendRow'))) return;
       x0 = e.clientX; y0 = e.clientY;
@@ -248,6 +244,25 @@ function studioMount() {
     list.addEventListener('pointercancel', () => clearTimeout(hold));
     list.addEventListener('contextmenu', e => { if (e.target.closest && e.target.closest('summary')) e.preventDefault(); });
     list.addEventListener('click', e => {
+      const modeBtn = e.target.closest && e.target.closest('[data-mode]');
+      if (modeBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        const sid = modeBtn.closest('details') && modeBtn.closest('details').dataset.sid;
+        if (sid != null) studioCommit(s => Studio.applyPhase(s, modeBtn.dataset.mode, [sid]));
+        return;
+      }
+      const bulk = e.target.closest && e.target.closest('[data-bulk]');
+      if (bulk) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (bulk.dataset.bulk === 'done') { Studio.picking = false; Studio.picks.clear(); studioSync(); return; }
+        const ids = [...Studio.picks];
+        Studio.picking = false;
+        Studio.picks.clear();
+        studioCommit(s => Studio.applyPhase(s, bulk.dataset.bulk, ids));
+        return;
+      }
       if (!Studio.picking) return;
       const sum = e.target.closest && e.target.closest('summary');
       if (!sum) return;
@@ -439,15 +454,14 @@ function studioSync() {
   if (lens) lens.querySelectorAll('[data-lens]').forEach(b => b.classList.toggle('on', b.dataset.lens === Studio.lens));
   const sw = document.getElementById('themeSwatches');
   if (sw) sw.querySelectorAll('[data-theme]').forEach(b => b.classList.toggle('on', b.dataset.theme === Studio.theme().id));
-  const bar = document.getElementById('pickBar');
-  if (bar) {
-    bar.hidden = !Studio.picking;
-    const count = document.getElementById('pickCount');
-    if (count) count.textContent = Studio.picks.size + (Studio.picks.size === 1 ? ' set' : ' sets');
-  }
+  studioModes();
   const session = typeof displayedSession === 'function' ? displayedSession() : null;
   const round = document.getElementById('roundBar');
-  if (round) round.hidden = !session;
+  if (round) {
+    round.hidden = !session;
+    const mark = session && (session.phase === 'warm' || session.phase === 'score') ? session.phase : '';
+    round.querySelectorAll('[data-round]').forEach(b => b.classList.toggle('on', b.dataset.round === mark));
+  }
   const share = document.getElementById('openShare');
   if (share) share.hidden = !(typeof data !== 'undefined' && data && data.shots && data.shots.length);
   document.querySelectorAll('#setList details').forEach(d => {
@@ -455,6 +469,18 @@ function studioSync() {
     d.hidden = Studio.lens !== 'all' && d.dataset.phase !== Studio.lens;
   });
   studioSyncShare();
+}
+
+function studioModes() {
+  const list = document.getElementById('setList');
+  if (!list) return;
+  const existing = document.getElementById('setModes');
+  if (!Studio.picking) { if (existing) existing.remove(); return; }
+  const fresh = !existing;
+  if (fresh) list.insertAdjacentHTML('afterbegin', '<div class="setModes" id="setModes"><div class="setModesTop"><span id="pickCount"></span><button type="button" data-bulk="done">Hecho</button></div><span class="modeSeg"><button type="button" data-bulk="warm">Calentamiento</button><button type="button" data-bulk="score">Puntuable</button><button type="button" data-bulk="">Libre</button></span></div>');
+  const count = document.getElementById('pickCount');
+  if (count) count.textContent = Studio.picks.size + (Studio.picks.size === 1 ? ' set' : ' sets');
+  if (fresh) document.getElementById('setModes').scrollIntoView({block: 'nearest'});
 }
 
 function studioSyncShare() {
