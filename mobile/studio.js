@@ -1129,11 +1129,6 @@ function studioSpread(rows) {
   if (pts.length === 1) return Math.hypot(pts[0].x, pts[0].y);
   return null;
 }
-function studioAimLoose(rows) {
-  const aims = (rows || []).map(s => s.aim_score).filter(Number.isFinite);
-  if (!aims.length) return null;
-  return 100 - aims.reduce((x, y) => x + y, 0) / aims.length;
-}
 function studioDurationMs(session) {
   if (!session) return null;
   if (Number.isFinite(session.lastWt) && Number.isFinite(session.id) && session.lastWt > session.id) {
@@ -1153,11 +1148,6 @@ function studioDurationText(ms) {
   if (min < 60) return min + ' min';
   const h = Math.floor(min / 60), m = min % 60;
   return m ? h + ' h ' + m + ' min' : h + ' h';
-}
-function studioScoreLine(totals, shots, format) {
-  if (!totals || totals.score == null) return '–';
-  const max = format ? StudioScore.roundMax(shots, format) : (totals.arrows || 0) * 10;
-  return max ? totals.score + ' / ' + max : String(totals.score);
 }
 function studioCornerDate(ms) {
   const d = new Date(ms);
@@ -1180,7 +1170,6 @@ function studioCardView(layout) {
   let headline = 'Entrenamiento completado';
   let subtitle = studioSubtitle(session);
   let bars = [];
-  let chart = 'Agrupación';
   let duration = studioDurationMs(session);
   if (layout === 'profile') {
     const sessions = typeof studioSessions === 'function' ? studioSessions() : [];
@@ -1197,12 +1186,12 @@ function studioCardView(layout) {
     });
     duration = anySpan ? span : null;
     bars = sessions.slice(-12).map((s, i) => ({n: i + 1, rows: Studio.scorePool(s.shots)}));
-    chart = bars.some(b => studioSpread(b.rows) != null) ? 'Agrupación' : 'Estabilidad de puntería';
-    return studioCardPack(headline, subtitle, when, shots, sets.length, duration, bars, chart, grouped, studioPhotoSrc(), {
+    return studioCardPack(headline, subtitle, when, shots, sets.length, duration, bars, grouped, studioPhotoSrc(), {
       kicker: 'TRAYECTORIA · ' + sessions.length + ' SESIONES',
       title: profile.name || 'Mi trayectoria',
       modeLine: profile.club || 'Historial completo',
-      serial: ''
+      serial: '',
+      per: 'session'
     });
   }
   const meta = {
@@ -1221,9 +1210,8 @@ function studioCardView(layout) {
   } else {
     bars = studioSetsOf(shots);
   }
-  chart = bars.some(b => studioSpread(b.rows) != null) ? 'Agrupación' : 'Estabilidad de puntería';
   const sets = studioSetsOf(shots);
-  return studioCardPack(headline, subtitle, when, shots, sets.length, duration, bars, chart, format, studioPhotoSrc(), meta);
+  return studioCardPack(headline, subtitle, when, shots, sets.length, duration, bars, format, studioPhotoSrc(), meta);
 }
 function studioKicker(session) {
   if (!session) return 'ENTRENAMIENTO';
@@ -1242,15 +1230,34 @@ function studioSerial(session) {
   const i = studioSessions().findIndex(s => s.id === session.id);
   return i < 0 ? '' : 'Nº ' + String(i + 1).padStart(3, '0');
 }
-function studioCardPack(headline, subtitle, when, shots, series, duration, bars, chart, format, photo, meta) {
+function studioSeriesItems(bars, format, per) {
+  const top = StudioScore.arrowMax(format);
+  const sumOf = rows => {
+    const scored = (rows || []).filter(s => s && !s.candidate && StudioScore.points(s.result && s.result.value) != null);
+    return scored.length ? {sum: scored.reduce((n, s) => n + StudioScore.points(s.result.value), 0), max: scored.length * top} : null;
+  };
+  const list = (bars || []).map(b => {
+    const hit = sumOf(b.rows);
+    return hit ? {label: (per === 'session' ? '' : 'S') + b.n, sum: hit.sum, max: hit.max} : null;
+  }).filter(Boolean).slice(-12);
+  if (list.length > 1 || !bars || !bars.length) return {title: per === 'session' ? 'POR SESIÓN' : 'POR SERIE', items: list};
+  const arrows = (bars[0].rows || []).filter(s => s && !s.candidate && StudioScore.points(s.result && s.result.value) != null).slice(0, 12);
+  return {title: 'POR FLECHA', items: arrows.map((s, i) => ({label: String(i + 1), sum: StudioScore.points(s.result.value), max: top, value: s.result.value}))};
+}
+function studioDistribution(shots) {
+  const order = [['X', ['X']], ['11', ['11']], ['10', ['10']], ['9', ['9']], ['8', ['8']], ['≤7', ['7', '6', 'M']]];
+  const counts = new Map();
+  (shots || []).forEach(s => {
+    if (!s || s.candidate) return;
+    const v = s.result && s.result.value;
+    if (v == null || v === '' || (StudioScore.points(v) == null && v !== 'M')) return;
+    counts.set(String(v), (counts.get(String(v)) || 0) + 1);
+  });
+  return order.map(o => ({v: o[0], n: o[1].reduce((n, k) => n + (counts.get(k) || 0), 0)})).filter(d => d.n > 0);
+}
+function studioCardPack(headline, subtitle, when, shots, series, duration, bars, format, photo, meta) {
   const totals = StudioScore.totals(shots);
   const info = meta || {};
-  const measured = (bars || []).map(b => {
-    const spread = studioSpread(b.rows);
-    return {n: b.n, value: spread != null ? spread * 10 : studioAimLoose(b.rows), cm: spread != null};
-  }).filter(b => b.value != null).slice(-12);
-  const allCm = measured.length && measured.every(b => b.cm);
-  const center = format === 'lancaster' ? '11' : format === 'wa' ? '' : 'X';
   const max = totals.score != null ? (format ? StudioScore.roundMax(shots, format) : (totals.arrows || 0) * 10) : 0;
   const best = Studio.bestSet(shots);
   const spread = studioSpread(shots);
@@ -1267,27 +1274,20 @@ function studioCardPack(headline, subtitle, when, shots, series, duration, bars,
     date: studioCornerDate(when),
     day: Number.isFinite(d.getTime()) ? String(d.getDate()) : '',
     monthYear: Number.isFinite(d.getTime()) ? months[d.getMonth()] + ' ' + d.getFullYear() : '',
-    scoreLine: studioScoreLine(totals, shots, format),
     scoreMain: totals.score != null ? String(totals.score) : String(arrows),
     scoreMax: totals.score != null && max ? String(max) : '',
     scoreNote: totals.score != null ? '' : 'flechas registradas',
     pct: totals.score != null && max ? totals.score / max : null,
-    breakdown: Studio.breakdown(shots),
     best: best ? {index: best.index, sum: best.sum} : null,
+    series: studioSeriesItems(bars, format, info.per),
+    dist: studioDistribution(shots),
     spreadText: spread != null ? studioAvgText(spread * 10) + ' cm' : '–',
-    center,
-    impacts: StudioScore.impacts(shots).slice(-80),
     stats: [
       {id: 'arrows', label: 'Flechas', value: String(arrows)},
       {id: 'series', label: 'Series', value: String(series || 0)},
       {id: 'avg', label: 'Media', value: studioAvgText(totals.avg)},
       {id: 'time', label: 'Duración', value: studioDurationText(duration)}
     ],
-    chart, chartNote: 'Menor es mejor',
-    bars: measured,
-    chartValues: measured.map(b => b.value),
-    chartLabels: measured.map(b => b.n),
-    chartUnit: allCm ? 'cm' : '',
     photo: photo || '',
     focus: Studio.card.photo ? 0.5 : ((studioPreset() || {}).focus ?? 0.5)
   };
@@ -1579,13 +1579,12 @@ function studioIcon(ctx, id, cx, cy, s, color, lw) {
     ctx.lineTo(h * 0.4, h * 0.78);
     ctx.stroke();
   } else {
-    ctx.arc(0, 0, h * 0.8, 0, Math.PI * 2);
-    ctx.stroke();
-    [[-0.22, -0.18], [0.2, -0.08], [-0.06, 0.24], [0.14, 0.3]].forEach(p => {
-      ctx.beginPath();
-      ctx.arc(p[0] * h, p[1] * h, h * 0.11, 0, Math.PI * 2);
-      ctx.fill();
+    ctx.arc(0, 0, h * 0.56, 0, Math.PI * 2);
+    [[0, -1], [0, 1], [-1, 0], [1, 0]].forEach(d => {
+      ctx.moveTo(d[0] * h * 0.3, d[1] * h * 0.3);
+      ctx.lineTo(d[0] * h * 0.9, d[1] * h * 0.9);
     });
+    ctx.stroke();
   }
   ctx.restore();
 }
@@ -1655,110 +1654,6 @@ function studioCardSheen(ctx, x, y, w, h, r, tilt, gloss, accent) {
   ctx.fillRect(-w * 1.6, -h, w * 3.4, h * 2.8);
   ctx.restore();
 }
-function studioSpark(ctx, x, y, w, h, values, color, opt) {
-  const o = opt || {};
-  if (!values || !values.length) {
-    ctx.strokeStyle = o.empty || 'rgba(255,255,255,.18)';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([3, 7]);
-    ctx.beginPath();
-    ctx.moveTo(x, y + h / 2);
-    ctx.lineTo(x + w, y + h / 2);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    return [];
-  }
-  const max = Math.max.apply(null, values);
-  const min = o.zero ? 0 : Math.min.apply(null, values);
-  const span = max - min || 1;
-  const pts = values.map((v, i) => ({
-    x: x + (values.length === 1 ? w / 2 : (i / (values.length - 1)) * w),
-    y: y + h - ((v - min) / span) * h * 0.82 - h * 0.09
-  }));
-  const path = () => {
-    ctx.beginPath();
-    pts.forEach((p, i) => {
-      if (!i) { ctx.moveTo(p.x, p.y); return; }
-      const q = pts[i - 1];
-      const mx = (q.x + p.x) / 2;
-      ctx.bezierCurveTo(mx, q.y, mx, p.y, p.x, p.y);
-    });
-  };
-  if (o.fill) {
-    path();
-    ctx.lineTo(pts[pts.length - 1].x, y + h);
-    ctx.lineTo(pts[0].x, y + h);
-    ctx.closePath();
-    const g = ctx.createLinearGradient(0, y, 0, y + h);
-    g.addColorStop(0, studioRgba(color, o.fill));
-    g.addColorStop(1, studioRgba(color, 0));
-    ctx.fillStyle = g;
-    ctx.fill();
-  }
-  path();
-  ctx.strokeStyle = color;
-  ctx.lineWidth = o.lw || 3;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  ctx.stroke();
-  const best = Math.min.apply(null, values);
-  pts.forEach((p, i) => {
-    const top = values[i] === best;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, top ? (o.dot || 4) + 2.5 : (o.dot || 4), 0, Math.PI * 2);
-    ctx.fillStyle = top ? color : (o.dotFill || '#ffffff');
-    ctx.fill();
-    if (!top && o.dotLine) {
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
-      ctx.stroke();
-    }
-  });
-  return pts;
-}
-function studioClip(p, lim) {
-  const r = Math.hypot(p.x, p.y);
-  return r > lim ? {x: p.x * lim / r, y: p.y * lim / r} : p;
-}
-function studioMedal(ctx, cx, cy, R, impacts, accent, ink, line) {
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(cx, cy, R, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(255,255,255,.035)';
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(cx, cy, R * 0.4, 0, Math.PI * 2);
-  ctx.fillStyle = studioRgba(accent, 0.12);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(cx, cy, R * 0.2, 0, Math.PI * 2);
-  ctx.fillStyle = studioRgba(accent, 0.16);
-  ctx.fill();
-  [1, 0.8, 0.6, 0.4, 0.2].forEach(k => {
-    ctx.beginPath();
-    ctx.arc(cx, cy, R * k, 0, Math.PI * 2);
-    ctx.strokeStyle = line;
-    ctx.lineWidth = 1.4;
-    ctx.stroke();
-  });
-  ctx.beginPath();
-  ctx.arc(cx, cy, R * 0.1, 0, Math.PI * 2);
-  ctx.strokeStyle = studioRgba(accent, 0.7);
-  ctx.lineWidth = 1.4;
-  ctx.stroke();
-  (impacts || []).forEach((p, i) => {
-    const q = studioClip(p, 1.02);
-    const last = i === impacts.length - 1;
-    ctx.beginPath();
-    ctx.arc(cx + q.x * R, cy + q.y * R, last ? R * 0.05 : R * 0.034, 0, Math.PI * 2);
-    ctx.fillStyle = last ? accent : ink;
-    ctx.fill();
-    ctx.lineWidth = 1.5;
-    ctx.strokeStyle = 'rgba(0,0,0,.55)';
-    ctx.stroke();
-  });
-  ctx.restore();
-}
 function studioFace(ctx) {
   if (typeof document === 'undefined' || !document.fonts || !document.fonts.load) return;
   if (Studio.card.fontsAsked) return;
@@ -1814,6 +1709,90 @@ function studioPanel(ctx, x, y, w, h, r, fill, line) {
   ctx.strokeStyle = line;
   ctx.lineWidth = 1.5;
   ctx.stroke();
+}
+
+// Bars start from a floor just under the weakest series so close scores still read apart; the number on top stays exact.
+function studioBars(ctx, x, y, w, h, series, o) {
+  const items = (series && series.items) || [];
+  if (!items.length) {
+    studioText(ctx, 'Sin puntuación', x, y + h / 2, studioF(500, o.labelPx || 15), o.label);
+    return;
+  }
+  const ratios = items.map(it => it.max ? it.sum / it.max : 0);
+  const lo = Math.max(0, Math.floor((Math.min.apply(null, ratios) - 0.12) * 20) / 20);
+  const top = items.reduce((k, it, i) => it.sum > items[k].sum ? i : k, 0);
+  const n = items.length;
+  const bw = Math.min(o.maxBar || 40, w / (n * 1.75));
+  const step = n > 1 ? (w - bw) / (n - 1) : 0;
+  const x0 = n > 1 ? x : x + (w - bw) / 2;
+  const valPx = o.valuePx || 17, labPx = o.labelPx || 13;
+  const plotTop = y + valPx + 10, plotH = h - valPx - 10 - labPx - 14;
+  items.forEach((it, i) => {
+    const bx = x0 + step * i;
+    const k = Math.max(0.06, Math.min(1, ((it.max ? it.sum / it.max : 0) - lo) / Math.max(0.01, 1 - lo)));
+    const bh = Math.max(bw * 0.5, plotH * k);
+    const by = plotTop + plotH - bh;
+    const best = it.value != null ? it.value === 'X' || it.value === '11' : i === top;
+    if (o.track) {
+      studioRound(ctx, bx, plotTop, bw, plotH, bw / 2);
+      ctx.fillStyle = o.track;
+      ctx.fill();
+    }
+    ctx.save();
+    if (best && o.glow) {
+      ctx.shadowColor = studioRgba(o.acc, 0.45);
+      ctx.shadowBlur = 18;
+    }
+    studioRound(ctx, bx, by, bw, bh, bw / 2);
+    if (best) {
+      const g = ctx.createLinearGradient(0, by, 0, by + bh);
+      g.addColorStop(0, o.acc2 || o.acc);
+      g.addColorStop(1, o.acc);
+      ctx.fillStyle = g;
+    } else ctx.fillStyle = o.bar;
+    ctx.fill();
+    ctx.restore();
+    studioText(ctx, String(it.value === 'X' ? 'X' : it.sum), bx + bw / 2, by - 10, studioF(600, valPx, o.valueFamily), best ? o.acc : o.value, 0, 'center');
+    studioText(ctx, it.label, bx + bw / 2, y + h, studioF(500, labPx), o.label, 1, 'center');
+  });
+}
+function studioDistTone(v, acc, acc2, base) {
+  if (v === 'X' || v === '11') return acc;
+  if (v === '10') return acc2;
+  return studioRgba(base, v === '9' ? 0.62 : v === '8' ? 0.36 : 0.18);
+}
+function studioDistBar(ctx, x, y, w, h, dist, o) {
+  const total = (dist || []).reduce((n, d) => n + d.n, 0);
+  if (!total) {
+    studioRound(ctx, x, y, w, h, h / 2);
+    ctx.fillStyle = studioRgba(o.base, 0.1);
+    ctx.fill();
+    return;
+  }
+  const gap = o.gap == null ? 4 : o.gap;
+  const usable = w - gap * (dist.length - 1);
+  const raw = dist.map(d => Math.max(h, usable * d.n / total));
+  const fit = usable / raw.reduce((n, v) => n + v, 0);
+  let cx = x;
+  dist.forEach((d, i) => {
+    const sw = raw[i] * fit;
+    studioRound(ctx, cx, y, sw, h, Math.min(h / 2, o.radius || h / 2));
+    ctx.fillStyle = studioDistTone(d.v, o.acc, o.acc2, o.base);
+    ctx.fill();
+    cx += sw + gap;
+  });
+  if (!o.legendY) return;
+  const cells = dist.length;
+  const cellW = w / Math.max(cells, o.minCells || 0);
+  dist.forEach((d, i) => {
+    const lx = x + cellW * i;
+    ctx.beginPath();
+    ctx.arc(lx + 6, o.legendY - (o.countPx || 22) * 0.32, 5.5, 0, Math.PI * 2);
+    ctx.fillStyle = studioDistTone(d.v, o.acc, o.acc2, o.base);
+    ctx.fill();
+    const lw = studioText(ctx, d.v, lx + 20, o.legendY, studioF(500, o.keyPx || 16), o.key);
+    studioText(ctx, String(d.n), lx + 20 + lw + 8, o.legendY, studioF(o.countWeight || 650, o.countPx || 22, o.countFamily), o.count);
+  });
 }
 
 function studioPaintGlass(ctx, view, theme, tilt, photo) {
@@ -1914,9 +1893,7 @@ function studioPaintGlass(ctx, view, theme, tilt, photo) {
   studioText(ctx, 'PRECISIÓN', sL(2), sy + 54, studioF(500, 15), txt2, 3.5);
   studioValue(ctx, view.pct != null ? Math.round(view.pct * 100) + '%' : '–', sL(2) - 2, sy + 134, num(76), studioF(500, 24), '#ffffff', txt2);
   const fy = sy + sh;
-  const fc = fy + (cy + ch - fy) / 2;
-  studioText(ctx, view.breakdown || view.scoreNote || '', L, fc + 8, studioF(500, 21), txt2, 1);
-  studioSpark(ctx, R - 330, fc - 22, 330, 44, view.chartValues, acc, {fill: 0.28, dot: 3.5, dotFill: '#0b0b0d', dotLine: true, lw: 2.6});
+  studioDistBar(ctx, L, fy + 34, R - L, 12, view.dist, {acc, acc2, base: '#ffffff', legendY: fy + 84, minCells: 5, key: txt2, count: '#ffffff', countPx: 26, countFamily: studioNum, countWeight: 600});
   studioCardSheen(ctx, cx, cy, cw, ch, r, tilt, 0.05, acc);
   ctx.restore();
   const rim = ctx.createLinearGradient(cx, cy, cx + cw, cy + ch);
@@ -2016,80 +1993,37 @@ function studioPaintEditorial(ctx, view, theme, tilt, photo) {
   });
   ctx.fillStyle = hair;
   ctx.fillRect(L, pt + 352, R - L, 1.5);
-  const row2 = [{icon: 'arrow', label: 'FLECHAS', value: view.stats[0].value}, {icon: 'series', label: 'SERIES', value: view.stats[1].value}];
-  const c2 = (R - L) / 2;
+  const row2 = [
+    {icon: 'arrow', label: 'FLECHAS', value: view.stats[0].value},
+    {icon: 'series', label: 'SERIES', value: view.stats[1].value},
+    {icon: 'group', label: 'AGRUPACIÓN', value: view.spreadText}
+  ];
   row2.forEach((m, i) => {
-    const x = L + i * c2 + (i ? 30 : 0);
-    studioIcon(ctx, m.icon, x + 16, pt + 404, 30, acc, 2.4);
-    studioText(ctx, m.label, x + 54, pt + 392, studioF(600, 14), soft, 3);
-    studioText(ctx, m.value, x + 54, pt + 430, studioF(750, 36), ink);
+    const x = L + i * c3 + (i ? 30 : 0);
+    studioIcon(ctx, m.icon, x + 14, pt + 398, 28, acc, 2.4);
+    studioText(ctx, m.label, x + 48, pt + 388, studioF(600, 14), soft, 3);
+    studioValue(ctx, m.value, x + 48, pt + 426, studioF(750, 34), studioF(600, 20), ink, soft);
     if (i) {
       ctx.fillStyle = hair;
-      ctx.fillRect(L + c2, pt + 372, 1.5, 70);
+      ctx.fillRect(L + i * c3, pt + 372, 1.5, 70);
     }
   });
-  const mx = L, my = pt + 470, mw = R - L, mh = 196;
-  ctx.save();
+  const mx = L, mw = R - L, my = pt + 470, mh = 156;
   studioRound(ctx, mx, my, mw, mh, 24);
   ctx.fillStyle = block;
   ctx.fill();
-  ctx.clip();
-  const gx = mx + mw * 0.68, gy = my + mh / 2, GR = mh * 1.3;
-  [[1, 'rgba(60,50,38,.035)'], [0.8, 'rgba(60,50,38,.03)'], [0.6, 'rgba(60,50,38,.03)'], [0.4, studioRgba(acc, 0.1)], [0.2, studioRgba(acc, 0.14)]].forEach(z => {
-    ctx.beginPath();
-    ctx.arc(gx, gy, GR * z[0], 0, Math.PI * 2);
-    ctx.fillStyle = z[1];
-    ctx.fill();
-  });
-  [1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1].forEach(k => {
-    ctx.beginPath();
-    ctx.arc(gx, gy, GR * k, 0, Math.PI * 2);
-    ctx.strokeStyle = k * 10 % 2 ? 'rgba(60,50,38,.09)' : 'rgba(60,50,38,.17)';
-    ctx.lineWidth = 1.4;
-    ctx.stroke();
-  });
-  const pts = (view.impacts || []).map(p => studioClip(p, 1.02));
-  pts.forEach((p, i) => {
-    const last = i === pts.length - 1;
-    ctx.beginPath();
-    ctx.arc(gx + p.x * GR, gy + p.y * GR, last ? 9 : 6.5, 0, Math.PI * 2);
-    ctx.fillStyle = last ? acc : '#2b2824';
-    ctx.fill();
-    ctx.lineWidth = 2.2;
-    ctx.strokeStyle = block;
-    ctx.stroke();
-  });
-  if (pts.length >= 2) {
-    const c = StudioScore.groupCenter(pts);
-    ctx.strokeStyle = acc;
-    ctx.lineWidth = 2.2;
-    ctx.beginPath();
-    ctx.moveTo(gx + c.x * GR - 12, gy + c.y * GR);
-    ctx.lineTo(gx + c.x * GR + 12, gy + c.y * GR);
-    ctx.moveTo(gx + c.x * GR, gy + c.y * GR - 12);
-    ctx.lineTo(gx + c.x * GR, gy + c.y * GR + 12);
-    ctx.stroke();
-  }
-  const fadeL = ctx.createLinearGradient(mx, 0, mx + mw * 0.5, 0);
-  fadeL.addColorStop(0, block);
-  fadeL.addColorStop(0.6, studioRgba(block, 0.9));
-  fadeL.addColorStop(1, studioRgba(block, 0));
-  ctx.fillStyle = fadeL;
-  ctx.fillRect(mx, my, mw * 0.5, mh);
-  ctx.restore();
-  studioText(ctx, 'AGRUPACIÓN', mx + 30, my + 50, studioF(600, 13.5), soft, 3);
-  studioValue(ctx, view.spreadText, mx + 28, my + 130, studioF(750, 60), studioF(600, 28), ink, soft);
-  const vals = view.chartValues || [];
-  const ky = my + mh + 16, kh = 140;
+  studioText(ctx, 'DISTRIBUCIÓN', mx + 30, my + 44, studioF(600, 13.5), soft, 3);
+  studioDistBar(ctx, mx + 30, my + 66, mw - 60, 16, view.dist, {acc, acc2: studioMix(acc, cream, 0.45), base: ink, gap: 5, legendY: my + 128, minCells: 5, key: soft, count: ink, countPx: 26});
+  const ky = my + mh + 14, kh = 164;
   studioRound(ctx, mx, ky, mw, kh, 24);
   ctx.fillStyle = block;
   ctx.fill();
-  studioText(ctx, 'POR SERIE', mx + 30, ky + 40, studioF(600, 13.5), soft, 3);
-  const ax = mx + 48, aw = mw - 96, ay = ky + 58, ah = 40;
-  ctx.fillStyle = hair;
-  ctx.fillRect(ax, ay + ah, aw, 1.5);
-  const sp = studioSpark(ctx, ax, ay, aw, ah, vals, acc, {fill: 0.34, zero: true, dot: 4.5, dotFill: block, dotLine: true, lw: 3, empty: 'rgba(28,27,25,.2)'});
-  sp.forEach((p, i) => studioText(ctx, 'S' + (view.chartLabels[i] || i + 1), p.x, ky + kh - 14, studioF(600, 13), soft, 1.5, 'center'));
+  studioText(ctx, (view.series && view.series.title) || 'POR SERIE', mx + 30, ky + 44, studioF(600, 13.5), soft, 3);
+  if (view.best && view.series && view.series.title === 'POR SERIE') {
+    studioText(ctx, String(view.best.sum), mx + 28, ky + 108, studioF(750, 44), ink, -1);
+    studioText(ctx, 'mejor · S' + view.best.index, mx + 30, ky + 138, studioF(500, 17), soft);
+  }
+  studioBars(ctx, mx + 200, ky + 22, mw - 236, kh - 44, view.series, {acc, bar: 'rgba(28,27,25,.13)', value: soft, label: soft, maxBar: 34, valuePx: 16, labelPx: 13});
   ctx.restore();
 }
 
@@ -2245,8 +2179,9 @@ function studioPaintObsidian(ctx, view, theme, tilt, photo) {
   const sw = studioText(ctx, view.scoreMain, L - 10, 914, studioF(200, 236), ink, -8);
   ctx.restore();
   if (view.scoreMax) studioText(ctx, '/ ' + view.scoreMax, L + sw + 6, 914, studioF(300, 50), soft);
-  studioText(ctx, view.breakdown || view.scoreNote, L, 966, studioF(400, 22), soft, 1);
-  studioMedal(ctx, R - 118, 826, 116, view.impacts, acc, ink, 'rgba(255,255,255,.16)');
+  if (view.scoreNote) studioText(ctx, view.scoreNote, L, 966, studioF(400, 22), soft, 1);
+  studioText(ctx, (view.series && view.series.title) || 'POR SERIE', R - 290, 728, studioF(500, 14), soft, 3.5);
+  studioBars(ctx, R - 290, 750, 290, 216, view.series, {acc, acc2: theme.acc2, glow: true, bar: 'rgba(255,255,255,.16)', track: 'rgba(255,255,255,.04)', value: soft, label: 'rgba(255,255,255,.4)', maxBar: 30, valuePx: 17, labelPx: 13, valueFamily: studioGeist});
   ctx.fillStyle = hair;
   ctx.fillRect(L, 1012, R - L, 1.5);
   const colW = (R - L) / 4;
@@ -2259,7 +2194,7 @@ function studioPaintObsidian(ctx, view, theme, tilt, photo) {
   ctx.fillRect(L, 1168, R - L, 1.5);
   studioText(ctx, 'AGRUPACIÓN', L, 1222, studioF(500, 14), soft, 3.5);
   studioValue(ctx, view.spreadText, L, 1262, studioF(300, 30), studioF(400, 18), ink, soft);
-  studioSpark(ctx, L + 360, 1196, R - L - 360, 60, view.chartValues, acc, {fill: 0.22, dot: 4, dotFill: '#0b0b0c', dotLine: true, lw: 2.6});
+  studioDistBar(ctx, L + 300, 1204, R - L - 300, 10, view.dist, {acc, acc2: theme.acc2, base: '#ffffff', gap: 4, legendY: 1258, minCells: 5, key: soft, count: ink, countPx: 24, countWeight: 300});
   studioText(ctx, view.serial || '', R, 1306, studioF(500, 12.5), 'rgba(255,255,255,.4)', 4, 'right');
   studioCardSheen(ctx, 0, 0, W, H, 0, tilt, 0.05, acc);
   const rim = ctx.createLinearGradient(0, 0, 0, 3);
