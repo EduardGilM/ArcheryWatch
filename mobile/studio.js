@@ -155,7 +155,19 @@ const Studio = {
     });
     return best == null || score > best;
   },
-  radar(shots) {
+  sharedFormat(sessions) {
+    const formats = new Set();
+    (sessions || []).forEach(s => {
+      if (!s) return;
+      const scored = (s.shots || []).some(a => a && !a.candidate && StudioScore.points(a.result && a.result.value) != null);
+      if (!scored) return;
+      formats.add(StudioScore.formatOf(s) || 'pad');
+    });
+    if (formats.size !== 1) return null;
+    const only = [...formats][0];
+    return only === 'pad' ? null : only;
+  },
+  radar(shots, format) {
     const pool = this.scorePool(shots);
     const scored = pool.filter(s => StudioScore.points(s.result && s.result.value) != null);
     const totals = StudioScore.totals(pool);
@@ -172,7 +184,8 @@ const Studio = {
       text: n < 8 || value == null ? '–' : text
     });
     const precisionN = scored.length;
-    const precision = precisionN ? scored.filter(s => s.result.value === 'X').length / precisionN * 100 : null;
+    const mark = format === 'vegas' ? '10' : format === 'lancaster' ? '11' : 'X';
+    const precision = precisionN ? scored.filter(s => s.result.value === mark).length / precisionN * 100 : null;
     const pts = StudioScore.impacts(scored);
     let group = null;
     if (pts.length >= 2) {
@@ -669,16 +682,19 @@ function studioPaintProfile() {
   if (gear) gear.innerHTML = `<b>${escapeText(bow)}</b><br>${escapeText(arrow)}`;
   const sessions = studioSessions();
   const shots = Studio.historyShots();
-  const stats = Studio.radar(shots);
+  const stats = Studio.radar(shots, Studio.sharedFormat(sessions));
   const totals = stats.totals;
   const aims = shots.map(a => a.aim_score).filter(Number.isFinite);
   const aim = aims.length ? Math.round(aims.reduce((x, y) => x + y, 0) / aims.length) : null;
   const box = document.getElementById('profileNums');
+  const markFormat = Studio.sharedFormat(sessions);
+  const markLabel = markFormat === 'lancaster' ? '11' : markFormat === 'vegas' ? '9' : 'X';
+  const markN = markFormat === 'lancaster' ? totals.eleven : markFormat === 'vegas' ? totals.nine : totals.x;
   if (box) box.innerHTML =
     `<div><span class="lbl">Flechas</span><b class="num">${shots.length || '–'}</b></div>` +
     `<div><span class="lbl">Sesiones</span><b class="num">${sessions.length || '–'}</b></div>` +
     `<div><span class="lbl">Media</span><b class="num">${totals.avg == null ? '–' : esNum(totals.avg, 1)}</b></div>` +
-    `<div><span class="lbl">X</span><b class="num">${totals.scored ? totals.x : '–'}</b></div>`;
+    `<div><span class="lbl">${markLabel}</span><b class="num">${totals.scored ? markN : '–'}</b></div>`;
   const span = document.getElementById('profileSpan');
   if (span) span.textContent = aim == null ? '' : 'estabilidad ' + aim;
   const spark = studioFit(document.getElementById('profileSpark'), 84);
@@ -719,7 +735,10 @@ function studioProgressShots() {
 function studioPaintProgress() {
   const radar = studioFit(document.getElementById('progressRadar'), 280);
   if (!radar) return;
-  studioRadarDraw(radar.x, radar.w / 2, radar.h / 2 - 4, Math.min(radar.w, radar.h) * 0.32, Studio.radar(studioProgressShots()), Studio.theme(), true);
+  const shots = studioProgressShots();
+  const used = new Set(shots);
+  const sessions = studioSessions().filter(s => (s.shots || []).some(a => used.has(a)));
+  studioRadarDraw(radar.x, radar.w / 2, radar.h / 2 - 4, Math.min(radar.w, radar.h) * 0.32, Studio.radar(shots, Studio.sharedFormat(sessions)), Studio.theme(), true);
 }
 
 function studioPaintHeat() {
@@ -799,6 +818,8 @@ function studioCardView(layout) {
   const history = Studio.historyShots();
   const when = session && session.id ? session.id : Date.now();
   const copy = Studio.cardCopy(session, when);
+  const format = session ? StudioScore.formatOf(session) : null;
+  const formatName = format && StudioScore.FORMATS[format] ? StudioScore.FORMATS[format].name.toUpperCase() : '';
   let shots = sessionShots;
   let kicker = copy.kicker;
   let date = copy.date;
@@ -823,10 +844,17 @@ function studioCardView(layout) {
     hero = 'number';
     line2 = Studio.breakdown(shots);
     line3 = profile.name || '';
+    if (formatName) date = date ? date + ' · ' + formatName : formatName;
   } else {
     const pool = Studio.scorePool(shots);
-    score = StudioScore.totals(pool).score;
+    const totals = StudioScore.totals(pool);
+    score = totals.score;
     line2 = Studio.breakdown(pool);
+    if (formatName) date = (date ? date + ' · ' : '') + formatName;
+    if (format && totals.score != null) {
+      const max = StudioScore.roundMax(pool, format);
+      line3 = [profile.name, max ? totals.score + '/' + max : ''].filter(Boolean).join(' · ');
+    }
   }
   return {
     brand: 'ARCHERY WATCH',

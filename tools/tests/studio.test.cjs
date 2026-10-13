@@ -72,6 +72,17 @@ test('radar scores only the six new axes and leaves a thin sample blank', () => 
     for (let n = 0; n < 3; n++) drop.push({set_id: s, phase: 'score', aim_score: 80, result: {value: s < 3 ? '10' : '9'}});
   }
   assert.equal(Studio.radar(drop).axes.find(a => a.id === 'endure').value, 0);
+  const vegas = Array.from({length: 8}, () => ({phase: 'score', result: {value: '10', impact: {x: 0.05, y: 0.05}}}));
+  assert.equal(Studio.radar(vegas, 'vegas').axes.find(a => a.id === 'precision').value, 100);
+  assert.equal(Studio.radar(vegas, 'wa').axes.find(a => a.id === 'precision').value, 0);
+  const lancaster = Array.from({length: 8}, () => ({phase: 'score', result: {value: '11', impact: {x: 0.02, y: 0.02}}}));
+  assert.equal(Studio.radar(lancaster, 'lancaster').axes.find(a => a.id === 'precision').value, 100);
+  assert.equal(Studio.sharedFormat([{mode: 'Indoor', shots: [{result: {value: 'X'}}]}]), 'wa');
+  assert.equal(Studio.sharedFormat([{mode: 'Indoor', scoreFormat: 'vegas', shots: [{result: {value: '10'}}]}]), 'vegas');
+  assert.equal(Studio.sharedFormat([
+    {mode: 'Indoor', scoreFormat: 'wa', shots: [{result: {value: 'X'}}]},
+    {mode: 'Indoor', scoreFormat: 'lancaster', shots: [{result: {value: '11'}}]}
+  ]), null);
 });
 
 test('the share card is a portrait holographic collectible with a short score line', () => {

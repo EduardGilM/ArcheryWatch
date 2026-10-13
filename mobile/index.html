@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="aw-version" content="4.28">
+<meta name="aw-version" content="4.29">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#000000">
 <link rel="manifest" href="manifest.json">
@@ -432,7 +432,7 @@
     <div class="mrow quad" id="sessionScoreFace">
       <div><span class="lbl">Total</span><b class="num" id="scoreTotal">–</b></div>
       <div><span class="lbl">Media</span><b class="num" id="scoreAvg">–</b></div>
-      <div><span class="lbl">X</span><b class="num" id="scoreX">–</b></div>
+      <div><span class="lbl" id="scoreXLbl">X</span><b class="num" id="scoreX">–</b></div>
       <div><span class="lbl">10</span><b class="num" id="scoreTen">–</b></div>
     </div>
     <div class="aimwrap" id="sessionGroupWrap" hidden><canvas id="sessionGroup" aria-label="Agrupación"></canvas></div>
@@ -904,7 +904,7 @@ function renderSetHead(S, si) {
   const stab = aims.length ? Math.round(aims.reduce((a, b) => a + b, 0) / aims.length) : null;
   const pts = Score.totals(shots);
   head.hidden = false;
-  document.getElementById('setHeadScore').textContent = pts.scored ? pts.score : '–';
+  document.getElementById('setHeadScore').textContent = formatScore(pts, shots);
   document.getElementById('setHeadPts').classList.toggle('on', !!pts.scored);
   const stabEl = document.getElementById('setHeadStab');
   stabEl.textContent = stab == null ? '–' : String(stab);
@@ -938,6 +938,11 @@ function commitScore(t_ms, apply) {
 function activeFormat() {
   if (typeof Score.formatOf !== 'function' || typeof displayedSession !== 'function') return null;
   return Score.formatOf(displayedSession());
+}
+function formatScore(pts, shots) {
+  if (!pts || !pts.scored) return '–';
+  const format = activeFormat();
+  return format ? Score.scoreText(pts, shots, format) : String(pts.score);
 }
 function scoreArrow(t_ms, value) {
   const format = activeFormat();
@@ -1056,7 +1061,7 @@ function faceRefreshSlots(canvas, shots) {
   if (view === 'Set') {
     const pts = Score.totals(shots);
     const el = document.getElementById('setHeadScore');
-    if (el) el.textContent = pts.scored ? pts.score : '–';
+    if (el) el.textContent = formatScore(pts, shots);
   }
 }
 function faceRedraw(canvas, g, focus) {
@@ -1308,9 +1313,13 @@ function renderSession(S) {
   const sessionBox = document.getElementById('sessionScore');
   sessionBox.hidden = false;
   document.getElementById('sessionScoreCount').textContent = sessionTotals.scored ? sessionTotals.scored + '/' + sessionTotals.arrows : '';
-  document.getElementById('scoreTotal').textContent = sessionTotals.scored ? sessionTotals.score : '–';
+  const sessionFormat = activeFormat();
+  document.getElementById('scoreTotal').textContent = formatScore(sessionTotals, sessionShots);
   document.getElementById('scoreAvg').textContent = sessionTotals.scored ? esNum(sessionTotals.avg, 1) : '–';
-  document.getElementById('scoreX').textContent = sessionTotals.scored ? sessionTotals.x : '–';
+  const markLbl = document.getElementById('scoreXLbl');
+  const markVal = sessionFormat === 'lancaster' ? sessionTotals.eleven : sessionFormat === 'vegas' ? sessionTotals.nine : sessionTotals.x;
+  if (markLbl) markLbl.textContent = sessionFormat === 'lancaster' ? '11' : sessionFormat === 'vegas' ? '9' : 'X';
+  document.getElementById('scoreX').textContent = sessionTotals.scored ? markVal : '–';
   document.getElementById('scoreTen').textContent = sessionTotals.scored ? sessionTotals.ten : '–';
   const groupHtml = Score.groups(sessionShots).map(Score.groupLine).filter(Boolean).map(line => `<div>${line}</div>`).join('');
   const insight = Score.insight(sessionShots).text;
@@ -1508,7 +1517,10 @@ function renderHistory() {
   document.getElementById('histList').innerHTML = L.length ? L.map(s => {
     const a = Math.round(avg(s.shots.map(x => x.aim_score)));
     const pts = Score.totals(s.shots);
-    const meta = [pts.scored ? pts.score + ' pts' : '', Training.roundLabel(s), s.bow, s.arrows].filter(Boolean).map(escapeText).join(' · ');
+    const format = Score.formatOf(s);
+    const scoreBit = pts.scored ? (format ? Score.scoreText(pts, s.shots, format) : pts.score + ' pts') : '';
+    const formatName = format && Score.FORMATS[format] ? Score.FORMATS[format].name : '';
+    const meta = [scoreBit, formatName, Training.roundLabel(s), s.bow, s.arrows].filter(Boolean).map(escapeText).join(' · ');
     return `<div class="setline" data-sess="${s.id}"><div class="rowMain"><b>${fmtDate(s.id)}</b>` +
       `<span class="m">${[`${s.shots.length} flecha${s.shots.length > 1 ? 's' : ''}`, meta].filter(Boolean).join(' · ')}</span></div>` +
       `<span class="chip" style="--c:${grade(a)[0]}">${Number.isFinite(a)?a:'–'}</span><span class="r"></span>` +
@@ -1782,31 +1794,20 @@ function drawFace(c, shots, focus) {
   const fs = Math.max(9, Math.min(13, Math.round(base * 0.055)));
   x.textAlign = 'center'; x.textBaseline = 'middle';
   const num = (text, r, color) => { x.fillStyle = color; x.fillText(text, cx, cy - r); };
-  if (format) {
-    disk(R, '#3F5F78');
-    disk(R * 0.5, '#C2A36A');
-    if (format !== 'wa') disk(R * 0.25, '#F4E7C3');
-    x.lineWidth = 1; x.strokeStyle = 'rgba(0,0,0,.62)';
-    [1, 0.5].concat(format === 'wa' ? [] : [0.25]).forEach(k => { x.beginPath(); x.arc(cx, cy, R * k, 0, Math.PI * 2); x.stroke(); });
-    x.font = '600 ' + fs + 'px ' + MONO;
-    if (format === 'wa') { num('10', 0, 'rgba(44,36,22,.78)'); num('9', R * 0.75, 'rgba(236,242,246,.86)'); }
-    else if (format === 'lancaster') { x.fillStyle = 'rgba(44,36,22,.78)'; x.fillText('11', cx, cy); num('10', R * 0.37, 'rgba(44,36,22,.78)'); num('9', R * 0.75, 'rgba(236,242,246,.86)'); }
-    else { x.fillStyle = 'rgba(44,36,22,.78)'; x.fillText('X', cx, cy); num('10', R * 0.37, 'rgba(44,36,22,.78)'); num('9', R * 0.75, 'rgba(236,242,246,.86)'); }
-  } else {
-    disk(R, '#3F5F78');
-    disk(R * 0.8, '#8F4A4C');
-    disk(R * 0.4, '#C2A36A');
-    x.lineWidth = 1; x.strokeStyle = 'rgba(0,0,0,.62)';
-    for (const k of [1, 0.8, 0.6, 0.4, 0.2, 0.1]) { x.beginPath(); x.arc(cx, cy, R * k, 0, Math.PI * 2); x.stroke(); }
-    x.font = '600 ' + Math.max(8, Math.round(fs * 0.75)) + 'px ' + MONO;
-    x.fillStyle = 'rgba(44,36,22,.7)'; x.fillText('X', cx, cy);
-    x.font = '600 ' + fs + 'px ' + MONO;
-    num('10', R * 0.15, 'rgba(44,36,22,.78)');
-    num('9', R * 0.3, 'rgba(44,36,22,.78)');
-    num('8', R * 0.5, 'rgba(42,18,18,.76)');
-    num('7', R * 0.7, 'rgba(42,18,18,.76)');
-    num('6', R * 0.9, 'rgba(236,242,246,.82)');
-  }
+  disk(R, '#3F5F78');
+  disk(R * 0.8, '#8F4A4C');
+  disk(R * 0.4, '#C2A36A');
+  x.lineWidth = 1; x.strokeStyle = 'rgba(0,0,0,.62)';
+  for (const k of [1, 0.8, 0.6, 0.4, 0.2, 0.1]) { x.beginPath(); x.arc(cx, cy, R * k, 0, Math.PI * 2); x.stroke(); }
+  const center = format === 'lancaster' ? '11' : format === 'vegas' ? '' : 'X';
+  x.font = '600 ' + Math.max(8, Math.round(fs * 0.75)) + 'px ' + MONO;
+  if (center) { x.fillStyle = 'rgba(44,36,22,.7)'; x.fillText(center, cx, cy); }
+  x.font = '600 ' + fs + 'px ' + MONO;
+  num('10', R * 0.15, 'rgba(44,36,22,.78)');
+  num('9', R * 0.3, 'rgba(44,36,22,.78)');
+  num('8', R * 0.5, 'rgba(42,18,18,.76)');
+  num('7', R * 0.7, 'rgba(42,18,18,.76)');
+  num('6', R * 0.9, 'rgba(236,242,246,.82)');
   const pts = Score.impacts(shots);
   if (pts.length >= 2) {
     const g = Score.groupCenter(pts);
@@ -1834,7 +1835,9 @@ function drawSplit(points) {
   const c = document.getElementById('splitPlot');
   if (!c) return;
   const [x, w] = canvasFit(c, 150);
-  const h = 150, labels = ['M', '6', '7', '8', '9', '10', 'X'];
+  const h = 150;
+  const has11 = points.some(p => p.value === '11');
+  const labels = ['M', '6', '7', '8', '9', '10', 'X'].concat(has11 ? ['11'] : []);
   const padL = 28, padR = 8, padT = 10, padB = 20;
   const aims = points.map(p => p.aim);
   let lo = aims.length ? Math.min(...aims) : 0, hi = aims.length ? Math.max(...aims) : 100;
@@ -1854,7 +1857,7 @@ function drawSplit(points) {
     const i = labels.indexOf(p.value);
     if (i < 0) return;
     const jx = ((n * 17) % 7 - 3) * 1.3;
-    const high = p.value === 'X' || p.value === '10';
+    const high = p.value === 'X' || p.value === '10' || p.value === '11';
     x.beginPath(); x.arc(X(i) + jx, Y(p.aim), 3.2, 0, Math.PI * 2);
     x.fillStyle = high ? '#FF8A1F' : 'rgba(255,255,255,.62)'; x.fill();
   });
@@ -2188,8 +2191,9 @@ function drawTrend(S) {
   if (c) c.innerHTML=rows.join('');
   list.innerHTML=S.map((g,i)=>{
     const sa=Math.round(avg(g.map(j=>data.shots[j].aim_score))), key=(historyMode?histId:curSess?.id)+'_'+encodeURIComponent(data.shots[g[0]].set_id);
-    const pts=Score.totals(g.map(j => data.shots[j]));
-    const points=`<span class="setPts${pts.scored?' on':''}"><b>${pts.scored?pts.score:'–'}</b><small>pts</small></span>`;
+    const setShots=g.map(j => data.shots[j]);
+    const pts=Score.totals(setShots);
+    const points=`<span class="setPts${pts.scored?' on':''}"><b>${formatScore(pts, setShots)}</b><small>pts</small></span>`;
     const mini=g.map(j=>{const v=data.shots[j].aim_score;const h=Number.isFinite(v)?Math.max(3,(Math.min(100,v)-40)/60*22):3;return `<i style="height:${h}px;background:${barOf(v)}"></i>`;}).join('');
     const phase = phaseOfGroup(g);
     const sid = escapeText(String(data.shots[g[0]].set_id));

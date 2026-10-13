@@ -37,10 +37,10 @@ $('sessionHero').insertAdjacentHTML('afterend',`<section class="training" id="tr
 <button data-v="TandaOutdoor">Tanda aire libre<span>6 sets</span></button>
 </div></div>
 <div class="picker" id="formatPicker" hidden>
-<button class="pickRow" id="formatRow"><span>Formato</span><b id="formatVal">Vegas</b></button>
+<button class="pickRow" id="formatRow"><span>Formato</span><b id="formatVal">World Archery</b></button>
 <div class="sheet" id="formatSheet" hidden>
-<button data-fmt="wa">World Archery<span>10, 9</span></button>
-<button data-fmt="vegas">Vegas<span>X, 10, 9</span></button>
+<button data-fmt="wa">World Archery<span>X, 10, 9</span></button>
+<button data-fmt="vegas">Vegas<span>10, 9</span></button>
 <button data-fmt="lancaster">Lancaster<span>11, 10, 9</span></button>
 </div></div>
 <div class="picker" id="bowPicker">
@@ -87,14 +87,10 @@ $('modeSheet').onclick=e=>{const b=e.target.closest('[data-v]');if(!b)return;con
   const key=b.dataset.v, tanda=key==='TandaIndoor'||key==='TandaOutdoor';
   const mode=key==='TandaIndoor'?'Indoor':key==='TandaOutdoor'?'Outdoor':key;
   s.mode=mode;s.tanda=tanda;s.roundDone=Training.roundComplete(s);s.target=mode==='Indoor'?3:mode==='Outdoor'?6:0;
-  if(mode==='Indoor' && !['wa','vegas','lancaster'].includes(s.scoreFormat)) s.scoreFormat='vegas';
+  if(mode==='Indoor' && !['wa','vegas','lancaster'].includes(s.scoreFormat)) s.scoreFormat='wa';
   saveSession(s);sendCmd('mode',mode);closeSheets(null);render();};
 $('formatSheet').onclick=e=>{const b=e.target.closest('[data-fmt]');if(!b)return;const s=displayedSession();if(!s||historyMode||s.mode!=='Indoor')return;
-  const next=b.dataset.fmt;
-  const locked=Score.formatOf(s);
-  const values=(s.shots||[]).map(x=>x&&x.result&&x.result.value).filter(Boolean);
-  if((values.includes('X')||values.includes('11'))&&next!==locked){notice(values.includes('11')?'Esta sesión ya tiene 11: se puntúa como Lancaster.':'Esta sesión ya tiene X: se puntúa como Vegas.');return;}
-  s.scoreFormat=next;saveSession(s);closeSheets(null);render();};
+  s.scoreFormat=b.dataset.fmt;saveSession(s);closeSheets(null);render();};
 function gearSheet(listId,sheetId,field,cmd){
   $(sheetId).onclick=e=>{const remove=e.target.closest('[data-delete-bow]');if(remove){deleteBow(remove.dataset.deleteBow);return;}const b=e.target.closest('[data-n]');if(!b)return;const s=displayedSession();if(!s||historyMode)return;
     s[field]=b.dataset.n;saveSession(s);if(cmd)sendCmd(cmd,s[field]);closeSheets(null);render();};
@@ -151,7 +147,9 @@ window.liveEvent = e => {
   if(offerEndScore(s, openEnds)) show('Set');
   else if(!beforeDone && s.roundDone && !historyMode){
     const pts=Score.totals((s.shots||[]).filter(x=>!x.candidate));
-    notice(`${Training.roundLabel(s)} ${Training.roundGoal(s)}/${Training.roundGoal(s)}${pts.scored?' · '+pts.score+' pts':''}`);
+    const fmt=Score.formatOf(s);
+    const ptsTxt=pts.scored?(fmt?Score.scoreText(pts,s.shots,fmt):pts.score+' pts'):'';
+    notice(`${Training.roundLabel(s)} ${Training.roundGoal(s)}/${Training.roundGoal(s)}${ptsTxt?' · '+ptsTxt:''}`);
     render();
   }
   else if(!historyMode && (e.kind==='start'||e.kind==='end'))show('Session');
@@ -199,12 +197,14 @@ render=function() {
     const n=s.roundDone?goal:Math.min(setNumber, goal);
     const arrows=s.shots.filter(x=>!x.candidate && x.set_id===(s.currentSet??1)).length;
     const pts=Score.totals(s.shots.filter(x=>!x.candidate));
+    const fmt=Score.formatOf(s);
+    const ptsTxt=pts.scored?(fmt?Score.scoreText(pts,s.shots,fmt):pts.score+' pts'):'';
     const head=s.paused?'Pausa · ':s.resting&&!s.roundDone?'Descanso · ':'';
-    const tail=s.roundDone?(pts.scored?pts.score+' pts':''):(arrows+(s.target?'/'+s.target:''));
+    const tail=s.roundDone?ptsTxt:(arrows+(s.target?'/'+s.target:''));
     $('trainingStatus').textContent=`${head}${Training.roundLabel(s)} · ${n}/${goal}${tail?' · '+tail:''}`;
     if(view==='Session' && data?.shots?.length){
       $('sSets').textContent=`${n}/${goal}`;
-      const line=`${Training.roundLabel(s)} · ${n}/${goal}${pts.scored?' · '+pts.score+' pts':''}`;
+      const line=`${Training.roundLabel(s)} · ${n}/${goal}${ptsTxt?' · '+ptsTxt:''}`;
       $('subtitle').textContent=historyMode?`${line} · ${fmtDate(histId)}`:line;
     }
   } else $('trainingStatus').textContent=s?`${s.mode?s.mode+' · ':''}${s.paused?'Pausa':s.resting?'Descanso':'Set '+setNumber} · ${s.shots.filter(x=>x.set_id===(s.currentSet??1)).length}${s.target?'/'+s.target:''}`:'Equipo';
@@ -216,8 +216,9 @@ render=function() {
   const indoor=!!(s&&s.mode==='Indoor');
   $('formatPicker').hidden=!indoor||!!historyMode;
   if(indoor){
+    if(!historyMode && !['wa','vegas','lancaster'].includes(s.scoreFormat)){s.scoreFormat='wa';saveSession(s);}
     const fmt=Score.formatOf(s);
-    $('formatVal').textContent=Score.FORMATS[fmt]?.name||'Vegas';
+    $('formatVal').textContent=Score.FORMATS[fmt]?.name||'World Archery';
     $('formatSheet').querySelectorAll('[data-fmt]').forEach(b=>b.classList.toggle('on',b.dataset.fmt===fmt));
   }
   $('bowVal').textContent=s?.bow||s?.profile||'–';

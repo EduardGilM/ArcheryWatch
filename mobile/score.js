@@ -3,43 +3,47 @@
    La X es la mitad interior del 10. Fuera del 6 es M. */
 const Score = {
   VALUES: ['X', '10', '9', '8', '7', '6', 'M'],
-  // Indoor: World Archery es 10 y 9, sin X. Vegas es X-10-9 (la X vale 10). Lancaster es 11-10-9.
+  // Indoor de compuesto. El 8, el 7, el 6 y la M están en los tres.
+  // World Archery: la X vale 10 y se cuenta aparte. Vegas: el interior es 10, sin X. Lancaster: ese anillo vale 11.
   FORMATS: {
-    wa: {id: 'wa', name: 'World Archery', values: ['10', '9', 'M']},
-    vegas: {id: 'vegas', name: 'Vegas', values: ['X', '10', '9', 'M']},
-    lancaster: {id: 'lancaster', name: 'Lancaster', values: ['11', '10', '9', 'M']}
+    wa: {id: 'wa', name: 'World Archery', values: ['X', '10', '9', '8', '7', '6', 'M']},
+    vegas: {id: 'vegas', name: 'Vegas', values: ['10', '9', '8', '7', '6', 'M']},
+    lancaster: {id: 'lancaster', name: 'Lancaster', values: ['11', '10', '9', '8', '7', '6', 'M']}
   },
-  DEFAULT_FORMAT: 'vegas',
+  DEFAULT_FORMAT: 'wa',
   GROUPS: [{id: 'x10', label: 'X-10'}, {id: '98', label: '9-8'}, {id: 'low', label: '≤7'}, {id: 'm', label: 'M'}],
   MIN: 4,
   FACE: 1.04,
   SPLIT: 20,
-  // Una sesión indoor que ya tiene X se queda en Vegas, aunque un formato guardado diga otra cosa.
+  // Sin formato guardado, una indoor antigua es World Archery.
   formatOf(session) {
     if (!session || session.mode !== 'Indoor') return null;
-    const values = (session.shots || []).map(s => s && s.result && s.result.value).filter(Boolean);
-    if (values.includes('11')) return 'lancaster';
-    if (values.includes('X')) return 'vegas';
     const stored = session.scoreFormat;
     if (stored === 'wa' || stored === 'vegas' || stored === 'lancaster') return stored;
     return this.DEFAULT_FORMAT;
+  },
+  arrowMax(format) {
+    return format === 'lancaster' ? 11 : 10;
+  },
+  roundMax(shots, format) {
+    const n = (shots || []).filter(s => s && !s.candidate).length;
+    return n * this.arrowMax(format);
   },
   valuesFor(session) {
     const format = this.formatOf(session);
     return format ? this.FORMATS[format].values : this.VALUES;
   },
-  // La línea cuenta en el anillo mayor. Sin formato, cada anillo 10..6 ocupa 0,2 y la X llega hasta 0,1.
-  // Con formato indoor el radio 1 es el 9: el 10 llega a 0,5 y la X o el 11 a 0,25.
+  // La línea cuenta en el anillo mayor. Cada anillo 10..6 ocupa 0,2. El centro (0,1) es X, 11 o el propio 10.
   valueAt(x, y, format) {
     if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
     const r = Math.hypot(x, y);
-    if (format && this.FORMATS[format]) {
-      if (r > 1) return 'M';
-      if (format === 'wa') return r <= 0.5 ? '10' : '9';
-      if (r <= 0.25) return format === 'lancaster' ? '11' : 'X';
-      return r <= 0.5 ? '10' : '9';
-    }
     if (r > 1) return 'M';
+    if (format === 'vegas') {
+      if (r <= 0.2) return '10';
+      const ring = 11 - Math.ceil(r * 5);
+      return ring >= 6 && ring <= 9 ? String(ring) : 'M';
+    }
+    if (format === 'lancaster' && r <= 0.1) return '11';
     if (r <= 0.1) return 'X';
     const ring = 11 - Math.ceil(r * 5);
     return ring >= 6 && ring <= 10 ? String(ring) : null;
@@ -133,15 +137,27 @@ const Score = {
       score: scored.length ? sum : null,
       avg: scored.length ? sum / scored.length : null,
       x: scored.filter(s => s.result.value === 'X').length,
-      ten: scored.filter(s => s.result.value === '10').length
+      ten: scored.filter(s => s.result.value === '10').length,
+      nine: scored.filter(s => s.result.value === '9').length,
+      eleven: scored.filter(s => s.result.value === '11').length
     };
   },
-  totalsLine(t) {
+  scoreText(t, shots, format) {
+    if (!t || t.score == null) return '';
+    if (!format) return String(t.score);
+    return t.score + '/' + this.roundMax(shots, format);
+  },
+  totalsLine(t, format) {
     if (!t || !t.scored) return '';
     const avg = Math.round(t.avg * 10) / 10;
     const avgText = Number.isInteger(avg) ? String(avg) : avg.toFixed(1).replace('.', ',');
-    const tens = t.ten === 1 ? '1 diez' : t.ten + ' dieces';
-    return t.score + ' puntos · media ' + avgText + ' · ' + t.x + ' X · ' + tens;
+    const bits = [];
+    if (format === 'lancaster') {
+      if (t.eleven) bits.push(t.eleven + ' de 11');
+    } else if (format !== 'vegas') bits.push(t.x + ' X');
+    if (t.ten) bits.push(t.ten === 1 ? '1 diez' : t.ten + ' dieces');
+    const head = format ? t.score + '/' + (t.arrows * this.arrowMax(format)) : String(t.score);
+    return head + ' puntos · media ' + avgText + (bits.length ? ' · ' + bits.join(' · ') : '');
   },
   groups(shots) {
     const buckets = this.GROUPS.map(g => ({...g, n: 0, aim: [], shot_s: [], settle: [], hr: []}));
