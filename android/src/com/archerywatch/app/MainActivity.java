@@ -141,6 +141,34 @@ public class MainActivity extends Activity {
         @android.webkit.JavascriptInterface public void restore() {
             runOnUiThread(() -> startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("application/json").addCategory(Intent.CATEGORY_OPENABLE), 21));
         }
+        @android.webkit.JavascriptInterface public void sharePng(String data) {
+            try {
+                String raw = data == null ? "" : data;
+                int comma = raw.indexOf(',');
+                if (raw.startsWith("data:") && comma >= 0) raw = raw.substring(comma + 1);
+                byte[] bytes = android.util.Base64.decode(raw, android.util.Base64.DEFAULT);
+                boolean jpeg = bytes.length > 2 && (bytes[0] & 0xFF) == 0xFF && (bytes[1] & 0xFF) == 0xD8;
+                final String type = jpeg ? "image/jpeg" : "image/png";
+                final String name = jpeg ? "archerywatch.jpg" : "archerywatch.png";
+                try (java.io.FileOutputStream out = new java.io.FileOutputStream(new java.io.File(getCacheDir(), "share.png"))) { out.write(bytes); }
+                runOnUiThread(() -> {
+                    try {
+                        android.net.Uri uri = android.net.Uri.parse("content://com.archerywatch.app.share/share.png");
+                        Intent send = new Intent(Intent.ACTION_SEND);
+                        send.setType(type);
+                        send.putExtra(Intent.EXTRA_STREAM, uri);
+                        send.putExtra(Intent.EXTRA_TITLE, name);
+                        send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        send.setClipData(android.content.ClipData.newRawUri("ArcheryWatch", uri));
+                        startActivity(Intent.createChooser(send, "Compartir"));
+                    } catch (Exception e) {
+                        push("notice(" + org.json.JSONObject.quote("No se pudo compartir") + ")");
+                    }
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> push("notice(" + org.json.JSONObject.quote("No se pudo compartir") + ")"));
+            }
+        }
     }
     private void finishExport(int result, Intent intent) {
         synchronized (exportLock) {

@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="aw-version" content="4.25">
+<meta name="aw-version" content="4.26">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#000000">
 <link rel="manifest" href="manifest.json">
@@ -18,7 +18,7 @@
     --bg:#000; --surface:#0b0b0d; --surface-2:#131316; --surface-3:#1a1a1e;
     --line:rgba(255,255,255,.07); --line-2:rgba(255,255,255,.12);
     --txt:#fff; --txt-2:#9a9aa2; --txt-3:#5c5c64;
-    --acc:#FF8A1F; --acc2:#FFC15E; --glow:rgba(255,138,31,.28); --acc-ink:#1b0f05; --acc-soft:rgba(255,138,31,.12);
+    --acc:#FF8A1F; --acc2:#FFC15E; --glow:rgba(255,138,31,.28); --acc-ink:#1b0f05; --acc-soft:rgba(255,138,31,.12); --acc-line:rgba(255,138,31,.45);
     --low:#F0506E; --danger:#F0506E;
     --font:'Geist',system-ui,-apple-system,sans-serif; --mono:'Geist Mono',ui-monospace,monospace; --num:'Barlow Condensed',sans-serif;
     --grad:linear-gradient(90deg,var(--acc),var(--acc2));
@@ -101,11 +101,11 @@
   .scoreSlots { display:flex; gap:6px; margin-bottom:8px; }
   .scoreSlots button { flex:1; min-width:0; min-height:48px; border-radius:12px; background:var(--surface-2); border:1px solid var(--line); color:var(--txt-2); font-size:11px; font-weight:500; }
   .scoreSlots button b { display:block; font-family:var(--mono); font-size:16px; color:var(--txt); font-weight:600; margin-top:1px; }
-  .scoreSlots button.on { border-color:rgba(255,122,26,.45); background:var(--acc-soft); color:var(--acc); }
+  .scoreSlots button.on { border-color:var(--acc-line); background:var(--acc-soft); color:var(--acc); }
   .scoreSlots button.on b { color:var(--acc); }
   .scorepad { display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:4px; }
   .scorepad button { min-height:44px; border-radius:12px; background:var(--surface-2); border:1px solid var(--line); color:var(--txt); font-family:var(--mono); font-size:16px; font-weight:600; padding:0; }
-  .scorepad button.on { background:transparent; color:var(--acc); border-color:rgba(255,138,31,.55); }
+  .scorepad button.on { background:transparent; color:var(--acc); border-color:var(--acc-line); }
   .scorepad button.clear { grid-column:span 7; font-family:var(--font); font-size:13px; font-weight:500; color:var(--txt-2); }
   .scoreNote { margin-top:8px; font-size:12.5px; color:var(--txt-2); line-height:1.45; }
   .scoreNote:empty { display:none; }
@@ -120,7 +120,7 @@
   #splitNeed { margin:0; font-size:14px; color:var(--txt-2); }
   .tracebar { display:flex; gap:6px; justify-content:center; flex-wrap:wrap; margin-top:10px; }
   .tracebar button { background:var(--surface-2); color:var(--txt-2); border:1px solid var(--line); border-radius:999px; font-size:12.5px; padding:6px 12px; }
-  .tracebar button.sel { background:var(--acc-soft); color:var(--acc); border-color:rgba(255,122,26,.3); font-weight:600; }
+  .tracebar button.sel { background:var(--acc-soft); color:var(--acc); border-color:var(--acc-line); font-weight:600; }
 
   /* Botones */
   .btnPrimary, #play { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; min-height:52px;
@@ -129,7 +129,7 @@
   #play.playing { --icon:var(--i-stop); background:var(--surface-2); color:var(--acc); border:1px solid var(--line-2); box-shadow:none; }
   #play::before { content:""; width:15px; height:15px; background:currentColor; -webkit-mask:var(--icon) center/contain no-repeat; mask:var(--icon) center/contain no-repeat; }
   .btnSecondary, #calib { display:flex; align-items:center; justify-content:center; width:100%; min-height:44px; background:var(--acc-soft);
-    color:var(--acc); border:1px solid rgba(255,122,26,.28); border-radius:12px; font-size:14px; font-weight:600; }
+    color:var(--acc); border:1px solid var(--acc-line); border-radius:12px; font-size:14px; font-weight:600; }
   .deleteAction { background:none; color:var(--txt-3); border:1px solid var(--line); border-radius:12px; padding:12px; font-size:13px; font-weight:500; }
   .deleteAction:active { color:var(--danger); border-color:rgba(239,90,90,.4); }
   .deleteSession { flex-shrink:0; width:36px; height:36px; padding:0; display:grid; place-items:center; border-color:transparent; }
@@ -187,13 +187,16 @@
   .cmpGear b { color:var(--txt); font-weight:600; }
   #cmpAim { width:min(82vw,330px); height:min(82vw,330px); }
   #cmpSets { width:100%; height:160px; }
-  #goalForm { display:grid; gap:8px; margin-top:10px; }
-  #goalForm label { display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:14px; font-weight:600; }
-  #goalForm input { width:88px; min-height:44px; border-radius:12px; border:1px solid var(--line-2); background:var(--surface-2); text-align:center; font-family:var(--mono); font-size:16px; }
-  .goalRow { margin:8px 0 0; }
-  .goalRow > span { display:flex; justify-content:space-between; gap:8px; font-size:13px; }
-  .goalRow > span b:last-child { font-family:var(--mono); font-weight:500; }
-  .goalBar { height:8px; border-radius:999px; background:var(--surface-3); margin-top:6px; overflow:hidden; }
+  #goalCard { background:linear-gradient(180deg, var(--acc-soft), var(--surface) 88px); }
+  #goalForm { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px; }
+  #goalForm label { display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:13px; font-weight:600; background:rgba(0,0,0,.28); border:1px solid var(--line); border-radius:14px; padding:8px 10px; }
+  #goalForm .btnSecondary { grid-column:1 / -1; }
+  #goalForm input { width:72px; min-height:40px; border-radius:10px; border:1px solid var(--line-2); background:var(--surface-2); text-align:center; font-family:var(--mono); font-size:16px; }
+  .goalRow { margin:8px 0 0; background:rgba(0,0,0,.28); border:1px solid var(--line); border-radius:14px; padding:12px 12px 10px; }
+  .goalRow > span { display:flex; justify-content:space-between; gap:8px; font-size:14px; align-items:baseline; }
+  .goalRow > span b:first-child { font-weight:600; }
+  .goalRow > span b:last-child { font-family:var(--num); font-weight:600; font-size:22px; color:var(--txt); }
+  .goalBar { height:12px; border-radius:999px; background:var(--surface-3); margin-top:8px; overflow:hidden; }
   .goalBar i { display:block; height:100%; width:0; background:rgba(255,255,255,.85); border-radius:999px; }
   .goalBar.met i { background:var(--grad); box-shadow:0 0 12px var(--glow); }
   #tLegend .hr { margin-left:auto; color:var(--txt); font-family:var(--mono); font-size:12px; }
@@ -224,7 +227,7 @@
   .setbar { display:flex; gap:6px; padding:0 0 2px; overflow-x:auto; flex-shrink:0; }
   .setbar:empty { display:none; }
   .setbar button { background:var(--surface); color:var(--txt-2); border:1px solid var(--line); border-radius:999px; font-size:13px; padding:7px 14px; white-space:nowrap; }
-  .setbar button.sel { background:var(--acc-soft); color:var(--acc); border-color:rgba(255,122,26,.3); font-weight:600; }
+  .setbar button.sel { background:var(--acc-soft); color:var(--acc); border-color:var(--acc-line); font-weight:600; }
   .setHead { display:flex; align-items:center; gap:12px; flex-shrink:0; }
   .setHead .setVal { font-size:32px; }
 
@@ -262,9 +265,9 @@
 
   /* Navegación */
   nav { display:flex; flex-shrink:0; border-top:1px solid var(--line); background:#000; padding:8px 4px max(10px,env(safe-area-inset-bottom)); }
-  nav button { flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; gap:5px; background:none; border:none;
-               color:var(--txt-3); font-size:10.5px; font-weight:500; padding:8px 0 4px; min-height:52px; position:relative; }
-  nav button svg { width:22px; height:22px; }
+  nav button { flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; gap:3px; background:none; border:none;
+               color:var(--txt-3); font-size:9.5px; font-weight:500; padding:6px 0 2px; min-height:52px; position:relative; }
+  nav button svg { width:20px; height:20px; }
   nav button.sel { color:var(--txt); }
   nav button.sel::before { content:""; position:absolute; top:0; left:28%; right:28%; height:2px; border-radius:0 0 2px 2px; background:var(--acc); }
 
@@ -275,6 +278,51 @@
   .emptyState { display:none; }
   main[data-empty="true"] > :not(.emptyState) { display:none !important; }
   main[data-empty="true"] > .emptyState { display:block; }
+
+  input, textarea { user-select:text; }
+  .lensBar, .roundBar, .pickBar { display:flex; gap:6px; }
+  .lensBar button, .roundBar button, .pickBar button { flex:1; min-height:40px; border-radius:999px; background:var(--surface); color:var(--txt-2); border:1px solid var(--line); font-size:12.5px; font-weight:600; }
+  .lensBar button.on, .roundBar button.on { background:var(--acc-soft); color:var(--acc); border-color:var(--acc-line); }
+  .roundBar button { border-radius:12px; }
+  .pickBar { position:sticky; bottom:0; z-index:6; flex-wrap:wrap; padding:10px; background:#111; border:1px solid var(--line-2); border-radius:16px; }
+  .pickBar[hidden], .roundBar[hidden], #openShare[hidden] { display:none !important; }
+  .pickBar span { width:100%; font-size:12px; color:var(--txt-2); }
+  #setList details.picked { border-color:var(--acc); box-shadow:0 0 0 1px var(--acc-line); }
+  #setList details[data-phase="warm"] summary b .phaseMark { color:var(--txt-2); }
+  .phaseMark { font-style:normal; font:600 9px/1 var(--font); letter-spacing:.12em; text-transform:uppercase; color:var(--acc); margin-left:4px; }
+  .profileTop { display:grid; grid-template-columns:84px minmax(0,1fr); gap:12px; align-items:center; }
+  .profilePhoto { width:84px; height:84px; border-radius:50%; border:1px solid var(--line-2); background:var(--surface-2); overflow:hidden; padding:0; color:var(--txt-2); font-size:28px; }
+  .profilePhoto img { width:100%; height:100%; object-fit:cover; display:block; }
+  .profileFields { display:grid; gap:4px; min-width:0; }
+  .profileFields input { width:100%; background:transparent; border:none; border-bottom:1px solid var(--line); min-height:36px; font-size:20px; font-weight:600; }
+  #profileClub { font-size:14px; font-weight:500; color:var(--txt-2); }
+  #profileGear { margin-top:12px; font-size:13px; color:var(--txt-2); }
+  #profileGear b { color:var(--txt); font-weight:600; }
+  #profileSpark, #profileRadar, #progressRadar { width:100%; display:block; }
+  #profileSpark { height:84px; }
+  #profileRadar, #progressRadar { height:280px; }
+  .swatches { display:flex; gap:8px 10px; flex-wrap:wrap; }
+  .swatches button { width:52px; height:auto; border:none; background:none; padding:0; display:flex; flex-direction:column; align-items:center; gap:6px; color:var(--txt-3); font-size:10px; font-weight:600; }
+  .swatches button i { width:36px; height:36px; border-radius:50%; background:var(--sw); box-shadow:0 0 0 2px transparent; }
+  .swatches button.on { color:var(--txt); }
+  .swatches button.on i { box-shadow:0 0 0 2px #fff; }
+  .heatWrap { display:flex; gap:6px; align-items:flex-start; overflow:auto; }
+  .heatDays { display:flex; flex-direction:column; gap:3px; font-size:9px; color:var(--txt-3); width:12px; }
+  .heatDays span { height:11px; line-height:11px; }
+  .heat { display:flex; gap:3px; }
+  .heatCol { display:flex; flex-direction:column; gap:3px; }
+  .heat i, .heatLegend i { width:11px; height:11px; border-radius:2px; display:block; background:rgba(255,255,255,.06); }
+  .heat i.l1, .heatLegend i.l1 { background:color-mix(in srgb, var(--acc) 48%, #3a2a18); }
+  .heat i.l2, .heatLegend i.l2 { background:color-mix(in srgb, var(--acc) 68%, #2a1c10); }
+  .heat i.l3, .heatLegend i.l3 { background:color-mix(in srgb, var(--acc) 86%, #1a1008); }
+  .heat i.l4, .heatLegend i.l4 { background:var(--acc); }
+  .heat i.future { background:transparent; box-shadow:inset 0 0 0 1px rgba(255,255,255,.05); }
+  .heatLegend { display:flex; gap:4px; align-items:center; margin-top:8px; font-size:11px; color:var(--txt-3); }
+  #shareSheet:not([hidden]) { display:flex; position:fixed; inset:0; z-index:60; background:rgba(0,0,0,.82); align-items:flex-end; justify-content:center; }
+  .sharePanel { width:min(100%, 460px); max-height:100%; overflow:auto; background:#0b0b0d; border-top:1px solid var(--line-2); border-radius:20px 20px 0 0; padding:14px 14px 22px; display:grid; gap:10px; }
+  #shareCanvas { width:min(100%, 340px); height:auto; border-radius:16px; display:block; margin:0 auto; background:#000; }
+  .shareOpts { display:flex; flex-wrap:wrap; gap:8px 12px; font-size:13px; color:var(--txt-2); }
+  .shareOpts label { display:flex; align-items:center; gap:6px; }
 
   /* Diálogo */
   #askModal:not([hidden]) { display:flex; position:fixed; inset:0; background:rgba(6,7,9,.72); z-index:40; align-items:flex-end; justify-content:center; padding:16px; }
@@ -382,7 +430,24 @@
     <div class="aimwrap" id="sessionGroupWrap" hidden><canvas id="sessionGroup" aria-label="Agrupación"></canvas></div>
     <details class="info" id="sessionScoreMore"><summary>Detalle</summary><div id="sessionScoreGroups" class="scoreGroups"></div><p id="sessionScoreInsight"></p></details>
   </section>
+  <div class="lensBar" id="lensBar">
+    <button type="button" data-lens="all" class="on">Todas</button>
+    <button type="button" data-lens="score">Puntuable</button>
+    <button type="button" data-lens="warm">Calentamiento</button>
+  </div>
+  <div class="roundBar" id="roundBar">
+    <button type="button" data-round="warm">Empezar calentamiento</button>
+    <button type="button" data-round="score">Empezar puntuable</button>
+  </div>
   <div id="setList"></div>
+  <div class="pickBar" id="pickBar" hidden>
+    <span id="pickCount">0 sets</span>
+    <button type="button" data-assign="warm">Calentamiento</button>
+    <button type="button" data-assign="score">Puntuable</button>
+    <button type="button" data-assign="">Quitar</button>
+    <button type="button" data-assign="cancel">Listo</button>
+  </div>
+  <button type="button" class="btnSecondary" id="openShare">Compartir sesión</button>
   <div id="trend" hidden></div>
   <button class="deleteAction" id="deleteCurrent" onclick="removeSelection('session')">Eliminar sesión</button>
 </main>
@@ -399,6 +464,15 @@
       <button type="button" class="btnSecondary" onclick="saveGoals()">Guardar</button>
     </form>
     <details class="info"><summary aria-label="Detalle">ⓘ</summary><p id="goalHint">Lunes a domingo. Vacío = no cuenta.</p></details>
+  </section>
+  <section class="card" id="radarCard">
+    <div class="cardTitle">Forma</div>
+    <canvas id="progressRadar" aria-label="Radar de la forma"></canvas>
+  </section>
+  <section class="card" id="heatCard">
+    <div class="cardTitle">Días<small id="heatLabel"></small></div>
+    <div class="heatWrap"><div class="heatDays" aria-hidden="true"><span>L</span><span></span><span>X</span><span></span><span>V</span><span></span><span>D</span></div><div class="heat" id="heatmap"></div></div>
+    <div class="heatLegend"><span>Menos</span><i class="l0"></i><i class="l1"></i><i class="l2"></i><i class="l3"></i><i class="l4"></i><span>Más</span></div>
   </section>
   <section class="card" id="splitCard">
     <div class="cardTitle">Estabilidad vs puntos</div>
@@ -459,13 +533,52 @@
   <div class="card list" id="setArrows"></div>
   <button class="deleteAction" onclick="removeSelection('set')">Eliminar set</button>
 </main>
+<main id="vProfile" style="display:none">
+  <section class="card" id="profileCard">
+    <div class="profileTop">
+      <button type="button" class="profilePhoto" id="profilePhotoBtn" aria-label="Foto de perfil"><img id="profilePhoto" alt="" hidden><span id="profilePhotoPh">+</span></button>
+      <input id="profileFile" type="file" accept="image/*" hidden>
+      <div class="profileFields">
+        <input id="profileName" maxlength="32" placeholder="Nombre" aria-label="Nombre">
+        <input id="profileClub" maxlength="40" placeholder="Club" aria-label="Club">
+      </div>
+    </div>
+    <div id="profileGear"></div>
+  </section>
+  <section class="card">
+    <div class="cardTitle">Global<small id="profileSpan"></small></div>
+    <div class="mrow quad" id="profileNums"></div>
+    <canvas id="profileSpark" aria-label="Evolución"></canvas>
+    <canvas id="profileRadar" aria-label="Radar del perfil"></canvas>
+    <button type="button" class="btnSecondary" id="shareProfile">Compartir perfil</button>
+  </section>
+  <section class="card" id="themeCard">
+    <div class="cardTitle">Acento<small>Ámbar por defecto</small></div>
+    <div class="swatches" id="themeSwatches"></div>
+  </section>
+</main>
 <nav>
   <button id="nSession"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M80,64a8,8,0,0,1,8-8H216a8,8,0,0,1,0,16H88A8,8,0,0,1,80,64Zm136,56H88a8,8,0,0,0,0,16H216a8,8,0,0,0,0-16Zm0,64H88a8,8,0,0,0,0,16H216a8,8,0,0,0,0-16ZM44,52A12,12,0,1,0,56,64,12,12,0,0,0,44,52Zm0,64a12,12,0,1,0,12,12A12,12,0,0,0,44,116Zm0,64a12,12,0,1,0,12,12A12,12,0,0,0,44,180Z"/></svg>Sesión</button>
   <button id="nShot" class="sel"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M232,120h-8.34A96.14,96.14,0,0,0,136,32.34V24a8,8,0,0,0-16,0v8.34A96.14,96.14,0,0,0,32.34,120H24a8,8,0,0,0,0,16h8.34A96.14,96.14,0,0,0,120,223.66V232a8,8,0,0,0,16,0v-8.34A96.14,96.14,0,0,0,223.66,136H232a8,8,0,0,0,0-16Zm-96,87.6V200a8,8,0,0,0-16,0v7.6A80.15,80.15,0,0,1,48.4,136H56a8,8,0,0,0,0-16H48.4A80.15,80.15,0,0,1,120,48.4V56a8,8,0,0,0,16,0V48.4A80.15,80.15,0,0,1,207.6,120H200a8,8,0,0,0,0,16h7.6A80.15,80.15,0,0,1,136,207.6ZM128,88a40,40,0,1,0,40,40A40,40,0,0,0,128,88Zm0,64a24,24,0,1,1,24-24A24,24,0,0,1,128,152Z"/></svg>Tiro</button>
   <button id="nProgress"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M232,208a8,8,0,0,1-8,8H32a8,8,0,0,1-8-8V48a8,8,0,0,1,16,0V156.69l50.34-50.35a8,8,0,0,1,11.32,0L128,132.69,180.69,80H160a8,8,0,0,1,0-16h40a8,8,0,0,1,8,8v40a8,8,0,0,1-16,0V91.31l-58.34,58.35a8,8,0,0,1-11.32,0L96,123.31l-56,56V200H224A8,8,0,0,1,232,208Z"/></svg>Progreso</button>
   <button id="nSet"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M172,76a44,44,0,1,0-44,44A44.05,44.05,0,0,0,172,76Zm-44,28a28,28,0,1,1,28-28A28,28,0,0,1,128,104Zm60,24a44,44,0,1,0,44,44A44.05,44.05,0,0,0,188,128Zm0,72a28,28,0,1,1,28-28A28,28,0,0,1,188,200ZM68,128a44,44,0,1,0,44,44A44.05,44.05,0,0,0,68,128Zm0,72a28,28,0,1,1,28-28A28,28,0,0,1,68,200Z"/></svg>Set</button>
   <button id="nHistory"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M136,80v43.47l36.12,21.67a8,8,0,0,1-8.24,13.72l-40-24A8,8,0,0,1,120,128V80a8,8,0,0,1,16,0Zm-8-48A95.44,95.44,0,0,0,60.08,60.15C52.81,67.51,46.350,74.59,40,82V64a8,8,0,0,0-16,0v40a8,8,0,0,0,8,8H72a8,8,0,0,0,0-16H49c7.15-8.420,14.27-16.35,22.39-24.57a80,80,0,1,1,1.66,114.75,8,8,0,1,0-11,11.64A96,96,0,1,0,128,32Z"/></svg>Historial</button>
+  <button id="nProfile"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24ZM74.08,197.5a64,64,0,0,1,107.84,0,87.83,87.83,0,0,1-107.84,0ZM96,120a32,32,0,1,1,32,32A32,32,0,0,1,96,120Zm97.76,66.41a79.66,79.66,0,0,0-36.06-28.75,48,48,0,1,0-59.4,0,79.66,79.66,0,0,0-36.06,28.75,88,88,0,1,1,131.52,0Z"/></svg>Perfil</button>
 </nav>
+<div id="shareSheet" hidden>
+  <div class="sharePanel">
+    <canvas id="shareCanvas" width="1080" height="1350" aria-label="Tarjeta para compartir"></canvas>
+    <div class="lensBar" id="shareLayouts"></div>
+    <div class="shareOpts">
+      <label><input type="checkbox" id="shareName" checked> Nombre</label>
+      <label><input type="checkbox" id="shareRadar" checked> Radar</label>
+      <label><input type="checkbox" id="shareStab" checked> Estabilidad</label>
+      <label>Fondo <input type="file" id="shareBg" accept="image/*"></label>
+    </div>
+    <button type="button" class="btnPrimary" id="shareExport">Compartir</button>
+    <button type="button" class="btnSecondary" id="shareClose">Cerrar</button>
+  </div>
+</div>
 <div id="askModal" hidden role="dialog" aria-modal="true"><div class="ask"><p id="askMsg"></p>
 <div class="askBtns"><button id="askNo">Cancelar</button><button id="askYes">Confirmar</button></div></div></div>
 <script src="session-model.js"></script>
@@ -649,7 +762,8 @@ const sets = shots => {
   return out;
 };
 const setLabel = (S,i) => S[i].every(j=>data.shots[j].candidate) ? 'Calibración' : 'Set '+S.slice(0,i+1).filter(g=>g.some(j=>!data.shots[j].candidate)).length;
-const grade = v => !Number.isFinite(v) ? ['#5c5c64','–'] : v >= 80 ? ['#FF8A1F', 'A'] : v < 70 ? ['#F0506E', 'E'] : ['#E8E8EE', 'C'];
+let themeAcc = '#FF8A1F';
+const grade = v => !Number.isFinite(v) ? ['#5c5c64','–'] : v >= 80 ? [themeAcc, 'A'] : v < 70 ? ['#F0506E', 'E'] : ['#E8E8EE', 'C'];
 const avg = a => { a=a.filter(Number.isFinite); return a.length ? a.reduce((x,y)=>x+y,0)/a.length : NaN; };
 const sd = a => { const m = avg(a); return Math.sqrt(avg(a.map(x => (x - m) ** 2))); };
 // radio de apuntado: con brujula en GRADOS reales (yaw + inclinacion); sin ella, estimacion MOA
@@ -707,7 +821,7 @@ async function boot() {
 function step(d) { const n = data?.shots.length || 0; if (!n) return; cur = (cur + d + n) % n; scoreFocus = data.shots[cur]?.t_ms ?? null; render(); }
 function show(v) {
   view = v;
-  ['Session', 'Shot', 'Progress', 'Set', 'History'].forEach(x => {
+  ['Session', 'Shot', 'Progress', 'Set', 'History', 'Profile'].forEach(x => {
     document.getElementById('v' + x).style.display = x === v ? 'flex' : 'none';
     document.getElementById('n' + x).className = x === v ? 'sel' : '';
     document.getElementById('n' + x).setAttribute('aria-current', x === v ? 'page' : 'false');
@@ -735,6 +849,11 @@ function render() {
     document.getElementById('title').textContent = 'Historial';
     document.getElementById('subtitle').textContent = '';
     renderHistory();
+    return;
+  }
+  if (view === 'Profile') {
+    document.getElementById('title').textContent = 'Perfil';
+    document.getElementById('subtitle').textContent = '';
     return;
   }
   if (!data || !data.shots.length) {
@@ -1154,10 +1273,11 @@ function paintScore(id, shots) {
   };
 }
 function renderSession(S) {
-  const sc = data.shots.map(s => s.aim_score).filter(Number.isFinite), a = Math.round(avg(sc));
-  document.getElementById('sTotal').textContent = data.shots.filter(s=>!s.candidate).length;
-  document.getElementById('sSets').textContent = S.filter(g=>g.some(j=>!data.shots[j].candidate)).length;
-  const real = data.shots.filter(s => !s.candidate);
+  const pool = (typeof Studio !== 'undefined' && Studio.pool) ? Studio.pool(data.shots) : data.shots;
+  const sc = pool.map(s => s.aim_score).filter(Number.isFinite), a = Math.round(avg(sc));
+  document.getElementById('sTotal').textContent = pool.filter(s=>!s.candidate).length;
+  document.getElementById('sSets').textContent = new Set(pool.filter(s=>!s.candidate).map(s=>s.set_id)).size;
+  const real = pool.filter(s => !s.candidate);
   const tAvg = document.getElementById('sAvg');
   setMetric('sAvg', Number.isFinite(a) ? a : '–');
   tAvg.style.color = Number.isFinite(a) && a >= 80 ? 'var(--acc)' : 'var(--txt)';
@@ -1174,7 +1294,7 @@ function renderSession(S) {
   setMetric('sHr', hrs.length ? Math.round(avg(hrs)) : '–');
   const settles = real.map(s => s.settle_ms).filter(Number.isFinite);
   setMetric('sSettle', settles.length ? Math.round(avg(settles)) : '–', 'ms');
-  const sessionShots = data.shots.filter(s => !s.candidate);
+  const sessionShots = real;
   const sessionTotals = Score.totals(sessionShots);
   const sessionBox = document.getElementById('sessionScore');
   sessionBox.hidden = false;
@@ -1678,7 +1798,7 @@ function drawFace(c, shots, focus) {
     const on = focus != null && p.t === focus;
     const rad = numbered ? (on ? 12.5 : FACE_DOT) : (on ? 4.4 : 3.3);
     x.beginPath(); x.arc(s.x, s.y, rad, 0, Math.PI * 2);
-    x.fillStyle = on ? '#FF8A1F' : '#F3F0E8'; x.fill();
+    x.fillStyle = on ? C.mark : '#F3F0E8'; x.fill();
     x.lineWidth = 1; x.strokeStyle = 'rgba(12,10,8,.8)'; x.stroke();
     if (numbered) {
       x.fillStyle = '#1A140C';
@@ -1752,10 +1872,10 @@ function gaugeSvg(v) {
   const val = Math.max(0, Math.min(100, Number.isFinite(v) ? v : 0));
   const ang = (135 + 270 * val / 100) * Math.PI / 180;
   const ex = size / 2 + r * Math.cos(ang), ey = size / 2 + r * Math.sin(ang);
-  return `<svg viewBox="0 0 ${size} ${size}" aria-hidden="true"><defs><linearGradient id="awGauge" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#FF8A1F"/><stop offset="1" stop-color="#FFC15E"/></linearGradient></defs>
+  return `<svg viewBox="0 0 ${size} ${size}" aria-hidden="true"><defs><linearGradient id="awGauge" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="var(--acc)"/><stop offset="1" stop-color="var(--acc2)"/></linearGradient></defs>
     <g transform="rotate(135 ${size / 2} ${size / 2})"><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="7" stroke-linecap="round" stroke-dasharray="${circ * arc} ${circ}"/>
     <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="url(#awGauge)" stroke-width="7" stroke-linecap="round" stroke-dasharray="${circ * arc * val / 100} ${circ}"/></g>
-    <circle cx="${ex}" cy="${ey}" r="9" fill="rgba(255,138,31,.28)"/><circle cx="${ex}" cy="${ey}" r="3" fill="#fff"/></svg>`;
+    <circle cx="${ex}" cy="${ey}" r="9" fill="var(--glow)"/><circle cx="${ex}" cy="${ey}" r="3" fill="#fff"/></svg>`;
 }
 function syncTimeline(ms) {
   const fill = document.getElementById('tlFill'), clock = document.getElementById('aimClock');
@@ -2016,6 +2136,14 @@ function drawTrace(s) {
   }
   x.textAlign = 'left';
 }
+function phaseOfGroup(g) {
+  const rows = g.map(j => data.shots[j]).filter(s => s && !s.candidate);
+  const src = rows.length ? rows : g.map(j => data.shots[j]);
+  let warm = 0, score = 0;
+  src.forEach(s => { if (s && s.phase === 'warm') warm++; else if (s && s.phase === 'score') score++; });
+  if (!warm && !score) return '';
+  return score > warm ? 'score' : 'warm';
+}
 function drawTrend(S) {
   const c = document.getElementById('trend'), list=document.getElementById('setList');
   const opened=new Set([...list.querySelectorAll('details[open]')].map(d=>d.dataset.set));
@@ -2041,9 +2169,12 @@ function drawTrend(S) {
     const pts=Score.totals(g.map(j => data.shots[j]));
     const points=`<span class="setPts${pts.scored?' on':''}"><b>${pts.scored?pts.score:'–'}</b><small>pts</small></span>`;
     const mini=g.map(j=>{const v=data.shots[j].aim_score;const h=Number.isFinite(v)?Math.max(3,(Math.min(100,v)-40)/60*22):3;return `<i style="height:${h}px;background:${barOf(v)}"></i>`;}).join('');
-    return `<details data-set="${key}" ${opened.has(key)?'open':''}><summary class="setline"><b>${setLabel(S,i)}</b><span class="mini">${mini}</span>${points}<span class="setVal" style="color:${numOf(sa)}">${Number.isFinite(sa)?sa:'–'}</span><span class="r"></span></summary>${rows[i]}</details>`;
+    const phase = phaseOfGroup(g);
+    const mark = phase === 'warm' ? '<em class="phaseMark">Cal</em>' : phase === 'score' ? '<em class="phaseMark">Pts</em>' : '';
+    const sid = escapeText(String(data.shots[g[0]].set_id));
+    return `<details data-set="${key}" data-sid="${sid}" data-phase="${phase}" ${opened.has(key)?'open':''}><summary class="setline"><b>${setLabel(S,i)} ${mark}</b><span class="mini">${mini}</span>${points}<span class="setVal" style="color:${numOf(sa)}">${Number.isFinite(sa)?sa:'–'}</span><span class="r"></span></summary>${rows[i]}</details>`;
   }).join('');
-  c.onclick=list.onclick=e=>{const i=e.target.closest('[data-shot]')?.dataset.shot;if(i!=null){cur=+i;show('Shot');}};
+  c.onclick=list.onclick=e=>{if(typeof Studio!=='undefined'&&Studio.onSetClick&&Studio.onSetClick(e))return;const i=e.target.closest('[data-shot]')?.dataset.shot;if(i!=null){cur=+i;show('Shot');}};
 }
 function drawSet(g) {
   const c = document.getElementById('aimSet');
@@ -2067,6 +2198,7 @@ function drawSet(g) {
 addEventListener('resize', () => data && render());
 </script>
 <script src="training.js"></script>
+<script src="studio.js"></script>
 <script>boot();</script>
 </body>
 </html>

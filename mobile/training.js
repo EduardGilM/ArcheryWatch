@@ -15,13 +15,13 @@ document.head.insertAdjacentHTML('beforeend',`<style>
 .sheet[hidden]{display:none}
 .sheet button{display:flex;justify-content:space-between;align-items:center;background:var(--surface-2);color:var(--txt);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:14px;min-height:46px;text-align:left}
 .sheet button span{color:var(--txt-3);font-size:12.5px}
-.sheet button.on{border-color:rgba(255,122,26,.4);background:var(--acc-soft);color:var(--acc);font-weight:600}
+.sheet button.on{border-color:var(--acc-line);background:var(--acc-soft);color:var(--acc);font-weight:600}
 #bowList,#arrowList{display:flex;flex-direction:column;gap:6px}
 .gearRow{display:flex;gap:6px}.gearRow>[data-n]{flex:1;min-width:0}.sheet .deleteGear{flex:none;width:46px;justify-content:center;color:var(--danger)}.deleteGear svg{width:18px;height:18px}
 .addItem{display:flex;gap:6px}
 .addItem input{flex:1;min-width:0;background:var(--surface-2);color:var(--txt);border:1px solid var(--line-2);border-radius:12px;padding:10px 12px;min-height:44px}
 .addItem input::placeholder{color:var(--txt-3)}
-.addItem button{background:var(--acc-soft);color:var(--acc);border:1px solid rgba(255,122,26,.3);border-radius:12px;padding:10px 16px;font-weight:600;min-height:44px}
+.addItem button{background:var(--acc-soft);color:var(--acc);border:1px solid var(--acc-line);border-radius:12px;padding:10px 16px;font-weight:600;min-height:44px}
 #shotContext{font-size:12.5px;color:var(--txt-2)}
 #comparison:empty,#setState:empty,#volume:empty{display:none}
 #notice{position:fixed;bottom:84px;left:16px;right:16px;z-index:20;padding:12px 14px;background:var(--surface-3);border:1px solid var(--line-2);color:var(--txt);border-radius:12px;font-size:13px;box-shadow:0 12px 30px rgba(0,0,0,.4)}
@@ -122,7 +122,12 @@ window.liveEvent = e => {
   if(e.eid<=(L[i].lastEvent??-1))return;
   const openEnds=new Set((L[i].ends||[]).map(x=>x.id)), beforeDone=!!L[i].roundDone;
   if(e.kind==='start')L.forEach((s,j)=>{if(i!==j)s.live=false;});
-  const follow=!data?.shots.length||cur===data.shots.length-1, s=Training.apply(L[i],e);L[i]=s;store.save(L);
+  const follow=!data?.shots.length||cur===data.shots.length-1, s=Training.apply(L[i],e);
+  if (e.kind==='shot' && (s.phase==='warm' || s.phase==='score')) {
+    const shot=s.shots.find(x=>x.t_ms===Math.round(e.t));
+    if (shot && shot.phase!=='warm' && shot.phase!=='score') shot.phase=s.phase;
+  }
+  L[i]=s;store.save(L);
   if(e.kind==='calibration')notice(e.result);  // se calibra desde el reloj; aqui solo informamos
   if(!historyMode) {
     if(s.live) {curSess=s;data={shots:s.shots};live=true;if(follow)cur=Math.max(0,s.shots.length-1);}

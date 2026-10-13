@@ -26,15 +26,20 @@ const Training = {
     if (e.kind === 'start') { s.build=e.build||null; if(e.recovery)s.recovery=e.recovery; }
     if (e.state) {
       const kept = new Map(s.shots.filter(x => x && x.result).map(x => [x.t_ms, x.result]));
+      const keptPhase = new Map(s.shots.filter(x => x && (x.phase === 'warm' || x.phase === 'score')).map(x => [x.t_ms, x.phase]));
       const phoneTanda = !!s.tanda;
+      const phonePhase = s.phase === 'warm' || s.phase === 'score' ? s.phase : '';
       const state = {...e.state};
-      delete state.tanda; delete state.roundDone;
+      delete state.tanda; delete state.roundDone; delete state.phase;
       Object.assign(s, state);
       s.tanda = phoneTanda;
+      if (phonePhase) s.phase = phonePhase;
       // Un estado tardío puede traer los tiros sin el valor anotado en el móvil.
       if (Array.isArray(e.state.shots) && Array.isArray(s.shots)) s.shots.forEach(x => {
         const prev = x && kept.get(x.t_ms);
         if (prev) x.result = {...prev, ...(x.result || {})};
+        const phase = x && keptPhase.get(x.t_ms);
+        if (phase) x.phase = phase;
       });
     }
     if (s.finished) s.live=false;
