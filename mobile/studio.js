@@ -9,7 +9,7 @@ const Studio = {
   picking: false,
   shareOpen: false,
   shareKind: 'session',
-  card: {layout: 'session', tilt: {x: 0, y: 0}},
+  card: {layout: 'session', tilt: {x: 0, y: 0}, tone: 'dark'},
   THEMES: [
     {id: 'amber', name: 'Ámbar', acc: '#FF8A1F', acc2: '#FFC15E', glow: 'rgba(255,138,31,.28)', ink: '#1b0f05', soft: 'rgba(255,138,31,.12)', line: 'rgba(255,138,31,.45)'},
     {id: 'electric', name: 'Azul', acc: '#2F6BFF', acc2: '#9DB6FF', glow: 'rgba(47,107,255,.35)', ink: '#06101f', soft: 'rgba(47,107,255,.16)', line: 'rgba(47,107,255,.55)'},
@@ -430,6 +430,13 @@ function studioMount() {
   }
   const gyroBtn = $('shareGyro');
   if (gyroBtn) gyroBtn.onclick = () => studioListenGyro(true);
+  const tone = $('shareTone');
+  if (tone) tone.onclick = e => {
+    const b = e.target.closest('[data-tone]');
+    if (!b) return;
+    Studio.card.tone = b.dataset.tone === 'light' ? 'light' : 'dark';
+    studioDrawShare();
+  };
   if (typeof DeviceOrientationEvent === 'undefined' || typeof DeviceOrientationEvent.requestPermission !== 'function') {
     if (gyroBtn) gyroBtn.hidden = true;
     studioListenGyro(false);
@@ -573,8 +580,7 @@ function studioPaint() {
     Studio.applyTheme();
     studioSync();
     if (typeof view === 'undefined') return;
-    if (view === 'Profile') studioPaintProfile();
-    if (view === 'Progress') { studioPaintProgress(); studioPaintHeat(); }
+    if (view === 'Profile') { studioPaintProfile(); studioPaintProgress(); studioPaintHeat(); }
     if (Studio.shareOpen) studioDrawShare();
   } catch (e) {}
 }
@@ -616,6 +622,8 @@ function studioModes() {
 function studioSyncShare() {
   const box = document.getElementById('shareThumbs');
   if (box) box.querySelectorAll('[data-layout]').forEach(b => b.classList.toggle('on', b.dataset.layout === Studio.card.layout));
+  const tone = document.getElementById('shareTone');
+  if (tone) tone.querySelectorAll('[data-tone]').forEach(b => b.classList.toggle('sel', b.dataset.tone === (Studio.card.tone === 'light' ? 'light' : 'dark')));
 }
 
 function studioTilt(rx, ry) {
@@ -811,6 +819,23 @@ function studioTrack(ctx, text, x, y, tracking) {
   }
 }
 
+function studioAvgText(n) {
+  if (n == null || !Number.isFinite(n)) return '–';
+  const q = Math.round(n * 10) / 10;
+  return Number.isInteger(q) ? String(q) : q.toFixed(1).replace('.', ',');
+}
+function studioScoreStats(totals, format) {
+  const t = totals || {};
+  const avg = studioAvgText(t.avg);
+  const arrows = String(t.arrows || 0);
+  const ten = String(t.ten || 0);
+  const top = format === 'wa'
+    ? [{label: '10', value: ten}, {label: '9', value: String(t.nine || 0)}]
+    : format === 'lancaster'
+      ? [{label: '11', value: String(t.eleven || 0)}, {label: '10', value: ten}]
+      : [{label: 'X', value: String(t.x || 0)}, {label: '10', value: ten}];
+  return top.concat([{label: 'Media', value: avg}, {label: 'Flechas', value: arrows}]);
+}
 function studioCardView(layout) {
   const session = typeof displayedSession === 'function' ? displayedSession() : null;
   const profile = Studio.profile();
@@ -819,255 +844,221 @@ function studioCardView(layout) {
   const when = session && session.id ? session.id : Date.now();
   const copy = Studio.cardCopy(session, when);
   const format = session ? StudioScore.formatOf(session) : null;
-  const formatName = format && StudioScore.FORMATS[format] ? StudioScore.FORMATS[format].name.toUpperCase() : '';
+  const formatName = format && StudioScore.FORMATS[format] ? StudioScore.FORMATS[format].name : '';
+  const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  const pretty = ms => {
+    const d = new Date(ms);
+    return Number.isFinite(d.getTime()) ? d.getDate() + ' ' + months[d.getMonth()] + ' ' + d.getFullYear() : '';
+  };
   let shots = sessionShots;
-  let kicker = copy.kicker;
-  let date = copy.date;
-  let hero = 'target';
+  let headline = session && session.mode === 'Outdoor' ? 'Sesión outdoor' : session && session.mode === 'Indoor' ? 'Sesión indoor' : 'Sesión';
+  let date = pretty(when);
   let score = null;
-  let line2 = '';
-  let line3 = profile.name || '';
+  let stats = [];
+  let footer = profile.name || '';
   if (layout === 'profile') {
     shots = history;
-    kicker = 'PERFIL';
-    date = profile.club || '';
+    const sessions = typeof studioSessions === 'function' ? studioSessions() : [];
     const totals = StudioScore.totals(shots);
+    const shared = Studio.sharedFormat(sessions);
+    headline = profile.name || 'Perfil';
+    date = profile.club || '';
     score = totals.score;
-    line2 = profile.name || 'ArcheryWatch';
-    line3 = (totals.arrows || 0) + (totals.arrows === 1 ? ' flecha' : ' flechas');
+    const mark = shared === 'wa'
+      ? {label: '9', value: String(totals.nine || 0)}
+      : shared === 'lancaster'
+        ? {label: '11', value: String(totals.eleven || 0)}
+        : {label: 'X', value: String(totals.x || 0)};
+    stats = [
+      {label: 'Flechas', value: String(totals.arrows || 0)},
+      {label: 'Sesiones', value: String(sessions.length || 0)},
+      {label: 'Media', value: studioAvgText(totals.avg)},
+      mark
+    ];
+    footer = '';
   } else if (layout === 'best') {
     const best = Studio.bestSet(sessionShots.length ? sessionShots : history);
     shots = best ? best.rows : [];
-    kicker = 'MEJOR TANDA';
-    date = best ? 'TANDA ' + best.index : '';
+    const totals = StudioScore.totals(shots);
+    headline = 'Mejor tanda';
+    date = best ? 'Tanda ' + best.index : '';
     score = best ? best.sum : null;
-    hero = 'number';
-    line2 = Studio.breakdown(shots);
-    line3 = profile.name || '';
-    if (formatName) date = date ? date + ' · ' + formatName : formatName;
+    stats = studioScoreStats(totals, format);
   } else {
     const pool = Studio.scorePool(shots);
     const totals = StudioScore.totals(pool);
     score = totals.score;
-    line2 = Studio.breakdown(pool);
-    if (formatName) date = (date ? date + ' · ' : '') + formatName;
-    if (format && totals.score != null) {
-      const max = StudioScore.roundMax(pool, format);
-      line3 = [profile.name, max ? totals.score + '/' + max : ''].filter(Boolean).join(' · ');
-    }
+    stats = studioScoreStats(totals, format);
+    if (formatName) date = date ? date + ' · ' + formatName : formatName;
   }
   return {
     brand: 'ARCHERY WATCH',
-    kicker, date, hero,
+    kicker: copy.kicker,
+    headline, date, footer,
     title: score == null ? '–' : String(score),
-    line2, line3,
-    impacts: hero === 'number' ? [] : StudioScore.impacts(Studio.scorePool(shots))
+    unit: 'puntos',
+    stats,
+    photo: profile.photo || ''
   };
 }
 
-function studioHoloTarget(ctx, cx, cy, R, accent, tilt, impacts) {
-  const lx = ((tilt && tilt.y) || 8) / 16;
-  const ly = ((tilt && tilt.x) || -6) / 16;
+function studioPalette(tone) {
+  if (tone === 'light') return {bg: '#f6f3ec', ink: '#16161a', muted: '#5c5c66', onPhoto: '#ffffff'};
+  return {bg: '#121316', ink: '#f4f5f7', muted: '#a3a3ab', onPhoto: '#ffffff'};
+}
+function studioHeaderImage(src) {
+  if (!src || typeof Image === 'undefined') return null;
+  if (Studio.card.photoSrc === src && Studio.card.photoImg && Studio.card.photoImg.complete && Studio.card.photoImg.naturalWidth) return Studio.card.photoImg;
+  if (Studio.card.photoSrc !== src) {
+    Studio.card.photoSrc = src;
+    const img = new Image();
+    img.onload = () => { if (Studio.shareOpen) studioDrawShare(false); };
+    img.src = src;
+    Studio.card.photoImg = img;
+  }
+  return Studio.card.photoImg && Studio.card.photoImg.complete && Studio.card.photoImg.naturalWidth ? Studio.card.photoImg : null;
+}
+function studioQuietTarget(ctx, cx, cy, R) {
   ctx.save();
-  ctx.fillStyle = 'rgba(0,0,0,.55)';
+  ctx.fillStyle = 'rgba(0,0,0,.28)';
   ctx.beginPath();
-  ctx.ellipse(cx + 8, cy + R * 1.05, R * 0.82, R * 0.13, 0, 0, Math.PI * 2);
+  ctx.ellipse(cx, cy + R * 1.08, R * 0.92, R * 0.16, 0, 0, Math.PI * 2);
   ctx.fill();
-  const glow = ctx.createRadialGradient(cx, cy, R * 0.1, cx, cy, R * 1.55);
-  glow.addColorStop(0, studioRgba(accent, 0.5));
-  glow.addColorStop(0.4, studioRgba(accent, 0.14));
-  glow.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = glow;
-  ctx.beginPath();
-  ctx.arc(cx, cy, R * 1.55, 0, Math.PI * 2);
-  ctx.fill();
-  const rings = [
-    {r: 1, color: '#1a6798'},
-    {r: 0.8, color: '#d83a48'},
-    {r: 0.58, color: '#f2d48a'},
-    {r: 0.34, color: accent},
-    {r: 0.16, color: '#fff6e4'}
-  ];
-  rings.forEach(ring => {
-    const rad = R * ring.r;
-    const g = ctx.createRadialGradient(cx - lx * rad * 0.8, cy - ly * rad * 0.8, rad * 0.08, cx + lx * 6, cy + ly * 6, rad);
-    g.addColorStop(0, '#ffffff');
-    g.addColorStop(0.22, studioMix('#ffffff', ring.color, 0.35));
-    g.addColorStop(0.55, ring.color);
-    g.addColorStop(1, studioMix(ring.color, '#07060a', 0.62));
+  [[1, '#3d7ea3'], [0.82, '#c75a52'], [0.62, '#c75a52'], [0.42, '#ead9a4'], [0.2, '#f4ead0']].forEach(ring => {
     ctx.beginPath();
-    ctx.arc(cx, cy, rad, 0, Math.PI * 2);
-    ctx.fillStyle = g;
+    ctx.arc(cx, cy, R * ring[0], 0, Math.PI * 2);
+    ctx.fillStyle = ring[1];
     ctx.fill();
   });
-  const rim = ctx.createLinearGradient(cx - R, cy - R, cx + R, cy + R);
-  [[0, '#d9c6ff'], [0.22, accent], [0.46, '#9af6ff'], [0.68, '#ffe08a'], [0.86, '#ff8ad8'], [1, accent]].forEach(stop => rim.addColorStop(stop[0], stop[1]));
-  ctx.beginPath();
-  ctx.arc(cx, cy, R * 1.05, 0, Math.PI * 2);
-  ctx.lineWidth = Math.max(8, R * 0.07);
-  ctx.strokeStyle = rim;
-  ctx.stroke();
-  ctx.save();
-  ctx.translate(cx - lx * R * 0.28, cy - ly * R * 0.32);
-  ctx.rotate(-0.7);
-  ctx.scale(1.15, 0.42);
-  const spec = ctx.createRadialGradient(0, 0, 4, 0, 0, R * 0.62);
-  spec.addColorStop(0, 'rgba(255,255,255,.72)');
-  spec.addColorStop(0.45, 'rgba(255,255,255,.16)');
-  spec.addColorStop(1, 'rgba(255,255,255,0)');
-  ctx.fillStyle = spec;
-  ctx.beginPath();
-  ctx.arc(0, 0, R * 0.62, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-  (impacts || []).forEach(p => {
+  ctx.strokeStyle = 'rgba(20,16,12,.45)';
+  ctx.lineWidth = Math.max(2, R * 0.02);
+  [1, 0.82, 0.62, 0.42, 0.2].forEach(k => {
     ctx.beginPath();
-    ctx.arc(cx + p.x * R, cy + p.y * R, Math.max(4, R * 0.032), 0, Math.PI * 2);
-    ctx.fillStyle = '#f6f3ec';
-    ctx.fill();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = 'rgba(10,8,6,.85)';
+    ctx.arc(cx, cy, R * k, 0, Math.PI * 2);
     ctx.stroke();
   });
+  ctx.fillStyle = '#1c140c';
+  ctx.font = '600 ' + Math.round(R * 0.18) + 'px ' + studioSans;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('X', cx, cy);
   ctx.restore();
 }
-
-function studioChromeText(ctx, text, x, y, size, accent) {
+function studioCardSheen(ctx, w, h, tilt, tone) {
+  const shift = (tilt && Number.isFinite(tilt.y) ? tilt.y : 8);
   ctx.save();
-  ctx.font = '600 ' + size + 'px ' + studioNum;
-  ctx.textAlign = 'left';
-  const width = Math.ceil(ctx.measureText(text).width + size * 0.8);
-  const height = Math.ceil(size * 1.45);
-  const off = (typeof document !== 'undefined' && document.createElement) ? document.createElement('canvas') : null;
-  if (!off) {
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = accent;
-    ctx.fillText(text, x, y);
-    ctx.restore();
-    return width;
-  }
-  off.width = Math.max(2, width);
-  off.height = Math.max(2, height);
-  const g = off.getContext('2d');
-  g.font = ctx.font;
-  g.textAlign = 'center';
-  g.textBaseline = 'middle';
-  const cx = off.width / 2, cy = off.height / 2 + size * 0.02;
-  for (let i = 16; i >= 1; i--) {
-    g.fillStyle = i > 9 ? '#05060a' : studioRgba(accent, 0.28);
-    g.fillText(text, cx + i * 0.28, cy + i * 0.85);
-  }
-  const grad = g.createLinearGradient(0, cy - size * 0.55, off.width, cy + size * 0.45);
-  grad.addColorStop(0, '#ffffff');
-  grad.addColorStop(0.16, accent);
-  grad.addColorStop(0.38, '#b9fff6');
-  grad.addColorStop(0.58, '#ffe7a0');
-  grad.addColorStop(0.78, '#ff86d6');
-  grad.addColorStop(1, accent);
-  g.fillStyle = grad;
-  g.fillText(text, cx, cy - size * 0.04);
-  g.globalCompositeOperation = 'source-atop';
-  const shine = g.createLinearGradient(0, 0, 0, off.height);
-  shine.addColorStop(0, 'rgba(255,255,255,.78)');
-  shine.addColorStop(0.46, 'rgba(255,255,255,0)');
-  shine.addColorStop(1, 'rgba(0,0,0,.28)');
-  g.fillStyle = shine;
-  g.fillRect(0, 0, off.width, off.height);
-  ctx.drawImage(off, x - off.width / 2, y - off.height / 2);
-  ctx.restore();
-  return width;
-}
-
-function studioCardSheen(ctx, w, h, tilt) {
-  const ang = (((tilt && tilt.y) || 10) * Math.PI) / 180;
-  ctx.save();
-  studioRound(ctx, 0, 0, w, h, 72);
+  studioRound(ctx, 0, 0, w, h, 56);
   ctx.clip();
-  ctx.globalCompositeOperation = 'screen';
-  ctx.translate(w / 2 + ((tilt && tilt.y) || 0) * 8, h / 2);
-  ctx.rotate(-0.45 + ang);
+  ctx.translate(w * 0.5 + shift * 14, h * 0.38);
+  ctx.rotate(-0.5);
   const g = ctx.createLinearGradient(-w, 0, w, 0);
+  const a = tone === 'light' ? 0.16 : 0.11;
   g.addColorStop(0, 'rgba(255,255,255,0)');
-  g.addColorStop(0.4, 'rgba(255,255,255,0)');
-  g.addColorStop(0.48, 'rgba(255,255,255,.2)');
-  g.addColorStop(0.52, 'rgba(190,255,255,.18)');
-  g.addColorStop(0.58, 'rgba(255,255,255,0)');
+  g.addColorStop(0.46, 'rgba(255,255,255,0)');
+  g.addColorStop(0.5, 'rgba(255,255,255,' + a + ')');
+  g.addColorStop(0.54, 'rgba(255,255,255,0)');
   g.addColorStop(1, 'rgba(255,255,255,0)');
   ctx.fillStyle = g;
-  ctx.fillRect(-w, -h, w * 2, h * 2);
+  ctx.fillRect(-w * 1.4, -h, w * 2.8, h * 2);
   ctx.restore();
 }
-
 function studioPaintCard(ctx, w, h, layout) {
   const view = studioCardView(layout || Studio.card.layout);
   const theme = Studio.theme();
+  const tone = Studio.card.tone === 'light' ? 'light' : 'dark';
+  const pal = studioPalette(tone);
   const tilt = Studio.card.tilt || {x: 0, y: 0};
   const s = w / 1080;
   ctx.setTransform(s, 0, 0, s, 0, 0);
   ctx.clearRect(0, 0, 1080, 1350);
-  studioRound(ctx, 0, 0, 1080, 1350, 72);
-  ctx.fillStyle = '#07080c';
+  studioRound(ctx, 0, 0, 1080, 1350, 56);
+  ctx.fillStyle = pal.bg;
   ctx.fill();
   ctx.save();
-  studioRound(ctx, 0, 0, 1080, 1350, 72);
+  studioRound(ctx, 0, 0, 1080, 1350, 56);
   ctx.clip();
-  const wash = ctx.createRadialGradient(540, 520, 40, 540, 560, 780);
-  wash.addColorStop(0, studioRgba(theme.acc, 0.22));
-  wash.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = wash;
-  ctx.fillRect(0, 0, 1080, 1350);
-  ctx.fillStyle = 'rgba(255,255,255,.72)';
+  const photoH = 620;
+  const img = studioHeaderImage(view.photo);
+  if (img) {
+    const scale = Math.max(1080 / img.naturalWidth, photoH / img.naturalHeight);
+    const dw = img.naturalWidth * scale, dh = img.naturalHeight * scale;
+    ctx.drawImage(img, (1080 - dw) / 2, (photoH - dh) / 2, dw, dh);
+  } else {
+    const sky = ctx.createLinearGradient(0, 0, 0, photoH);
+    if (tone === 'light') {
+      sky.addColorStop(0, '#f4e7d2');
+      sky.addColorStop(0.55, '#e7d3b6');
+      sky.addColorStop(1, '#d9c4a6');
+    } else {
+      sky.addColorStop(0, '#31445e');
+      sky.addColorStop(0.5, '#1b2838');
+      sky.addColorStop(1, '#14110e');
+    }
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, 1080, photoH);
+    const sun = ctx.createRadialGradient(860, 150, 8, 860, 150, 240);
+    sun.addColorStop(0, studioRgba(theme.acc, tone === 'light' ? 0.45 : 0.38));
+    sun.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = sun;
+    ctx.fillRect(0, 0, 1080, photoH);
+    ctx.fillStyle = tone === 'light' ? '#cbb89a' : '#1a1612';
+    ctx.fillRect(0, 430, 1080, photoH - 430);
+    studioQuietTarget(ctx, 360, 300, 148);
+  }
+  const fade = ctx.createLinearGradient(0, 300, 0, photoH + 8);
+  fade.addColorStop(0, 'rgba(0,0,0,0)');
+  fade.addColorStop(0.42, studioRgba(pal.bg, 0.08));
+  fade.addColorStop(0.72, studioRgba(pal.bg, 0.72));
+  fade.addColorStop(1, pal.bg);
+  ctx.fillStyle = fade;
+  ctx.fillRect(0, 280, 1080, photoH);
+  ctx.shadowColor = 'rgba(0,0,0,.4)';
+  ctx.shadowBlur = 16;
+  ctx.fillStyle = pal.onPhoto;
   ctx.font = '600 22px ' + studioSans;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
-  studioTrack(ctx, view.brand, 78, 108, 7);
-  ctx.fillStyle = '#f4f6fb';
-  ctx.font = '600 28px ' + studioSans;
-  studioTrack(ctx, view.kicker, 78, 156, 3);
-  if (view.date) {
-    ctx.fillStyle = 'rgba(244,246,251,.5)';
-    ctx.font = '500 20px ' + studioSans;
-    studioTrack(ctx, view.date, 78, 196, 2);
-  }
-  if (view.hero === 'number') {
-    studioChromeText(ctx, view.title, 540, 640, view.title.length > 3 ? 250 : 320, theme.acc);
-    ctx.strokeStyle = theme.acc;
-    ctx.lineWidth = 6;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(540 - 70, 860);
-    ctx.lineTo(540 + 70, 860);
-    ctx.stroke();
-    let y = 940;
-    ctx.textAlign = 'center';
-    [view.line2, view.line3].filter(Boolean).forEach((line, i) => {
-      ctx.fillStyle = i === 0 ? 'rgba(244,246,251,.82)' : 'rgba(244,246,251,.5)';
-      ctx.font = (i === 0 ? '500 32px ' : '500 26px ') + studioSans;
-      ctx.fillText(line, 540, y);
-      y += 52;
-    });
-  } else {
-    studioHoloTarget(ctx, 540, 590, 250, theme.acc, tilt, view.impacts);
-    const size = view.title.length > 3 ? 132 : 168;
-    studioChromeText(ctx, view.title, 540, 980, size, theme.acc);
-    ctx.strokeStyle = theme.acc;
-    ctx.lineWidth = 6;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(540 - 64, 1062);
-    ctx.lineTo(540 + 64, 1062);
-    ctx.stroke();
-    ctx.textAlign = 'center';
-    ctx.fillStyle = 'rgba(244,246,251,.84)';
-    ctx.font = '500 30px ' + studioSans;
-    if (view.line2) ctx.fillText(view.line2, 540, 1124);
-    ctx.fillStyle = 'rgba(244,246,251,.5)';
-    ctx.font = '500 26px ' + studioSans;
-    if (view.line3) ctx.fillText(view.line3, 540, 1172);
-  }
+  studioTrack(ctx, view.brand, 80, 86, 4);
+  ctx.shadowBlur = 0;
+  ctx.shadowColor = 'transparent';
+  ctx.fillStyle = pal.ink;
+  ctx.font = '600 64px ' + studioSans;
+  ctx.fillText(view.headline || '', 80, 730);
+  ctx.fillStyle = pal.muted;
+  ctx.font = '500 28px ' + studioSans;
+  ctx.fillText(view.date || '', 80, 786);
+  ctx.strokeStyle = theme.acc;
+  ctx.lineWidth = 5;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(80, 824);
+  ctx.lineTo(168, 824);
+  ctx.stroke();
+  ctx.fillStyle = pal.ink;
+  ctx.font = '600 168px ' + studioNum;
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText(view.title || '–', 80, 1004);
+  ctx.fillStyle = pal.muted;
+  ctx.font = '500 26px ' + studioSans;
+  ctx.fillText(view.unit || '', 80, 1052);
+  const stats = (view.stats || []).slice(0, 4);
+  stats.forEach((cell, i) => {
+    const col = i % 2, row = Math.floor(i / 2);
+    const x = 80 + col * 480;
+    const y = 1128 + row * 92;
+    ctx.fillStyle = pal.muted;
+    ctx.font = '600 18px ' + studioSans;
+    ctx.fillText(cell.label, x, y);
+    ctx.fillStyle = pal.ink;
+    ctx.font = '600 48px ' + studioNum;
+    ctx.fillText(cell.value, x, y + 52);
+  });
+  ctx.fillStyle = pal.muted;
+  ctx.font = '500 24px ' + studioSans;
+  const foot = view.footer || '';
+  if (foot) ctx.fillText(foot, 80, 1310);
   ctx.restore();
-  studioCardSheen(ctx, 1080, 1350, tilt);
+  studioCardSheen(ctx, 1080, 1350, tilt, tone);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
 }
 

@@ -387,7 +387,7 @@ test('progress shows the current week bar and keeps the goal in awGoals', () => 
   assert.match(p.elements.get('goalBars').innerHTML, /4\/10 · 40%/);
   assert.match(p.elements.get('goalBars').innerHTML, /width:40%/);
   assert.match(p.elements.get('goalStreak').textContent, /1 día seguido/);
-  assert.match(p.elements.get('title').textContent, /Progreso/);
+  assert.match(p.elements.get('title').textContent, /Perfil/);
   p.run("document.getElementById('goalArrows').value='12'; document.getElementById('goalAverage').value='8,5'; saveGoals();");
   assert.deepEqual(JSON.parse(p.run("localStorage.getItem('awGoals')")), {arrows: 12, sessions: null, average: 8.5, stability: null});
   assert.match(p.elements.get('notice').textContent, /Objetivos guardados/);

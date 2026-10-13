@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="aw-version" content="4.30">
+<meta name="aw-version" content="4.31">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#000000">
 <link rel="manifest" href="manifest.json">
@@ -298,6 +298,7 @@
   #profileClub { font-size:14px; font-weight:500; color:var(--txt-2); }
   #profileGear { margin-top:12px; font-size:13px; color:var(--txt-2); }
   #profileGear b { color:var(--txt); font-weight:600; }
+  #vProgress { display:flex; flex-direction:column; gap:10px; }
   #profileSpark, #profileRadar, #progressRadar { width:100%; display:block; }
   #profileSpark { height:84px; }
   #profileRadar, #progressRadar { height:280px; }
@@ -322,10 +323,10 @@
   .sharePanel { width:min(100%, 460px); max-height:100%; overflow:auto; background:#0b0b0d; border-top:1px solid var(--line-2); border-radius:20px 20px 0 0; padding:14px 14px 22px; display:grid; gap:10px; }
   .holoStage { perspective:1100px; width:min(100%, 300px); margin:0 auto; touch-action:none; }
   .holoTilt { position:relative; transform-style:preserve-3d; transition:transform .08s linear, box-shadow .08s linear; border-radius:18px; }
-  .holoSheen { position:absolute; inset:0; border-radius:18px; pointer-events:none; mix-blend-mode:screen;
-    background:linear-gradient(115deg, transparent 32%, rgba(255,255,255,.55) 46%, rgba(190,255,255,.28) 52%, transparent 66%);
-    background-size:240% 240%; background-position:40% 40%; }
-  #shareCanvas { width:100%; height:auto; border-radius:18px; display:block; background:#07080c; }
+  .holoSheen { position:absolute; inset:0; border-radius:18px; pointer-events:none; mix-blend-mode:soft-light;
+    background:linear-gradient(115deg, transparent 42%, rgba(255,255,255,.45) 50%, transparent 58%);
+    background-size:220% 220%; background-position:40% 40%; opacity:.55; }
+  #shareCanvas { width:100%; height:auto; border-radius:18px; display:block; background:transparent; }
   .cardThumbs { display:flex; gap:10px; justify-content:center; }
   .cardThumbs button { width:72px; padding:0; border-radius:10px; border:1px solid transparent; background:#07080c; overflow:hidden; }
   .cardThumbs button.on { border-color:var(--acc); }
@@ -453,49 +454,6 @@
   <div id="trend" hidden></div>
   <button class="deleteAction" id="deleteCurrent" onclick="removeSelection('session')">Eliminar sesión</button>
 </main>
-<main id="vProgress" style="display:none">
-  <section class="card" id="goalCard">
-    <div class="cardTitle">Esta semana<small id="goalWeek"></small></div>
-    <div id="goalBars"></div>
-    <p id="goalStreak" class="scoreNote"></p>
-    <form id="goalForm" onsubmit="return false">
-      <label>Flechas <input id="goalArrows" inputmode="numeric" enterkeyhint="done" aria-label="Flechas por semana" placeholder="30"></label>
-      <label>Sesiones <input id="goalSessions" inputmode="numeric" enterkeyhint="done" aria-label="Sesiones por semana" placeholder="3"></label>
-      <label>Media <input id="goalAverage" inputmode="decimal" enterkeyhint="done" aria-label="Media por flecha" placeholder="8,5"></label>
-      <label>Estabilidad <input id="goalStability" inputmode="numeric" enterkeyhint="done" aria-label="Estabilidad mínima" placeholder="75"></label>
-      <button type="button" class="btnSecondary" onclick="saveGoals()">Guardar</button>
-    </form>
-    <details class="info"><summary aria-label="Detalle">ⓘ</summary><p id="goalHint">Lunes a domingo. Vacío = no cuenta.</p></details>
-  </section>
-  <section class="card" id="radarCard">
-    <div class="cardTitle">Forma</div>
-    <canvas id="progressRadar" aria-label="Radar de la forma"></canvas>
-  </section>
-  <section class="card" id="heatCard">
-    <div class="cardTitle">Días<small id="heatLabel"></small></div>
-    <div class="heatWrap"><div class="heatDays" aria-hidden="true"><span>L</span><span></span><span>X</span><span></span><span>V</span><span></span><span>D</span></div><div class="heat" id="heatmap"></div></div>
-    <div class="heatLegend"><span>Menos</span><i class="l0"></i><i class="l1"></i><i class="l2"></i><i class="l3"></i><i class="l4"></i><span>Más</span></div>
-  </section>
-  <section class="card" id="splitCard">
-    <div class="cardTitle">Estabilidad vs puntos</div>
-    <p id="splitNeed"></p>
-    <div id="splitBody" hidden>
-      <div class="splitPair">
-        <div><span class="lbl">10/X</span><b class="num" id="splitHighAim">–</b><span class="sub" id="splitHighTime"></span></div>
-        <div><span class="lbl">≤9</span><b class="num" id="splitLowAim">–</b><span class="sub" id="splitLowTime"></span></div>
-      </div>
-      <canvas id="splitPlot" aria-label="Estabilidad y valor"></canvas>
-    </div>
-  </section>
-  <div class="card">
-    <div class="cardTitle">Evolución</div>
-    <div id="progSum"></div>
-    <div id="sessBars" class="sessbars"></div>
-    <canvas id="progress" hidden></canvas>
-    <div id="legend2" hidden></div>
-  </div>
-  <div class="empty" id="progressEmpty"></div>
-</main>
 <main id="vHistory" style="display:none">
   <div class="card list" id="histList"></div>
   <button type="button" class="btnSecondary" id="openCompare" onclick="openCompare()">Comparar</button>
@@ -554,6 +512,49 @@
     <canvas id="profileRadar" aria-label="Radar del perfil"></canvas>
     <button type="button" class="btnSecondary" id="shareProfile">Compartir perfil</button>
   </section>
+  <div id="vProgress">
+  <section class="card" id="goalCard">
+    <div class="cardTitle">Esta semana<small id="goalWeek"></small></div>
+    <div id="goalBars"></div>
+    <p id="goalStreak" class="scoreNote"></p>
+    <form id="goalForm" onsubmit="return false">
+      <label>Flechas <input id="goalArrows" inputmode="numeric" enterkeyhint="done" aria-label="Flechas por semana" placeholder="30"></label>
+      <label>Sesiones <input id="goalSessions" inputmode="numeric" enterkeyhint="done" aria-label="Sesiones por semana" placeholder="3"></label>
+      <label>Media <input id="goalAverage" inputmode="decimal" enterkeyhint="done" aria-label="Media por flecha" placeholder="8,5"></label>
+      <label>Estabilidad <input id="goalStability" inputmode="numeric" enterkeyhint="done" aria-label="Estabilidad mínima" placeholder="75"></label>
+      <button type="button" class="btnSecondary" onclick="saveGoals()">Guardar</button>
+    </form>
+    <details class="info"><summary aria-label="Detalle">ⓘ</summary><p id="goalHint">Lunes a domingo. Vacío = no cuenta.</p></details>
+  </section>
+  <section class="card" id="radarCard">
+    <div class="cardTitle">Forma</div>
+    <canvas id="progressRadar" aria-label="Radar de la forma"></canvas>
+  </section>
+  <section class="card" id="heatCard">
+    <div class="cardTitle">Días<small id="heatLabel"></small></div>
+    <div class="heatWrap"><div class="heatDays" aria-hidden="true"><span>L</span><span></span><span>X</span><span></span><span>V</span><span></span><span>D</span></div><div class="heat" id="heatmap"></div></div>
+    <div class="heatLegend"><span>Menos</span><i class="l0"></i><i class="l1"></i><i class="l2"></i><i class="l3"></i><i class="l4"></i><span>Más</span></div>
+  </section>
+  <section class="card" id="splitCard">
+    <div class="cardTitle">Estabilidad vs puntos</div>
+    <p id="splitNeed"></p>
+    <div id="splitBody" hidden>
+      <div class="splitPair">
+        <div><span class="lbl">10/X</span><b class="num" id="splitHighAim">–</b><span class="sub" id="splitHighTime"></span></div>
+        <div><span class="lbl">≤9</span><b class="num" id="splitLowAim">–</b><span class="sub" id="splitLowTime"></span></div>
+      </div>
+      <canvas id="splitPlot" aria-label="Estabilidad y valor"></canvas>
+    </div>
+  </section>
+  <div class="card">
+    <div class="cardTitle">Evolución</div>
+    <div id="progSum"></div>
+    <div id="sessBars" class="sessbars"></div>
+    <canvas id="progress" hidden></canvas>
+    <div id="legend2" hidden></div>
+  </div>
+  <div class="empty" id="progressEmpty"></div>
+  </div>
   <section class="card" id="themeCard">
     <div class="cardTitle">Acento<small>Ámbar por defecto</small></div>
     <div class="swatches" id="themeSwatches"></div>
@@ -562,7 +563,6 @@
 <nav>
   <button id="nSession"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M80,64a8,8,0,0,1,8-8H216a8,8,0,0,1,0,16H88A8,8,0,0,1,80,64Zm136,56H88a8,8,0,0,0,0,16H216a8,8,0,0,0,0-16Zm0,64H88a8,8,0,0,0,0,16H216a8,8,0,0,0,0-16ZM44,52A12,12,0,1,0,56,64,12,12,0,0,0,44,52Zm0,64a12,12,0,1,0,12,12A12,12,0,0,0,44,116Zm0,64a12,12,0,1,0,12,12A12,12,0,0,0,44,180Z"/></svg>Sesión</button>
   <button id="nShot" class="sel"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M232,120h-8.34A96.14,96.14,0,0,0,136,32.34V24a8,8,0,0,0-16,0v8.34A96.14,96.14,0,0,0,32.34,120H24a8,8,0,0,0,0,16h8.34A96.14,96.14,0,0,0,120,223.66V232a8,8,0,0,0,16,0v-8.34A96.14,96.14,0,0,0,223.66,136H232a8,8,0,0,0,0-16Zm-96,87.6V200a8,8,0,0,0-16,0v7.6A80.15,80.15,0,0,1,48.4,136H56a8,8,0,0,0,0-16H48.4A80.15,80.15,0,0,1,120,48.4V56a8,8,0,0,0,16,0V48.4A80.15,80.15,0,0,1,207.6,120H200a8,8,0,0,0,0,16h7.6A80.15,80.15,0,0,1,136,207.6ZM128,88a40,40,0,1,0,40,40A40,40,0,0,0,128,88Zm0,64a24,24,0,1,1,24-24A24,24,0,0,1,128,152Z"/></svg>Tiro</button>
-  <button id="nProgress"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M232,208a8,8,0,0,1-8,8H32a8,8,0,0,1-8-8V48a8,8,0,0,1,16,0V156.69l50.34-50.35a8,8,0,0,1,11.32,0L128,132.69,180.69,80H160a8,8,0,0,1,0-16h40a8,8,0,0,1,8,8v40a8,8,0,0,1-16,0V91.31l-58.34,58.35a8,8,0,0,1-11.32,0L96,123.31l-56,56V200H224A8,8,0,0,1,232,208Z"/></svg>Progreso</button>
   <button id="nSet"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M172,76a44,44,0,1,0-44,44A44.05,44.05,0,0,0,172,76Zm-44,28a28,28,0,1,1,28-28A28,28,0,0,1,128,104Zm60,24a44,44,0,1,0,44,44A44.05,44.05,0,0,0,188,128Zm0,72a28,28,0,1,1,28-28A28,28,0,0,1,188,200ZM68,128a44,44,0,1,0,44,44A44.05,44.05,0,0,0,68,128Zm0,72a28,28,0,1,1,28-28A28,28,0,0,1,68,200Z"/></svg>Set</button>
   <button id="nHistory"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M136,80v43.47l36.12,21.67a8,8,0,0,1-8.24,13.72l-40-24A8,8,0,0,1,120,128V80a8,8,0,0,1,16,0Zm-8-48A95.44,95.44,0,0,0,60.08,60.15C52.81,67.51,46.350,74.59,40,82V64a8,8,0,0,0-16,0v40a8,8,0,0,0,8,8H72a8,8,0,0,0,0-16H49c7.15-8.420,14.27-16.35,22.39-24.57a80,80,0,1,1,1.66,114.75,8,8,0,1,0-11,11.64A96,96,0,1,0,128,32Z"/></svg>Historial</button>
   <button id="nProfile"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24ZM74.08,197.5a64,64,0,0,1,107.84,0,87.83,87.83,0,0,1-107.84,0ZM96,120a32,32,0,1,1,32,32A32,32,0,0,1,96,120Zm97.76,66.41a79.66,79.66,0,0,0-36.06-28.75,48,48,0,1,0-59.4,0,79.66,79.66,0,0,0-36.06,28.75,88,88,0,1,1,131.52,0Z"/></svg>Perfil</button>
@@ -576,6 +576,10 @@
       </div>
     </div>
     <div class="cardThumbs" id="shareThumbs"></div>
+    <div class="tracebar" id="shareTone">
+      <button type="button" data-tone="dark" class="sel">Oscuro</button>
+      <button type="button" data-tone="light">Claro</button>
+    </div>
     <button type="button" id="shareGyro">Inclinar</button>
     <button type="button" class="btnPrimary" id="shareExport">Compartir</button>
     <button type="button" class="btnSecondary" id="shareClose">Cerrar</button>
@@ -801,7 +805,7 @@ async function boot() {
   document.getElementById('prev').onclick = () => step(-1);
   document.getElementById('next').onclick = () => step(1);
   document.getElementById('nSession').onclick = () => historyMode ? backToCurrent() : show('Session');
-  ['Shot', 'Progress', 'Set', 'History'].forEach(v => document.getElementById('n' + v).onclick = () => show(v));
+  ['Shot', 'Set', 'History'].forEach(v => document.getElementById('n' + v).onclick = () => show(v));
   document.getElementById('play').onclick = play;
   // swipe izquierda/derecha en la vista de tiro
   let tx0 = null, ty0 = 0;
@@ -822,11 +826,16 @@ async function boot() {
 }
 function step(d) { const n = data?.shots.length || 0; if (!n) return; cur = (cur + d + n) % n; scoreFocus = data.shots[cur]?.t_ms ?? null; render(); }
 function show(v) {
+  if (v === 'Progress') v = 'Profile';
   view = v;
-  ['Session', 'Shot', 'Progress', 'Set', 'History', 'Profile'].forEach(x => {
-    document.getElementById('v' + x).style.display = x === v ? 'flex' : 'none';
-    document.getElementById('n' + x).className = x === v ? 'sel' : '';
-    document.getElementById('n' + x).setAttribute('aria-current', x === v ? 'page' : 'false');
+  ['Session', 'Shot', 'Set', 'History', 'Profile'].forEach(x => {
+    const page = document.getElementById('v' + x);
+    const tab = document.getElementById('n' + x);
+    if (page) page.style.display = x === v ? 'flex' : 'none';
+    if (tab) {
+      tab.className = x === v ? 'sel' : '';
+      tab.setAttribute('aria-current', x === v ? 'page' : 'false');
+    }
   });
   document.getElementById('prev').style.visibility = document.getElementById('next').style.visibility = v === 'Shot' ? 'visible' : 'hidden';
   render();
@@ -841,21 +850,17 @@ function render() {
   document.getElementById('setbar').innerHTML = '';
   const setHead = document.getElementById('setHead');
   if (setHead) setHead.hidden = true;
-  if (view === 'Progress') {
-    document.getElementById('title').textContent = 'Progreso';
+  if (view === 'Profile') {
+    document.getElementById('title').textContent = 'Perfil';
     document.getElementById('subtitle').textContent = '';
     renderGoals();
-    renderProgress(); return;
+    renderProgress();
+    return;
   }
   if (view === 'History') {
     document.getElementById('title').textContent = 'Historial';
     document.getElementById('subtitle').textContent = '';
     renderHistory();
-    return;
-  }
-  if (view === 'Profile') {
-    document.getElementById('title').textContent = 'Perfil';
-    document.getElementById('subtitle').textContent = '';
     return;
   }
   if (!data || !data.shots.length) {
