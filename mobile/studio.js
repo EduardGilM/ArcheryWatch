@@ -184,7 +184,7 @@ const Studio = {
       text: n < 8 || value == null ? '–' : text
     });
     const precisionN = scored.length;
-    const mark = format === 'vegas' ? '10' : format === 'lancaster' ? '11' : 'X';
+    const mark = format === 'wa' ? '10' : format === 'lancaster' ? '11' : 'X';
     const precision = precisionN ? scored.filter(s => s.result.value === mark).length / precisionN * 100 : null;
     const pts = StudioScore.impacts(scored);
     let group = null;
@@ -688,8 +688,8 @@ function studioPaintProfile() {
   const aim = aims.length ? Math.round(aims.reduce((x, y) => x + y, 0) / aims.length) : null;
   const box = document.getElementById('profileNums');
   const markFormat = Studio.sharedFormat(sessions);
-  const markLabel = markFormat === 'lancaster' ? '11' : markFormat === 'vegas' ? '9' : 'X';
-  const markN = markFormat === 'lancaster' ? totals.eleven : markFormat === 'vegas' ? totals.nine : totals.x;
+  const markLabel = markFormat === 'lancaster' ? '11' : markFormat === 'wa' ? '9' : 'X';
+  const markN = markFormat === 'lancaster' ? totals.eleven : markFormat === 'wa' ? totals.nine : totals.x;
   if (box) box.innerHTML =
     `<div><span class="lbl">Flechas</span><b class="num">${shots.length || '–'}</b></div>` +
     `<div><span class="lbl">Sesiones</span><b class="num">${sessions.length || '–'}</b></div>` +

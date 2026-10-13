@@ -4,18 +4,18 @@
 const Score = {
   VALUES: ['X', '10', '9', '8', '7', '6', 'M'],
   // Indoor de compuesto. El 8, el 7, el 6 y la M están en los tres.
-  // World Archery: la X vale 10 y se cuenta aparte. Vegas: el interior es 10, sin X. Lancaster: ese anillo vale 11.
+  // World Archery: el interior es 10, sin X. Vegas: la X vale 10 y se cuenta aparte. Lancaster: ese anillo vale 11.
   FORMATS: {
-    wa: {id: 'wa', name: 'World Archery', values: ['X', '10', '9', '8', '7', '6', 'M']},
-    vegas: {id: 'vegas', name: 'Vegas', values: ['10', '9', '8', '7', '6', 'M']},
+    wa: {id: 'wa', name: 'World Archery', values: ['10', '9', '8', '7', '6', 'M']},
+    vegas: {id: 'vegas', name: 'Vegas', values: ['X', '10', '9', '8', '7', '6', 'M']},
     lancaster: {id: 'lancaster', name: 'Lancaster', values: ['11', '10', '9', '8', '7', '6', 'M']}
   },
-  DEFAULT_FORMAT: 'wa',
+  DEFAULT_FORMAT: 'vegas',
   GROUPS: [{id: 'x10', label: 'X-10'}, {id: '98', label: '9-8'}, {id: 'low', label: '≤7'}, {id: 'm', label: 'M'}],
   MIN: 4,
   FACE: 1.04,
   SPLIT: 20,
-  // Sin formato guardado, una indoor antigua es World Archery.
+  // Sin formato guardado, una indoor antigua es Vegas: esas flechas usan X.
   formatOf(session) {
     if (!session || session.mode !== 'Indoor') return null;
     const stored = session.scoreFormat;
@@ -38,7 +38,7 @@ const Score = {
     if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
     const r = Math.hypot(x, y);
     if (r > 1) return 'M';
-    if (format === 'vegas') {
+    if (format === 'wa') {
       if (r <= 0.2) return '10';
       const ring = 11 - Math.ceil(r * 5);
       return ring >= 6 && ring <= 9 ? String(ring) : 'M';
@@ -154,7 +154,7 @@ const Score = {
     const bits = [];
     if (format === 'lancaster') {
       if (t.eleven) bits.push(t.eleven + ' de 11');
-    } else if (format !== 'vegas') bits.push(t.x + ' X');
+    } else if (format !== 'wa') bits.push(t.x + ' X');
     if (t.ten) bits.push(t.ten === 1 ? '1 diez' : t.ten + ' dieces');
     const head = format ? t.score + '/' + (t.arrows * this.arrowMax(format)) : String(t.score);
     return head + ' puntos · media ' + avgText + (bits.length ? ' · ' + bits.join(' · ') : '');

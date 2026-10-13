@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="aw-version" content="4.29">
+<meta name="aw-version" content="4.30">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#000000">
 <link rel="manifest" href="manifest.json">
@@ -1317,8 +1317,8 @@ function renderSession(S) {
   document.getElementById('scoreTotal').textContent = formatScore(sessionTotals, sessionShots);
   document.getElementById('scoreAvg').textContent = sessionTotals.scored ? esNum(sessionTotals.avg, 1) : '–';
   const markLbl = document.getElementById('scoreXLbl');
-  const markVal = sessionFormat === 'lancaster' ? sessionTotals.eleven : sessionFormat === 'vegas' ? sessionTotals.nine : sessionTotals.x;
-  if (markLbl) markLbl.textContent = sessionFormat === 'lancaster' ? '11' : sessionFormat === 'vegas' ? '9' : 'X';
+  const markVal = sessionFormat === 'lancaster' ? sessionTotals.eleven : sessionFormat === 'wa' ? sessionTotals.nine : sessionTotals.x;
+  if (markLbl) markLbl.textContent = sessionFormat === 'lancaster' ? '11' : sessionFormat === 'wa' ? '9' : 'X';
   document.getElementById('scoreX').textContent = sessionTotals.scored ? markVal : '–';
   document.getElementById('scoreTen').textContent = sessionTotals.scored ? sessionTotals.ten : '–';
   const groupHtml = Score.groups(sessionShots).map(Score.groupLine).filter(Boolean).map(line => `<div>${line}</div>`).join('');
@@ -1799,7 +1799,7 @@ function drawFace(c, shots, focus) {
   disk(R * 0.4, '#C2A36A');
   x.lineWidth = 1; x.strokeStyle = 'rgba(0,0,0,.62)';
   for (const k of [1, 0.8, 0.6, 0.4, 0.2, 0.1]) { x.beginPath(); x.arc(cx, cy, R * k, 0, Math.PI * 2); x.stroke(); }
-  const center = format === 'lancaster' ? '11' : format === 'vegas' ? '' : 'X';
+  const center = format === 'lancaster' ? '11' : format === 'wa' ? '' : 'X';
   x.font = '600 ' + Math.max(8, Math.round(fs * 0.75)) + 'px ' + MONO;
   if (center) { x.fillStyle = 'rgba(44,36,22,.7)'; x.fillText(center, cx, cy); }
   x.font = '600 ' + fs + 'px ' + MONO;

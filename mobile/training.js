@@ -37,10 +37,10 @@ $('sessionHero').insertAdjacentHTML('afterend',`<section class="training" id="tr
 <button data-v="TandaOutdoor">Tanda aire libre<span>6 sets</span></button>
 </div></div>
 <div class="picker" id="formatPicker" hidden>
-<button class="pickRow" id="formatRow"><span>Formato</span><b id="formatVal">World Archery</b></button>
+<button class="pickRow" id="formatRow"><span>Formato</span><b id="formatVal">Vegas</b></button>
 <div class="sheet" id="formatSheet" hidden>
-<button data-fmt="wa">World Archery<span>X, 10, 9</span></button>
-<button data-fmt="vegas">Vegas<span>10, 9</span></button>
+<button data-fmt="wa">World Archery<span>10, 9</span></button>
+<button data-fmt="vegas">Vegas<span>X, 10, 9</span></button>
 <button data-fmt="lancaster">Lancaster<span>11, 10, 9</span></button>
 </div></div>
 <div class="picker" id="bowPicker">
@@ -87,7 +87,7 @@ $('modeSheet').onclick=e=>{const b=e.target.closest('[data-v]');if(!b)return;con
   const key=b.dataset.v, tanda=key==='TandaIndoor'||key==='TandaOutdoor';
   const mode=key==='TandaIndoor'?'Indoor':key==='TandaOutdoor'?'Outdoor':key;
   s.mode=mode;s.tanda=tanda;s.roundDone=Training.roundComplete(s);s.target=mode==='Indoor'?3:mode==='Outdoor'?6:0;
-  if(mode==='Indoor' && !['wa','vegas','lancaster'].includes(s.scoreFormat)) s.scoreFormat='wa';
+  if(mode==='Indoor' && !['wa','vegas','lancaster'].includes(s.scoreFormat)) s.scoreFormat='vegas';
   saveSession(s);sendCmd('mode',mode);closeSheets(null);render();};
 $('formatSheet').onclick=e=>{const b=e.target.closest('[data-fmt]');if(!b)return;const s=displayedSession();if(!s||historyMode||s.mode!=='Indoor')return;
   s.scoreFormat=b.dataset.fmt;saveSession(s);closeSheets(null);render();};
@@ -216,9 +216,9 @@ render=function() {
   const indoor=!!(s&&s.mode==='Indoor');
   $('formatPicker').hidden=!indoor||!!historyMode;
   if(indoor){
-    if(!historyMode && !['wa','vegas','lancaster'].includes(s.scoreFormat)){s.scoreFormat='wa';saveSession(s);}
+    if(!historyMode && !['wa','vegas','lancaster'].includes(s.scoreFormat)){s.scoreFormat='vegas';saveSession(s);}
     const fmt=Score.formatOf(s);
-    $('formatVal').textContent=Score.FORMATS[fmt]?.name||'World Archery';
+    $('formatVal').textContent=Score.FORMATS[fmt]?.name||'Vegas';
     $('formatSheet').querySelectorAll('[data-fmt]').forEach(b=>b.classList.toggle('on',b.dataset.fmt===fmt));
   }
   $('bowVal').textContent=s?.bow||s?.profile||'–';

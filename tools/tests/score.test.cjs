@@ -72,41 +72,41 @@ test('the backup carries the arrow value because it lives on the shot', () => {
   assert.equal(copy.storage.awSessions[0].shots[0].result.impact.y, 2);
 });
 
-test('indoor formats keep X on World Archery, drop it on Vegas, and score 11 on Lancaster', () => {
-  assert.deepEqual(Score.FORMATS.wa.values, ['X', '10', '9', '8', '7', '6', 'M']);
-  assert.deepEqual(Score.FORMATS.vegas.values, ['10', '9', '8', '7', '6', 'M']);
+test('indoor formats drop X from World Archery, keep it on Vegas, and score 11 on Lancaster', () => {
+  assert.deepEqual(Score.FORMATS.wa.values, ['10', '9', '8', '7', '6', 'M']);
+  assert.deepEqual(Score.FORMATS.vegas.values, ['X', '10', '9', '8', '7', '6', 'M']);
   assert.deepEqual(Score.FORMATS.lancaster.values, ['11', '10', '9', '8', '7', '6', 'M']);
-  assert.equal(Score.DEFAULT_FORMAT, 'wa');
+  assert.equal(Score.DEFAULT_FORMAT, 'vegas');
   assert.equal(Score.points('11'), 11);
   assert.equal(Score.points('X'), 10);
-  assert.equal(Score.valueAt(0, 0, 'wa'), 'X');
-  assert.equal(Score.valueAt(0, 0, 'vegas'), '10');
+  assert.equal(Score.valueAt(0, 0, 'wa'), '10');
+  assert.equal(Score.valueAt(0, 0, 'vegas'), 'X');
   assert.equal(Score.valueAt(0, 0, 'lancaster'), '11');
-  assert.equal(Score.valueAt(0, 0.15, 'vegas'), '10');
   assert.equal(Score.valueAt(0, 0.15, 'wa'), '10');
-  assert.equal(Score.valueAt(0, 0.3, 'vegas'), '9');
+  assert.equal(Score.valueAt(0, 0.15, 'vegas'), '10');
+  assert.equal(Score.valueAt(0, 0.3, 'wa'), '9');
   assert.equal(Score.valueAt(0, 0.5, 'lancaster'), '8');
-  assert.equal(Score.valueAt(0, 0.7, 'wa'), '7');
-  assert.equal(Score.valueAt(0, 0.9, 'vegas'), '6');
+  assert.equal(Score.valueAt(0, 0.7, 'vegas'), '7');
+  assert.equal(Score.valueAt(0, 0.9, 'wa'), '6');
   assert.equal(Score.valueAt(1.2, 0, 'lancaster'), 'M');
   assert.equal(Score.valueAt(0, 0), 'X');
-  assert.equal(Score.formatOf({mode: 'Indoor', shots: [{result: {value: 'X'}}]}), 'wa');
-  assert.equal(Score.formatOf({mode: 'Indoor', shots: [{result: {value: '11'}}]}), 'wa');
-  assert.equal(Score.formatOf({mode: 'Indoor', shots: []}), 'wa');
-  assert.equal(Score.formatOf({mode: 'Indoor', scoreFormat: 'vegas', shots: []}), 'vegas');
+  assert.equal(Score.formatOf({mode: 'Indoor', shots: [{result: {value: 'X'}}]}), 'vegas');
+  assert.equal(Score.formatOf({mode: 'Indoor', shots: [{result: {value: '11'}}]}), 'vegas');
+  assert.equal(Score.formatOf({mode: 'Indoor', shots: []}), 'vegas');
+  assert.equal(Score.formatOf({mode: 'Indoor', scoreFormat: 'wa', shots: []}), 'wa');
   assert.equal(Score.formatOf({mode: 'Indoor', scoreFormat: 'lancaster', shots: []}), 'lancaster');
   assert.equal(Score.formatOf({mode: 'Outdoor', shots: [{result: {value: 'X'}}]}), null);
   assert.deepEqual(Score.valuesFor({mode: 'Indoor', shots: []}), ['X', '10', '9', '8', '7', '6', 'M']);
-  assert.deepEqual(Score.valuesFor({mode: 'Indoor', scoreFormat: 'vegas', shots: []}), ['10', '9', '8', '7', '6', 'M']);
+  assert.deepEqual(Score.valuesFor({mode: 'Indoor', scoreFormat: 'wa', shots: []}), ['10', '9', '8', '7', '6', 'M']);
   const shot = {t_ms: 1};
-  assert.equal(Score.set(shot, 'X', 'vegas'), false);
-  assert.equal(Score.set(shot, '8', 'vegas'), true);
+  assert.equal(Score.set(shot, 'X', 'wa'), false);
+  assert.equal(Score.set(shot, '8', 'wa'), true);
   assert.equal(Score.set(shot, '11', 'lancaster'), true);
   assert.equal(shot.result.value, '11');
-  assert.equal(Score.set(shot, 'X', 'wa'), true);
+  assert.equal(Score.set(shot, 'X', 'vegas'), true);
   const placed = {t_ms: 2};
-  assert.equal(Score.place(placed, 0, 0, 'lancaster'), true);
-  assert.equal(placed.result.value, '11');
+  assert.equal(Score.place(placed, 0, 0, 'wa'), true);
+  assert.equal(placed.result.value, '10');
   const thirty = Array.from({length: 30}, () => ({result: {value: '11'}}));
   const t = Score.totals(thirty);
   assert.equal(t.score, 330);
@@ -115,10 +115,11 @@ test('indoor formats keep X on World Archery, drop it on Vegas, and score 11 on 
   assert.equal(Score.roundMax(thirty, 'lancaster'), 330);
   assert.equal(Score.roundMax(thirty, 'wa'), 300);
   assert.equal(Score.roundMax(thirty, 'vegas'), 300);
-  assert.equal(Score.arrowMax('vegas'), 10);
+  assert.equal(Score.arrowMax('wa'), 10);
   assert.equal(Score.totalsLine(t, 'lancaster'), '330/330 puntos · media 11 · 30 de 11');
-  assert.equal(Score.totalsLine(Score.totals([{result: {value: '10'}}, {result: {value: '10'}}, {result: {value: '9'}}]), 'vegas'), '29/30 puntos · media 9,7 · 2 dieces');
-  assert.equal(Score.totalsLine(Score.totals([arrow('X'), arrow('10')]), 'wa'), '20/20 puntos · media 10 · 1 X · 1 diez');
+  assert.equal(Score.totalsLine(Score.totals([{result: {value: '10'}}, {result: {value: '10'}}, {result: {value: '9'}}]), 'wa'), '29/30 puntos · media 9,7 · 2 dieces');
+  assert.equal(Score.totalsLine(Score.totals([arrow('X'), arrow('10')]), 'vegas'), '20/20 puntos · media 10 · 1 X · 1 diez');
+  assert.doesNotMatch(Score.totalsLine(Score.totals([arrow('10')]), 'wa'), /X/);
 });
 
 test('the compound face scores 10 to 6, the inner ten as X, and outside the six as a miss', () => {
