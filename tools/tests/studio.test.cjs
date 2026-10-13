@@ -176,3 +176,59 @@ test('amber stays the default accent', () => {
   assert.ok(Studio.THEMES.length >= 10);
   assert.ok(Studio.THEMES.some(t => t.acc.toLowerCase() === '#2f6bff'));
 });
+
+test('default card layouts fit, and so does every distribution chart', () => {
+  for (const style of Object.keys(Studio.CARD_DEFAULTS)) {
+    for (const variant of ['bar', 'donut', 'columns']) {
+      const cfg = Studio.sanitizeCard(style, null);
+      cfg.widgets.forEach(w => { if (w.id === 'dist') w.variant = variant; });
+      assert.equal(Studio.cardRows(style, cfg).fits, true, style + ' ' + variant);
+    }
+  }
+});
+
+test('sanitizeCard drops unknown and duplicate widgets and checks the chart', () => {
+  const cfg = Studio.sanitizeCard('glass', {photo: 'nope', widgets: [
+    {id: 'nope', size: 'wide'},
+    {id: 'dist', size: 'huge', variant: 'pie'},
+    {id: 'dist', size: 'small', variant: 'donut'},
+    {id: 'score', size: 'wide'}
+  ]});
+  assert.equal(cfg.photo, 'tall');
+  assert.deepEqual(cfg.widgets.map(w => w.id), ['dist', 'score']);
+  assert.equal(cfg.widgets[0].size, 'wide');
+  assert.equal(cfg.widgets[0].variant, 'bar');
+  assert.equal(cfg.widgets[1].size, 'wide');
+  assert.equal(cfg.widgets[1].variant, undefined);
+});
+
+test('two small widgets share a row and a small one left alone takes the whole row', () => {
+  const rows = Studio.widgetRows([
+    {id: 'score', size: 'small'},
+    {id: 'group', size: 'small'},
+    {id: 'stats', size: 'wide'},
+    {id: 'best', size: 'small'}
+  ]);
+  assert.equal(rows.length, 3);
+  assert.deepEqual(rows[0].map(it => it.size), ['small', 'small']);
+  assert.deepEqual(rows[1].map(it => it.size), ['wide']);
+  assert.deepEqual(rows[2].map(it => [it.widget.id, it.size]), [['best', 'wide']]);
+});
+
+test('a layout that does not fit is rejected and the saved one stays', () => {
+  const mem = {};
+  const previous = global.localStorage;
+  global.localStorage = {
+    getItem: key => (key in mem ? mem[key] : null),
+    setItem: (key, value) => { mem[key] = value; }
+  };
+  Studio.card.configs = null;
+  assert.equal(Studio.setCardConfig('glass', Studio.CARD_DEFAULTS.glass), true);
+  const fat = {photo: 'tall', widgets: Studio.WIDGETS.map(w => ({id: w.id, size: 'wide', variant: 'donut'}))};
+  assert.equal(Studio.cardRows('glass', Studio.sanitizeCard('glass', fat)).fits, false);
+  assert.equal(Studio.setCardConfig('glass', fat), false);
+  assert.deepEqual(Studio.cardConfig('glass').widgets.map(w => w.id), Studio.CARD_DEFAULTS.glass.widgets.map(w => w.id));
+  Studio.card.configs = null;
+  if (previous === undefined) delete global.localStorage;
+  else global.localStorage = previous;
+});

@@ -41,6 +41,118 @@ const Studio = {
     {id: 'best', name: 'Mejor tanda'}
   ],
   SIZES: {card: {w: 1080, h: 1350}},
+  WIDGETS: [
+    {id: 'score', name: 'Puntuación', size: 'small'},
+    {id: 'stats', name: 'Estadísticas', size: 'wide'},
+    {id: 'dist', name: 'Distribución', size: 'wide', variants: [{id: 'bar', name: 'Barra'}, {id: 'donut', name: 'Donut'}, {id: 'columns', name: 'Columnas'}]},
+    {id: 'series', name: 'Por serie', size: 'wide'},
+    {id: 'group', name: 'Agrupación', size: 'small'},
+    {id: 'best', name: 'Mejor serie', size: 'small'},
+    {id: 'precision', name: 'Precisión', size: 'small'}
+  ],
+  WIDGET_SIZES: [{id: 'small', name: 'Pequeño'}, {id: 'wide', name: 'Ancho'}],
+  PHOTO_SIZES: [{id: 'tall', name: 'Alta'}, {id: 'short', name: 'Baja'}, {id: 'none', name: 'Sin foto'}],
+  CARD_DEFAULTS: {
+    glass: {photo: 'tall', widgets: [{id: 'score', size: 'small'}, {id: 'stats', size: 'small'}, {id: 'best', size: 'small'}, {id: 'group', size: 'small'}, {id: 'dist', size: 'wide', variant: 'bar'}]},
+    editorial: {photo: 'tall', widgets: [{id: 'score', size: 'wide'}, {id: 'stats', size: 'wide'}, {id: 'dist', size: 'wide', variant: 'bar'}, {id: 'series', size: 'wide'}]},
+    obsidian: {photo: 'tall', widgets: [{id: 'score', size: 'small'}, {id: 'series', size: 'small'}, {id: 'stats', size: 'wide'}, {id: 'group', size: 'small'}, {id: 'dist', size: 'small', variant: 'bar'}]}
+  },
+  // Preferred height of each widget in 1080-wide card pixels: [small, wide]. Distribution depends on its chart.
+  WIDGET_HEIGHTS: {
+    glass: {score: [270, 210], stats: [270, 150], bar: [200, 130], donut: [290, 230], columns: [250, 210], series: [250, 190], group: [140, 150], best: [140, 150], precision: [140, 130]},
+    editorial: {score: [200, 140], stats: [230, 120], bar: [200, 136], donut: [270, 210], columns: [230, 186], series: [230, 190], group: [140, 130], best: [150, 130], precision: [130, 120]},
+    obsidian: {score: [280, 240], stats: [230, 130], bar: [130, 120], donut: [210, 180], columns: [168, 156], series: [280, 200], group: [130, 130], best: [150, 130], precision: [120, 120]}
+  },
+  // Widget area per style: horizontal span, gap between rows and columns, and top edge by photo size.
+  CARD_AREAS: {
+    glass: {x: 88, w: 904, gap: 18, colGap: 20, bottom: 1262, top: {tall: 668, short: 490, none: 360}},
+    editorial: {x: 160, w: 760, gap: 14, colGap: 20, bottom: 1262, top: {tall: 650, short: 500, none: 310}},
+    obsidian: {x: 84, w: 912, gap: 22, colGap: 48, bottom: 1278, top: {tall: 722, short: 526, none: 346}}
+  },
+  MIN_FIT: 0.82,
+  sanitizeCard(style, raw) {
+    const base = this.CARD_DEFAULTS[style] || this.CARD_DEFAULTS.glass;
+    const src = raw && typeof raw === 'object' ? raw : base;
+    const photo = this.PHOTO_SIZES.some(p => p.id === src.photo) ? src.photo : base.photo;
+    const seen = new Set();
+    const widgets = (Array.isArray(src.widgets) ? src.widgets : base.widgets).map(w => {
+      const def = w && this.WIDGETS.find(d => d.id === w.id);
+      if (!def || seen.has(def.id)) return null;
+      seen.add(def.id);
+      const out = {id: def.id, size: w.size === 'small' || w.size === 'wide' ? w.size : def.size};
+      if (def.variants) out.variant = def.variants.some(v => v.id === w.variant) ? w.variant : def.variants[0].id;
+      return out;
+    }).filter(Boolean);
+    return {photo, widgets};
+  },
+  cardConfig(style) {
+    const id = this.CARD_DEFAULTS[style] ? style : 'glass';
+    const all = this.card.configs || (this.card.configs = this.loadCards());
+    if (!all[id]) all[id] = this.sanitizeCard(id, null);
+    return all[id];
+  },
+  loadCards() {
+    const out = {};
+    try {
+      const raw = JSON.parse(localStorage.getItem('awCardLayouts') || '{}');
+      Object.keys(this.CARD_DEFAULTS).forEach(id => { if (raw && raw[id]) out[id] = this.sanitizeCard(id, raw[id]); });
+    } catch (e) {}
+    return out;
+  },
+  setCardConfig(style, cfg) {
+    const clean = this.sanitizeCard(style, cfg);
+    if (!this.cardRows(style, clean).fits) return false;
+    const all = this.card.configs || (this.card.configs = this.loadCards());
+    all[style] = clean;
+    try { localStorage.setItem('awCardLayouts', JSON.stringify(all)); } catch (e) {}
+    return true;
+  },
+  resetCardConfig(style) {
+    return this.setCardConfig(style, this.CARD_DEFAULTS[style]);
+  },
+  // Two small widgets in a row share it; a small one left alone takes the whole row.
+  widgetRows(widgets) {
+    const rows = [];
+    for (let i = 0; i < widgets.length; i++) {
+      const w = widgets[i];
+      if (w.size === 'small' && widgets[i + 1] && widgets[i + 1].size === 'small') {
+        rows.push([{index: i, widget: w, size: 'small'}, {index: i + 1, widget: widgets[i + 1], size: 'small'}]);
+        i++;
+      } else rows.push([{index: i, widget: w, size: 'wide'}]);
+    }
+    return rows;
+  },
+  widgetHeight(style, widget, size) {
+    const table = this.WIDGET_HEIGHTS[style] || this.WIDGET_HEIGHTS.glass;
+    const key = widget.id === 'dist' ? (widget.variant || 'bar') : widget.id;
+    const pair = table[key] || [160, 160];
+    return size === 'small' ? pair[0] : pair[1];
+  },
+  cardRows(style, cfg) {
+    const area = this.CARD_AREAS[style] || this.CARD_AREAS.glass;
+    const top = area.top[cfg.photo] || area.top.tall;
+    const avail = area.bottom - top;
+    const rows = this.widgetRows(cfg.widgets).map(items => ({items, h: Math.max.apply(null, items.map(it => this.widgetHeight(style, it.widget, it.size)))}));
+    if (!rows.length) return {fits: true, rows: [], top, bottom: area.bottom};
+    const natural = rows.reduce((n, r) => n + r.h, 0) + area.gap * (rows.length - 1);
+    const k = avail / natural;
+    let gap = area.gap, scale = 1;
+    if (k < 1) { scale = k; gap = area.gap * k; } else {
+      scale = Math.min(k, 1.48);
+      const left = avail - rows.reduce((n, r) => n + r.h * scale, 0) - gap * (rows.length - 1);
+      if (rows.length > 1 && left > 0) gap += Math.min(area.gap * 2, left / (rows.length - 1));
+    }
+    let y = top;
+    const placed = rows.map(r => {
+      const h = r.h * scale;
+      const colW = (area.w - area.colGap) / 2;
+      const items = r.items.map((it, j) => ({index: it.index, widget: it.widget, size: it.size, x: r.items.length > 1 ? area.x + j * (colW + area.colGap) : area.x, y, w: r.items.length > 1 ? colW : area.w, h}));
+      const row = {y, h, items};
+      y += h + gap;
+      return row;
+    });
+    return {fits: k >= this.MIN_FIT, rows: placed, top, bottom: area.bottom};
+  },
   theme() {
     let id = 'amber';
     try {
@@ -622,10 +734,10 @@ function studioMount() {
   };
   const stage = $('holoStage');
   if (stage) {
-    stage.onpointerdown = e => { stage.setPointerCapture?.(e.pointerId); studioTiltFrom(stage, e); };
-    stage.onpointermove = e => { if (e.buttons) studioTiltFrom(stage, e); };
-    stage.onpointerup = () => studioTilt(0, 0);
-    stage.onpointerleave = () => studioTilt(0, 0);
+    stage.onpointerdown = e => { if (Studio.card.editing) return; stage.setPointerCapture?.(e.pointerId); studioTiltFrom(stage, e); };
+    stage.onpointermove = e => { if (e.buttons && !Studio.card.editing) studioTiltFrom(stage, e); };
+    stage.onpointerup = () => { if (!Studio.card.editing) studioTilt(0, 0); };
+    stage.onpointerleave = () => { if (!Studio.card.editing) studioTilt(0, 0); };
   }
   const gyroBtn = $('shareGyro');
   if (gyroBtn) gyroBtn.onclick = () => studioListenGyro(true);
@@ -716,6 +828,7 @@ function studioMount() {
   if (close) close.onclick = () => { Studio.shareOpen = false; const sheet = $('shareSheet'); if (sheet) sheet.hidden = true; };
   const exp = $('shareExport');
   if (exp) exp.onclick = () => studioExport();
+  studioMountWidgets($);
   if (typeof render === 'function') {
     const prev = render;
     render = function () { prev(); studioPaint(); };
@@ -907,6 +1020,226 @@ function studioSyncShare() {
   if (clear) clear.hidden = !Studio.card.photo;
   const mine = document.getElementById('shareUserThumb');
   if (mine && Studio.card.photo && mine.getAttribute('src') !== Studio.card.photo) mine.src = Studio.card.photo;
+  if (Studio.card.editing) studioWidgetBoxes();
+}
+
+const studioSvgMinus = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M2.5 6h7"/></svg>';
+const studioSvgPlus = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M2.5 6h7M6 2.5v7"/></svg>';
+const studioSvgGrip = '<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M3.5 6h11M3.5 9h11M3.5 12h11"/></svg>';
+
+function studioStyle() {
+  return Studio.FINISHES.some(f => f.id === Studio.card.finish) ? Studio.card.finish : Studio.FINISHES[0].id;
+}
+
+function studioEditWidgets(on) {
+  Studio.card.editing = !!on;
+  Studio.card.sel = -1;
+  const sheet = document.getElementById('shareSheet');
+  if (sheet) sheet.classList.toggle('editing', !!on);
+  if (!on) { const layer = document.getElementById('widgetLayer'); if (layer) layer.innerHTML = ''; }
+  studioTilt(0, 0);
+  studioWidgetList();
+}
+
+function studioMoveItem(list, from, to) {
+  const [item] = list.splice(from, 1);
+  list.splice(to, 0, item);
+}
+
+// Applies an edit to the current style's layout; a layout that no longer fits on the card is rejected as a whole.
+function studioChangeCard(mutate, quiet) {
+  const style = studioStyle();
+  const cfg = JSON.parse(JSON.stringify(Studio.cardConfig(style)));
+  if (mutate(cfg) === false) return false;
+  if (!Studio.setCardConfig(style, cfg)) {
+    if (!quiet && typeof notice === 'function') notice('No cabe en la tarjeta. Quita un widget o hazlo pequeño.');
+    return false;
+  }
+  studioDrawShare(false);
+  return true;
+}
+
+function studioAddWidget(id) {
+  const def = Studio.WIDGETS.find(d => d.id === id);
+  if (!def) return;
+  const make = size => cfg => { cfg.widgets.push({id, size, variant: def.variants ? def.variants[0].id : undefined}); };
+  if (studioChangeCard(make(def.size), true) || (def.size !== 'small' && studioChangeCard(make('small'), true))) {
+    Studio.card.sel = Studio.cardConfig(studioStyle()).widgets.length - 1;
+    studioWidgetList();
+    studioWidgetBoxes();
+    return;
+  }
+  if (typeof notice === 'function') notice('No cabe en la tarjeta. Quita un widget o hazlo pequeño.');
+}
+
+function studioRemoveWidget(index) {
+  if (Studio.cardConfig(studioStyle()).widgets.length <= 1) {
+    if (typeof notice === 'function') notice('Deja al menos un widget en la tarjeta.');
+    return;
+  }
+  if (studioChangeCard(cfg => { cfg.widgets.splice(index, 1); })) {
+    Studio.card.sel = -1;
+    studioWidgetList();
+  }
+}
+
+function studioWidgetBoxes() {
+  const layer = document.getElementById('widgetLayer');
+  if (!layer || !Studio.card.editing) return;
+  const cfg = Studio.cardConfig(studioStyle());
+  const pad = 4;
+  const drag = Studio.card.drag && Studio.card.drag.moved ? Studio.card.drag.index : -1;
+  layer.innerHTML = (Studio.card.rects || []).map(r => {
+    const w = cfg.widgets[r.index];
+    const def = w && Studio.WIDGETS.find(d => d.id === w.id);
+    const cls = 'wBox' + (r.index === Studio.card.sel ? ' sel' : '') + (r.index === drag ? ' drag' : '');
+    const pos = `left:${((r.x - pad) / 10.8).toFixed(2)}%;top:${((r.y - pad) / 13.5).toFixed(2)}%;width:${((r.w + pad * 2) / 10.8).toFixed(2)}%;height:${((r.h + pad * 2) / 13.5).toFixed(2)}%`;
+    return `<div class="${cls}" data-index="${r.index}" style="${pos}" role="button" aria-label="${def ? def.name : ''}"><b data-del aria-label="Quitar">${studioSvgMinus}</b></div>`;
+  }).join('');
+}
+
+function studioWidgetList() {
+  const style = studioStyle();
+  const cfg = Studio.cardConfig(style);
+  const name = document.getElementById('widgetStyle');
+  const finish = Studio.FINISHES.find(f => f.id === style);
+  if (name) name.textContent = '· ' + (finish ? finish.name : '');
+  document.querySelectorAll('#widgetPhoto [data-photo]').forEach(b => {
+    const on = b.dataset.photo === cfg.photo;
+    b.classList.toggle('sel', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+  const list = document.getElementById('widgetList');
+  if (list && !(Studio.card.listDrag)) {
+    list.innerHTML = cfg.widgets.map((w, i) => {
+      const def = Studio.WIDGETS.find(d => d.id === w.id);
+      const variant = def.variants ? `<button type="button" class="wChip variant" data-variant aria-label="Gráfica">${(def.variants.find(v => v.id === w.variant) || def.variants[0]).name}</button>` : '';
+      const size = (Studio.WIDGET_SIZES.find(s => s.id === w.size) || Studio.WIDGET_SIZES[0]).name;
+      return `<li class="wRow${i === Studio.card.sel ? ' sel' : ''}" data-index="${i}"><button type="button" class="wDel" data-del aria-label="Quitar ${def.name}">${studioSvgMinus}</button><span class="wName">${def.name}</span>${variant}<button type="button" class="wChip" data-size aria-label="Tamaño">${size}</button><span class="wGrip" data-grip aria-label="Arrastrar para ordenar">${studioSvgGrip}</span></li>`;
+    }).join('');
+  }
+  const add = document.getElementById('widgetAdd');
+  if (add) {
+    const missing = Studio.WIDGETS.filter(d => !cfg.widgets.some(w => w.id === d.id));
+    add.innerHTML = missing.length ? missing.map(d => `<button type="button" data-add="${d.id}">${studioSvgPlus}${d.name}</button>`).join('') : '<small>Todos los widgets están en la tarjeta</small>';
+  }
+  studioWidgetBoxes();
+}
+
+function studioSelectWidget(index) {
+  Studio.card.sel = index;
+  document.querySelectorAll('#widgetList .wRow').forEach(li => li.classList.toggle('sel', Number(li.dataset.index) === index));
+  const row = document.querySelector('#widgetList .wRow.sel');
+  if (row && row.scrollIntoView) row.scrollIntoView({block: 'nearest'});
+  studioWidgetBoxes();
+}
+
+function studioMountWidgets($) {
+  const edit = $('shareEdit'), done = $('widgetDone'), reset = $('widgetReset');
+  if (edit) edit.onclick = () => studioEditWidgets(true);
+  if (done) done.onclick = () => studioEditWidgets(false);
+  if (reset) reset.onclick = () => {
+    Studio.resetCardConfig(studioStyle());
+    Studio.card.sel = -1;
+    studioDrawShare(false);
+    studioWidgetList();
+  };
+  const photo = $('widgetPhoto');
+  if (photo) photo.onclick = e => {
+    const b = e.target.closest('[data-photo]');
+    if (b && studioChangeCard(cfg => { cfg.photo = b.dataset.photo; })) studioWidgetList();
+  };
+  const add = $('widgetAdd');
+  if (add) add.onclick = e => {
+    const b = e.target.closest('[data-add]');
+    if (b) studioAddWidget(b.dataset.add);
+  };
+  const list = $('widgetList');
+  if (list) {
+    list.onclick = e => {
+      const li = e.target.closest('.wRow');
+      if (!li) return;
+      const i = Number(li.dataset.index);
+      if (e.target.closest('[data-del]')) { studioRemoveWidget(i); return; }
+      if (e.target.closest('[data-size]')) {
+        if (studioChangeCard(cfg => { cfg.widgets[i].size = cfg.widgets[i].size === 'small' ? 'wide' : 'small'; })) { Studio.card.sel = i; studioWidgetList(); }
+        return;
+      }
+      if (e.target.closest('[data-variant]')) {
+        const def = Studio.WIDGETS.find(d => d.id === Studio.cardConfig(studioStyle()).widgets[i].id);
+        const ids = def.variants.map(v => v.id);
+        if (studioChangeCard(cfg => { cfg.widgets[i].variant = ids[(ids.indexOf(cfg.widgets[i].variant) + 1) % ids.length]; })) { Studio.card.sel = i; studioWidgetList(); }
+        return;
+      }
+      studioSelectWidget(i);
+    };
+    list.addEventListener('pointerdown', e => {
+      const grip = e.target.closest('[data-grip]');
+      if (!grip) return;
+      e.preventDefault();
+      const li = grip.closest('.wRow');
+      Studio.card.listDrag = {index: Number(li.dataset.index), li};
+      Studio.card.sel = Studio.card.listDrag.index;
+      li.classList.add('drag');
+      list.setPointerCapture?.(e.pointerId);
+    });
+    list.addEventListener('pointermove', e => {
+      const d = Studio.card.listDrag;
+      if (!d) return;
+      const others = [...list.querySelectorAll('.wRow')].filter(li => li !== d.li);
+      let to = others.findIndex(li => { const r = li.getBoundingClientRect(); return e.clientY < r.top + r.height / 2; });
+      if (to < 0) to = others.length;
+      if (to === d.index) return;
+      if (!studioChangeCard(cfg => studioMoveItem(cfg.widgets, d.index, to), true)) return;
+      list.insertBefore(d.li, others[to] || null);
+      d.index = to;
+      Studio.card.sel = to;
+      studioWidgetBoxes();
+    });
+    const drop = () => {
+      if (!Studio.card.listDrag) return;
+      Studio.card.listDrag = null;
+      studioWidgetList();
+    };
+    list.addEventListener('pointerup', drop);
+    list.addEventListener('pointercancel', drop);
+  }
+  const layer = $('widgetLayer');
+  if (layer) {
+    const cardPoint = e => {
+      const r = layer.getBoundingClientRect();
+      return {x: (e.clientX - r.left) / Math.max(1, r.width) * 1080, y: (e.clientY - r.top) / Math.max(1, r.height) * 1350};
+    };
+    layer.addEventListener('pointerdown', e => {
+      if (!Studio.card.editing) return;
+      const box = e.target.closest('.wBox');
+      if (!box) return;
+      e.preventDefault();
+      Studio.card.drag = {index: Number(box.dataset.index), x: e.clientX, y: e.clientY, moved: false, del: !!e.target.closest('[data-del]')};
+      layer.setPointerCapture?.(e.pointerId);
+    });
+    layer.addEventListener('pointermove', e => {
+      const d = Studio.card.drag;
+      if (!d) return;
+      if (!d.moved && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 8) return;
+      d.moved = true;
+      Studio.card.sel = d.index;
+      const p = cardPoint(e);
+      const hit = (Studio.card.rects || []).find(r => p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h);
+      if (hit && hit.index !== d.index && studioChangeCard(cfg => studioMoveItem(cfg.widgets, d.index, hit.index), true)) d.index = hit.index;
+      studioWidgetBoxes();
+    });
+    const up = () => {
+      const d = Studio.card.drag;
+      if (!d) return;
+      Studio.card.drag = null;
+      if (!d.moved && d.del) { studioRemoveWidget(d.index); return; }
+      if (!d.moved) { studioSelectWidget(d.index); studioWidgetList(); return; }
+      studioWidgetList();
+    };
+    layer.addEventListener('pointerup', up);
+    layer.addEventListener('pointercancel', up);
+  }
 }
 
 function studioTilt(rx, ry) {
@@ -929,7 +1262,7 @@ function studioTiltFrom(stage, e) {
 }
 
 function studioGyro(e) {
-  if (!Studio.shareOpen || e.gamma == null) return;
+  if (!Studio.shareOpen || Studio.card.editing || e.gamma == null) return;
   const rx = Math.max(-12, Math.min(12, (e.beta || 0) * 0.16));
   const ry = Math.max(-14, Math.min(14, e.gamma * 0.22));
   studioTilt(rx, ry);
@@ -1058,8 +1391,9 @@ function studioShotSource() {
 function studioOpenShare(kind) {
   Studio.shareKind = kind || 'session';
   Studio.shareOpen = true;
+  Studio.card.editing = false;
   const sheet = document.getElementById('shareSheet');
-  if (sheet) sheet.hidden = false;
+  if (sheet) { sheet.hidden = false; sheet.classList.remove('editing'); }
   studioDrawShare();
   studioSyncShare();
 }
@@ -1278,8 +1612,9 @@ function studioCardPack(headline, subtitle, when, shots, series, duration, bars,
     scoreMax: totals.score != null && max ? String(max) : '',
     scoreNote: totals.score != null ? '' : 'flechas registradas',
     pct: totals.score != null && max ? totals.score / max : null,
-    best: best ? {index: best.index, sum: best.sum} : null,
+    best: best ? {index: best.index, sum: best.sum, values: best.rows.filter(s => StudioScore.points(s.result && s.result.value) != null).map(s => String(s.result.value)).slice(0, 12)} : null,
     series: studioSeriesItems(bars, format, info.per),
+    spreads: (bars || []).map(b => ({label: (info.per === 'session' ? '' : 'S') + b.n, cm: studioSpread(Studio.scorePool(b.rows))})).filter(s => s.cm != null).map(s => ({label: s.label, cm: s.cm * 10})).slice(-12),
     dist: studioDistribution(shots),
     spreadText: spread != null ? studioAvgText(spread * 10) + ' cm' : '–',
     stats: [
@@ -1496,16 +1831,17 @@ function studioWrap(ctx, text, font, maxW, maxLines) {
 }
 function studioSplitValue(v) {
   const s = String(v == null ? '–' : v);
-  const m = s.match(/^([\d.,]+)\s*(min|cm|%|pts)$/);
+  const m = s.match(/^([\d.,]+)\s*(min|cm|pts)$/);
   return m ? [m[1], m[2]] : [s, ''];
 }
 function studioValue(ctx, value, x, y, big, small, color, unitColor, align) {
   const [num, unit] = studioSplitValue(value);
+  const gap = unit === '%' ? 2 : 8;
   const a = studioTextWidth(ctx, num, big, 0);
-  const b = unit ? studioTextWidth(ctx, unit, small, 0) + 8 : 0;
+  const b = unit ? studioTextWidth(ctx, unit, small, 0) + gap : 0;
   const x0 = align === 'center' ? x - (a + b) / 2 : align === 'right' ? x - a - b : x;
   studioText(ctx, num, x0, y, big, color);
-  if (unit) studioText(ctx, unit, x0 + a + 8, y, small, unitColor);
+  if (unit) studioText(ctx, unit, x0 + a + gap, y, small, unitColor);
   return a + b;
 }
 function studioIcon(ctx, id, cx, cy, s, color, lw) {
@@ -1795,17 +2131,396 @@ function studioDistBar(ctx, x, y, w, h, dist, o) {
   });
 }
 
+function studioTokens(style, theme) {
+  const acc = theme.acc, acc2 = theme.acc2 || studioMix(acc, '#ffffff', 0.45);
+  if (style === 'editorial') {
+    return {style, acc, acc2: studioMix(acc, '#f7f3ec', 0.45), ink: '#1c1b19', soft: '#7a746b', hair: 'rgba(28,27,25,.09)', block: '#efe9df', paper: '#f7f3ec', base: '#1c1b19',
+      bar: 'rgba(28,27,25,.13)', track: '', glow: false, panel: 'block', pad: 30, labelPx: 13.5, labelW: 600, labelTrack: 3,
+      num: px => studioF(750, px), numTrack: -1, unit: px => studioF(600, px), statMax: 46, scoreW: 750, chipInk: '#f7f3ec'};
+  }
+  if (style === 'obsidian') {
+    return {style, acc, acc2, ink: '#f1efea', soft: '#8e8a83', hair: 'rgba(255,255,255,.1)', base: '#ffffff',
+      bar: 'rgba(255,255,255,.16)', track: 'rgba(255,255,255,.04)', glow: true, panel: 'none', pad: 0, labelPx: 14, labelW: 500, labelTrack: 3.5,
+      num: px => studioF(300, px), numTrack: 0, unit: px => studioF(400, px), statMax: 62, scoreW: 200, chipInk: '#0b0b0d'};
+  }
+  return {style: 'glass', acc, acc2, ink: '#ffffff', soft: '#9a9aa2', hair: 'rgba(255,255,255,.08)', fill: 'rgba(11,11,13,.8)', base: '#ffffff',
+    bar: 'rgba(255,255,255,.16)', track: 'rgba(255,255,255,.04)', glow: true, panel: 'glass', pad: 34, labelPx: 15, labelW: 500, labelTrack: 3.5,
+    num: px => studioF(600, px, studioNum), numTrack: 0, unit: px => studioF(500, px), statMax: 88, chipInk: '#0b0b0d'};
+}
+function studioWLabel(ctx, text, x, y, S, align, color) {
+  studioText(ctx, text, x, y + S.labelPx, studioF(S.labelW, S.labelPx), color || S.soft, S.labelTrack, align);
+  return y + S.labelPx;
+}
+// Label over a single big value, centred vertically in the widget; foot reserves room under the value.
+function studioStack(b, S, maxPx, foot) {
+  const f = foot || 0;
+  const px = Math.round(Math.max(20, Math.min(maxPx, (b.h - S.labelPx - 14 - f) / 0.78)));
+  const gap = Math.max(12, Math.min(24, px * 0.24));
+  const total = S.labelPx + gap + px * 0.72 + f;
+  const top = b.y + Math.max(0, (b.h - total) / 2);
+  return {px, top, base: top + S.labelPx + gap + px * 0.72, bottom: top + total};
+}
+function studioFitValue(ctx, value, x, y, maxW, px, S, color, align, font) {
+  const [num, unit] = studioSplitValue(value);
+  const big = font || S.num;
+  const unitPx = n => Math.max(14, Math.round(n * 0.32));
+  const width = n => studioTextWidth(ctx, num, big(n), 0) + (unit ? studioTextWidth(ctx, unit, S.unit(unitPx(n)), 0) + (unit === '%' ? 2 : 8) : 0);
+  let n = px;
+  while (n > 18 && width(n) > maxW) n -= 2;
+  return {w: studioValue(ctx, value, x, y, big(n), S.unit(unitPx(n)), color || S.ink, S.soft, align), px: n};
+}
+function studioBar(ctx, x, y, w, h, pct, S) {
+  studioRound(ctx, x, y, w, h, h / 2);
+  ctx.fillStyle = studioRgba(S.base, S.style === 'editorial' ? 0.08 : 0.08);
+  ctx.fill();
+  const p = Math.max(0, Math.min(1, pct || 0));
+  if (!p) return;
+  ctx.save();
+  if (S.glow) { ctx.shadowColor = studioRgba(S.acc, 0.5); ctx.shadowBlur = 14; }
+  const g = ctx.createLinearGradient(x, 0, x + w * p, 0);
+  g.addColorStop(0, S.acc);
+  g.addColorStop(1, S.acc2);
+  studioRound(ctx, x, y, Math.max(h, w * p), h, h / 2);
+  ctx.fillStyle = g;
+  ctx.fill();
+  ctx.restore();
+}
+function studioDistLegend(ctx, x, y, w, dist, S, perRow, rowH, px) {
+  const total = dist.reduce((n, d) => n + d.n, 0) || 1;
+  const cellW = w / perRow;
+  dist.forEach((d, i) => {
+    const lx = x + cellW * (i % perRow), ly = y + Math.floor(i / perRow) * rowH;
+    ctx.beginPath();
+    ctx.arc(lx + 6, ly - px * 0.32, 5.5, 0, Math.PI * 2);
+    ctx.fillStyle = studioDistTone(d.v, S.acc, S.acc2, S.base);
+    ctx.fill();
+    const kw = studioText(ctx, d.v, lx + 20, ly, studioF(500, Math.round(px * 0.72)), S.soft);
+    const cw = studioText(ctx, String(d.n), lx + 20 + kw + 8, ly, S.num(px), S.ink);
+    if (cellW > 150) studioText(ctx, Math.round(d.n / total * 100) + '%', lx + 20 + kw + cw + 14, ly, studioF(500, Math.round(px * 0.64)), S.soft);
+  });
+}
+function studioDonut(ctx, cx, cy, R, lw, dist, S) {
+  const total = dist.reduce((n, d) => n + d.n, 0);
+  ctx.save();
+  ctx.lineWidth = lw;
+  ctx.lineCap = 'butt';
+  if (!total) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.strokeStyle = studioRgba(S.base, 0.08);
+    ctx.stroke();
+    ctx.restore();
+    return;
+  }
+  const gap = dist.length > 1 ? Math.min(0.06, 7 / R) : 0;
+  let a = -Math.PI / 2;
+  dist.forEach(d => {
+    const sweep = Math.PI * 2 * d.n / total;
+    const hot = d.v === 'X' || d.v === '11';
+    ctx.save();
+    if (hot && S.glow) { ctx.shadowColor = studioRgba(S.acc, 0.45); ctx.shadowBlur = 20; }
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, a + gap / 2, a + Math.max(gap / 2 + 0.01, sweep - gap / 2));
+    ctx.strokeStyle = studioDistTone(d.v, S.acc, S.acc2, S.base);
+    ctx.stroke();
+    ctx.restore();
+    a += sweep;
+  });
+  ctx.restore();
+}
+function studioChip(ctx, cx, cy, r, v, S) {
+  const hot = v === 'X' || v === '11', ten = v === '10';
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  if (hot) { ctx.fillStyle = S.acc; ctx.fill(); }
+  else {
+    ctx.fillStyle = studioRgba(S.base, 0.06);
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = ten ? studioRgba(S.acc, 0.8) : studioRgba(S.base, 0.16);
+    ctx.stroke();
+  }
+  studioText(ctx, v, cx, cy + r * 0.36, studioF(650, Math.round(r * 0.95)), hot ? S.chipInk : ten ? S.ink : S.soft, 0, 'center');
+}
+
+const studioWidgetPaint = {
+  score(ctx, b, view, S) {
+    const unit = view.scoreMax ? 'PUNTOS' : 'FLECHAS';
+    if (S.style === 'glass') {
+      if (b.size === 'small') {
+        const lw = Math.max(12, Math.min(18, b.h * 0.066));
+        const R = Math.min(b.w / 2 - lw, (b.h - lw - 12) / 2.02);
+        const cx = b.x + b.w / 2, cy = b.y + lw / 2 + R + Math.max(0, (b.h - lw - 12 - R * 2.02) / 2);
+        studioGauge(ctx, cx, cy, R, view.pct, S.acc, S.acc2, lw);
+        const px = Math.round(R * 1.02);
+        const fit = studioFitValue(ctx, view.scoreMain, cx, cy + px * 0.24, R * 1.5, px, S, S.acc, 'center');
+        studioText(ctx, unit, cx, cy + fit.px * 0.24 + Math.max(30, R * 0.34), studioF(500, 15), S.soft, 3.5, 'center');
+        if (view.scoreMax) studioText(ctx, '/ ' + view.scoreMax, cx, cy + R + 8, S.num(Math.round(R * 0.3)), 'rgba(255,255,255,.5)', 0, 'center');
+        return;
+      }
+      const lw = Math.max(10, b.h * 0.08);
+      const R = (b.h - lw) / 2 - 4;
+      const cx = b.x + R + lw / 2, cy = b.y + b.h / 2;
+      studioGauge(ctx, cx, cy, R, view.pct, S.acc, S.acc2, lw);
+      studioText(ctx, view.pct != null ? Math.round(view.pct * 100) + '%' : '–', cx, cy + R * 0.2, S.num(Math.round(R * 0.62)), S.ink, 0, 'center');
+      const tx = cx + R + lw + 44;
+      studioWLabel(ctx, view.scoreMax ? 'PUNTUACIÓN' : 'FLECHAS', tx, b.y + 2, S);
+      const fit = studioFitValue(ctx, view.scoreMain, tx - 2, b.y + b.h - 6, b.x + b.w - tx - 150, Math.round((b.h - 34) / 0.74), S, S.acc);
+      if (view.scoreMax) studioText(ctx, '/ ' + view.scoreMax, tx + fit.w + 12, b.y + b.h - 6, S.num(Math.round(fit.px * 0.36)), 'rgba(255,255,255,.5)');
+      return;
+    }
+    const obs = S.style === 'obsidian';
+    const wide = b.size === 'wide';
+    const font = px => studioF(S.scoreW, px);
+    const track = px => obs ? -px * 0.034 : -1;
+    const foot = wide ? 30 : 0;
+    const st = studioStack(b, S, obs ? 300 : 150, foot);
+    const label = obs ? 0 : S.labelPx + 14;
+    let px = obs ? Math.round(Math.min(300, (b.h - foot - 8) / 0.76)) : st.px;
+    const tail = n => view.scoreMax ? '/ ' + view.scoreMax : (view.scoreNote || '');
+    const tailPx = n => Math.max(20, Math.round(n * (obs ? 0.22 : 0.3)));
+    const room = b.w - (wide && view.pct != null ? 200 : 0);
+    while (px > 30 && studioTextWidth(ctx, view.scoreMain, font(px), track(px)) + 12 + studioTextWidth(ctx, tail(px), studioF(obs ? 300 : 600, tailPx(px)), 0) > room) px -= 2;
+    const top = obs ? b.y + Math.max(0, (b.h - foot - px * 0.72 - 8) / 2) : b.y + Math.max(0, (b.h - label - px * 0.72 - foot) / 2);
+    const base = top + label + px * 0.72;
+    if (!obs) {
+      studioIcon(ctx, 'score', b.x + 11, top + S.labelPx * 0.6, 24, S.acc, 2.2);
+      studioWLabel(ctx, unit, b.x + 34, top, S);
+    }
+    ctx.save();
+    if (obs) { ctx.shadowColor = 'rgba(0,0,0,.6)'; ctx.shadowBlur = 18; ctx.shadowOffsetY = 4; }
+    const sw = studioText(ctx, view.scoreMain, b.x - (obs ? px * 0.04 : 2), base, font(px), S.ink, track(px));
+    ctx.restore();
+    if (tail(px)) studioText(ctx, tail(px), b.x + sw + (obs ? 6 : 12), base, studioF(obs ? 300 : 600, tailPx(px)), S.soft);
+    if (!wide) return;
+    if (view.pct != null) {
+      const pp = Math.max(30, Math.round(px * 0.3));
+      studioText(ctx, Math.round(view.pct * 100) + '%', b.x + b.w, base, studioF(obs ? 300 : 750, pp), S.ink, 0, 'right');
+      studioText(ctx, 'DEL MÁXIMO', b.x + b.w, base - pp - 12, studioF(S.labelW, S.labelPx * 0.9), S.soft, S.labelTrack, 'right');
+    }
+    studioBar(ctx, b.x, base + foot - 6, b.w, obs ? 4 : 6, view.pct, S);
+  },
+  stats(ctx, b, view, S) {
+    const cols = b.size === 'wide' ? 4 : 2, rows = cols === 4 ? 1 : 2;
+    const icons = {arrows: 'arrow', series: 'series', avg: 'target', time: 'clock'};
+    const gapY = rows > 1 ? Math.min(24, b.h * 0.08) : 0;
+    const cw = b.w / cols, ch = (b.h - gapY * (rows - 1)) / rows;
+    view.stats.forEach((cell, i) => {
+      const col = i % cols, row = Math.floor(i / cols);
+      const x0 = b.x + col * cw, y0 = b.y + row * (ch + gapY);
+      const inset = col ? (S.style === 'obsidian' ? 0 : 26) : 0;
+      if (col && S.style !== 'obsidian') {
+        ctx.fillStyle = S.hair;
+        ctx.fillRect(x0, y0 + 4, 1.5, ch - 8);
+      }
+      if (row && cols === 2 && S.style === 'glass' && col === 0) {
+        ctx.fillStyle = S.hair;
+        ctx.fillRect(b.x, y0 - gapY / 2, b.w, 1.5);
+      }
+      const x = x0 + inset, w = cw - inset - 10;
+      const st = studioStack({x, y: y0, w, h: ch}, S, S.statMax);
+      let lx = x;
+      if (S.style === 'editorial') {
+        studioIcon(ctx, icons[cell.id], x + 11, st.top + S.labelPx * 0.6, 24, S.acc, 2.2);
+        lx = x + 34;
+      }
+      studioWLabel(ctx, cell.label.toUpperCase(), lx, st.top, S);
+      studioFitValue(ctx, cell.value, x - 2, st.base, w, st.px, S);
+    });
+  },
+  dist(ctx, b, view, S) {
+    const dist = view.dist || [];
+    const total = dist.reduce((n, d) => n + d.n, 0);
+    const variant = b.widget.variant || 'bar';
+    const top = studioWLabel(ctx, 'DISTRIBUCIÓN', b.x, b.y, S);
+    if (variant === 'bar') {
+      const perRow = b.size === 'wide' || b.w > 600 ? Math.max(5, dist.length) : 3;
+      const lines = Math.max(1, Math.ceil(dist.length / perRow));
+      const px = b.w > 600 ? 26 : 22, rowH = px + 18;
+      const legendY = b.y + b.h - 4 - (lines - 1) * rowH;
+      const bh = S.style === 'editorial' ? 16 : S.style === 'obsidian' ? 10 : 12;
+      const barY = top + (legendY - px - top - bh) / 2;
+      studioDistBar(ctx, b.x, barY, b.w, bh, dist, {acc: S.acc, acc2: S.acc2, base: S.base, gap: S.style === 'editorial' ? 5 : 4});
+      studioDistLegend(ctx, b.x, legendY, b.w, dist, S, perRow, rowH, px);
+      return;
+    }
+    if (variant === 'donut') {
+      const D = Math.min(b.h - (top - b.y) - 8, b.size === 'wide' ? b.w * 0.34 : b.w * 0.48);
+      const R = D / 2, lw = Math.max(12, R * 0.22);
+      const cx = b.x + R, cy = top + 10 + R;
+      studioDonut(ctx, cx, cy, R - lw / 2, lw, dist, S);
+      const npx = Math.round(R * 0.58);
+      studioText(ctx, String(total), cx, cy + npx * 0.16, S.num(npx), S.ink, 0, 'center');
+      studioText(ctx, 'FLECHAS', cx, cy + npx * 0.16 + Math.max(18, R * 0.24), studioF(500, Math.max(11, Math.round(R * 0.13))), S.soft, 2.5, 'center');
+      const cols = b.size === 'wide' && dist.length > 3 ? 2 : 1;
+      const perCol = Math.ceil(dist.length / cols);
+      const lx = b.x + D + (b.size === 'wide' ? 40 : 28);
+      const colW = (b.x + b.w - lx) / cols;
+      const rowH = Math.min(44, (D - 4) / perCol);
+      const px = Math.round(Math.min(24, rowH * 0.56));
+      const y0 = cy - (perCol - 1) * rowH / 2 + px * 0.32;
+      dist.forEach((d, i) => {
+        const x = lx + Math.floor(i / perCol) * colW, y = y0 + (i % perCol) * rowH;
+        ctx.beginPath();
+        ctx.arc(x + 5, y - px * 0.32, 5, 0, Math.PI * 2);
+        ctx.fillStyle = studioDistTone(d.v, S.acc, S.acc2, S.base);
+        ctx.fill();
+        const kw = studioText(ctx, d.v, x + 18, y, studioF(500, Math.round(px * 0.78)), S.soft);
+        const cw = studioText(ctx, String(d.n), x + 18 + Math.max(28, kw) + 12, y, S.num(px), S.ink);
+        studioText(ctx, Math.round(d.n / Math.max(1, total) * 100) + '%', x + 18 + Math.max(28, kw) + 12 + cw + 10, y, studioF(500, Math.round(px * 0.68)), S.soft);
+      });
+      return;
+    }
+    const n = Math.max(1, dist.length);
+    const peak = Math.max(1, ...dist.map(d => d.n));
+    const keyPx = 15, valPx = b.w > 600 ? 22 : 18;
+    const plotTop = top + valPx + 8, plotBot = b.y + b.h - keyPx - 10;
+    const cw = b.w / n, bw = Math.min(cw * 0.42, 48);
+    ctx.fillStyle = studioRgba(S.base, S.style === 'editorial' ? 0.12 : 0.1);
+    ctx.fillRect(b.x, plotBot, b.w, 1.5);
+    dist.forEach((d, i) => {
+      const x = b.x + cw * i + (cw - bw) / 2;
+      const hh = Math.max(8, (plotBot - plotTop) * d.n / peak);
+      const y = plotBot - hh;
+      const hot = d.v === 'X' || d.v === '11';
+      const rad = Math.min(10, bw / 2, hh / 2);
+      ctx.save();
+      if (hot && S.glow) { ctx.shadowColor = studioRgba(S.acc, 0.45); ctx.shadowBlur = 16; }
+      ctx.beginPath();
+      ctx.moveTo(x, plotBot);
+      ctx.lineTo(x, y + rad);
+      ctx.quadraticCurveTo(x, y, x + rad, y);
+      ctx.lineTo(x + bw - rad, y);
+      ctx.quadraticCurveTo(x + bw, y, x + bw, y + rad);
+      ctx.lineTo(x + bw, plotBot);
+      ctx.closePath();
+      if (hot) {
+        const g = ctx.createLinearGradient(0, y, 0, plotBot);
+        g.addColorStop(0, S.acc2);
+        g.addColorStop(1, S.acc);
+        ctx.fillStyle = g;
+      } else ctx.fillStyle = studioDistTone(d.v, S.acc, S.acc2, S.base);
+      ctx.fill();
+      ctx.restore();
+      studioText(ctx, String(d.n), x + bw / 2, y - 8, S.num(valPx), hot ? S.acc : S.ink, 0, 'center');
+      studioText(ctx, d.v, x + bw / 2, b.y + b.h - 1, studioF(600, keyPx), S.soft, 1, 'center');
+    });
+  },
+  series(ctx, b, view, S) {
+    const title = (view.series && view.series.title) || 'POR SERIE';
+    const top = studioWLabel(ctx, title, b.x, b.y, S);
+    let x = b.x, w = b.w, y = top + 6;
+    if (b.size === 'wide' && view.best && title === 'POR SERIE' && b.w > 600) {
+      const px = Math.round(Math.min(S.style === 'glass' ? 76 : 50, (b.h - (top - b.y)) * 0.42));
+      const base = top + 18 + px * 0.74;
+      studioText(ctx, String(view.best.sum), b.x - 2, base, S.num(px), S.style === 'editorial' ? S.ink : S.acc);
+      studioText(ctx, 'mejor · S' + view.best.index, b.x, base + 34, studioF(500, 17), S.soft);
+      x = b.x + 190;
+      w = b.w - 190;
+      y = b.y - 4;
+    }
+    const light = S.style === 'editorial';
+    studioBars(ctx, x, y, w, b.y + b.h - y, view.series, {acc: S.acc, acc2: light ? '' : S.acc2, glow: S.glow, bar: S.bar, track: S.track,
+      value: S.soft, label: light ? S.soft : 'rgba(255,255,255,.4)', maxBar: b.size === 'wide' ? 34 : 28, valuePx: 16, labelPx: 13, valueFamily: S.style === 'glass' ? studioNum : studioGeist});
+  },
+  group(ctx, b, view, S) {
+    const spreads = view.spreads || [];
+    const wide = b.size === 'wide' && spreads.length >= 2;
+    const st = studioStack(b, S, S.statMax * (S.style === 'glass' ? 0.9 : 1.1));
+    const top = studioWLabel(ctx, 'AGRUPACIÓN', b.x, wide ? b.y : st.top, S);
+    const fit = studioFitValue(ctx, view.spreadText, b.x - 2, wide ? b.y + b.h - 4 : st.base, wide ? b.w * 0.36 : b.w, st.px, S);
+    if (!wide) return;
+    const lo = spreads.reduce((k, s, i) => s.cm < spreads[k].cm ? i : k, 0);
+    const hi = Math.max(...spreads.map(s => s.cm));
+    const x0 = b.x + Math.max(fit.w + 60, b.w * 0.4), w = b.x + b.w - x0;
+    const n = spreads.length, bw = Math.min(26, w / (n * 1.8)), step = n > 1 ? (w - bw) / (n - 1) : 0;
+    const plotTop = top + 4, plotBot = b.y + b.h - 26;
+    spreads.forEach((s, i) => {
+      const x = x0 + step * i;
+      const hh = (plotBot - plotTop) * (0.38 + 0.62 * s.cm / hi);
+      ctx.save();
+      if (i === lo && S.glow) { ctx.shadowColor = studioRgba(S.acc, 0.45); ctx.shadowBlur = 16; }
+      studioRound(ctx, x, plotBot - hh, bw, hh, bw / 2);
+      ctx.fillStyle = i === lo ? S.acc : S.bar;
+      ctx.fill();
+      ctx.restore();
+      studioText(ctx, s.label, x + bw / 2, b.y + b.h, studioF(500, 13), S.soft, 1, 'center');
+    });
+    studioText(ctx, 'más cerrada · ' + spreads[lo].label, b.x + b.w, top - S.labelPx, studioF(500, 15), S.soft, 0, 'right');
+  },
+  best(ctx, b, view, S) {
+    const st = studioStack(b, S, S.statMax * (S.style === 'glass' ? 0.9 : 1.1));
+    studioWLabel(ctx, 'MEJOR SERIE', b.x, st.top, S);
+    if (!view.best) { studioFitValue(ctx, '–', b.x - 2, st.base, b.w, st.px, S); return; }
+    const fit = studioFitValue(ctx, String(view.best.sum), b.x - 2, st.base, b.w * 0.5, st.px, S, S.acc);
+    studioText(ctx, 'S' + view.best.index, b.x + fit.w + 10, st.base, studioF(500, Math.max(18, Math.round(fit.px * 0.3))), S.soft);
+    const vals = view.best.values || [];
+    if (b.size !== 'wide' || !vals.length) return;
+    const x0 = b.x + fit.w + 120, w = b.x + b.w - x0;
+    const r = Math.min(30, b.h * 0.3, (w / vals.length - 10) / 2);
+    const step = r * 2 + Math.min(14, r * 0.5);
+    const cy = st.base - fit.px * 0.36;
+    vals.forEach((v, i) => studioChip(ctx, b.x + b.w - r - (vals.length - 1 - i) * step, cy, r, v, S));
+  },
+  precision(ctx, b, view, S) {
+    const st = studioStack(b, S, S.statMax * (S.style === 'glass' ? 0.9 : 1.1), 28);
+    studioWLabel(ctx, 'PRECISIÓN', b.x, st.top, S);
+    const value = view.pct != null ? Math.round(view.pct * 100) + '%' : '–';
+    const fit = studioFitValue(ctx, value, b.x - 2, st.base, b.w, st.px, S);
+    if (b.size === 'wide' && view.scoreMax) studioText(ctx, view.scoreMain + ' de ' + view.scoreMax, b.x + b.w, st.base, studioF(500, Math.max(18, Math.round(fit.px * 0.3))), S.soft, 0, 'right');
+    studioBar(ctx, b.x, st.bottom - 6, b.w, S.style === 'obsidian' ? 4 : 6, view.pct, S);
+  }
+};
+function studioWidgets(ctx, style, view, theme) {
+  const S = studioTokens(style, theme);
+  const layout = Studio.cardRows(style, Studio.cardConfig(style));
+  const area = Studio.CARD_AREAS[style];
+  const rects = [];
+  layout.rows.forEach((row, r) => {
+    const open = row.items.every(it => it.widget.id === 'score' || it.widget.id === 'stats');
+    if (r && (S.panel === 'none' || (S.panel === 'block' && open))) {
+      ctx.fillStyle = S.hair;
+      ctx.fillRect(area.x, row.y - (row.y - layout.rows[r - 1].y - layout.rows[r - 1].h) / 2, area.w, 1.5);
+    }
+    if (row.items.length > 1 && S.panel === 'block' && open) {
+      ctx.fillStyle = S.hair;
+      ctx.fillRect(row.items[1].x - area.colGap / 2, row.y + 6, 1.5, row.h - 12);
+    }
+    row.items.forEach(it => {
+      rects.push({index: it.index, x: it.x, y: it.y, w: it.w, h: it.h});
+      const boxed = S.panel === 'glass' || (S.panel === 'block' && it.widget.id !== 'score' && it.widget.id !== 'stats');
+      if (S.panel === 'glass') studioPanel(ctx, it.x, it.y, it.w, it.h, Math.min(36, it.h / 3.6), S.fill, S.hair);
+      else if (boxed) {
+        studioRound(ctx, it.x, it.y, it.w, it.h, 24);
+        ctx.fillStyle = S.block;
+        ctx.fill();
+      }
+      const chart = it.widget.id === 'dist' || it.widget.id === 'series';
+      const pad = boxed ? (S.panel === 'glass' ? (chart ? 22 : S.pad + 4) : (chart ? 18 : 24)) * Math.min(1, it.h / 150) : 0;
+      const padX = boxed ? S.pad + (S.panel === 'glass' ? 4 : 0) : 0;
+      const b = {x: it.x + padX, y: it.y + pad, w: it.w - padX * 2, h: it.h - pad * 2, size: it.size, widget: it.widget};
+      const paint = studioWidgetPaint[it.widget.id];
+      ctx.save();
+      if (paint) paint(ctx, b, view, S);
+      ctx.restore();
+    });
+  });
+  Studio.card.rects = rects;
+  return layout;
+}
+
 function studioPaintGlass(ctx, view, theme, tilt, photo) {
-  const W = 1080, H = 1350, acc = theme.acc, acc2 = theme.acc2 || studioMix(acc, '#ffffff', 0.45);
-  const txt2 = '#9a9aa2', line = 'rgba(255,255,255,.08)';
-  const num = px => studioF(600, px, studioNum);
+  const W = 1080, H = 1350, acc = theme.acc;
+  const cfg = Studio.cardConfig('glass');
+  const top = Studio.CARD_AREAS.glass.top[cfg.photo] || Studio.CARD_AREAS.glass.top.tall;
+  const shot = cfg.photo === 'none' ? null : photo;
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, W, H);
-  if (photo) {
+  if (shot) {
     ctx.save();
     ctx.filter = 'blur(42px)';
     ctx.globalAlpha = 0.6;
-    ctx.drawImage(studioPhotoCanvas(photo, view.photo, 540, 675, {focus: view.focus, bright: 0.62}), -90, -90, W + 180, H + 180);
+    ctx.drawImage(studioPhotoCanvas(shot, view.photo, 540, 675, {focus: view.focus, bright: 0.62}), -90, -90, W + 180, H + 180);
     ctx.restore();
   }
   [[W * 0.1, H * 0.94, 760, 0.3], [W * 0.96, H * 0.04, 600, 0.14]].forEach(b => {
@@ -1832,7 +2547,7 @@ function studioPaintGlass(ctx, view, theme, tilt, photo) {
   base.addColorStop(1, '#09090b');
   ctx.fillStyle = base;
   ctx.fillRect(cx, cy, cw, ch);
-  if (photo) ctx.drawImage(studioPhotoCanvas(photo, view.photo, cw, 640, {focus: view.focus, bright: 0.72, fade: 0.4}), cx, cy);
+  if (shot) ctx.drawImage(studioPhotoCanvas(shot, view.photo, cw, top - 28, {focus: view.focus, bright: 0.72, fade: 0.4}), cx, cy);
   const warm = ctx.createRadialGradient(cx, cy + ch, 0, cx, cy + ch, 720);
   warm.addColorStop(0, studioRgba(acc, 0.13));
   warm.addColorStop(1, studioRgba(acc, 0));
@@ -1854,46 +2569,11 @@ function studioPaintGlass(ctx, view, theme, tilt, photo) {
   ctx.restore();
   studioText(ctx, 'ARCHERY WATCH', L + 26, cy + 89, studioF(600, 17), 'rgba(255,255,255,.92)', 4.5);
   studioText(ctx, view.date, R, cy + 89, studioF(500, 17), 'rgba(255,255,255,.7)', 3.5, 'right');
-  studioText(ctx, view.kicker, L, cy + 440, studioF(500, 18), studioMix(acc, '#ffffff', 0.25), 4.5);
+  studioText(ctx, view.kicker, L, top - 168, studioF(500, 18), studioMix(acc, '#ffffff', 0.25), 4.5);
   const hpx = studioFitPx(ctx, view.headline, cw - 112, 78, 400, 48, -2.5);
-  studioText(ctx, view.headline, L - 3, cy + 522, studioF(400, hpx), '#ffffff', -2.5);
-  studioText(ctx, view.title, L, cy + 570, studioF(400, 27), 'rgba(255,255,255,.62)');
-  const fill = 'rgba(11,11,13,.8)';
-  const hx = cx + 28, hw = cw - 56, hy = cy + 608, hh = 322;
-  studioPanel(ctx, hx, hy, hw, hh, 40, fill, line);
-  const gx = hx + 190, gy = hy + hh / 2 + 6, GR = 122;
-  studioGauge(ctx, gx, gy, GR, view.pct, acc, acc2, 18);
-  studioText(ctx, view.scoreMain, gx, gy + 30, num(122), acc, 0, 'center');
-  studioText(ctx, view.scoreMax ? 'PUNTOS' : 'FLECHAS', gx, gy + 70, studioF(500, 15), txt2, 3.5, 'center');
-  if (view.scoreMax) studioText(ctx, '/ ' + view.scoreMax, gx, gy + GR + 6, num(36), 'rgba(255,255,255,.5)', 0, 'center');
-  ctx.fillStyle = line;
-  ctx.fillRect(hx + 376, hy + 44, 1.5, hh - 88);
-  const gridX = hx + 420, colW = (hx + hw - 30 - gridX) / 2;
-  view.stats.forEach((cell, i) => {
-    const x = gridX + (i % 2) * colW;
-    const top = hy + (i < 2 ? 44 : 182);
-    studioText(ctx, cell.label.toUpperCase(), x, top + 22, studioF(500, 16), txt2, 3.5);
-    studioValue(ctx, cell.value, x - 2, top + 104, num(86), studioF(500, 25), '#ffffff', txt2);
-  });
-  const sy = hy + hh + 20, sh = 166;
-  studioPanel(ctx, hx, sy, hw, sh, 36, fill, line);
-  const c3 = hw / 3;
-  [1, 2].forEach(i => {
-    ctx.fillStyle = line;
-    ctx.fillRect(hx + c3 * i, sy + 34, 1.5, sh - 68);
-  });
-  const sL = i => hx + c3 * i + 36;
-  studioText(ctx, 'MEJOR SERIE', sL(0), sy + 54, studioF(500, 15), txt2, 3.5);
-  if (view.best) {
-    const bw = studioText(ctx, String(view.best.sum), sL(0) - 2, sy + 134, num(76), acc);
-    studioText(ctx, 'S' + view.best.index, sL(0) + bw + 10, sy + 134, studioF(500, 24), txt2);
-  } else studioText(ctx, '–', sL(0), sy + 134, num(76), '#ffffff');
-  studioText(ctx, 'AGRUPACIÓN', sL(1), sy + 54, studioF(500, 15), txt2, 3.5);
-  studioValue(ctx, view.spreadText, sL(1) - 2, sy + 134, num(76), studioF(500, 24), '#ffffff', txt2);
-  studioText(ctx, 'PRECISIÓN', sL(2), sy + 54, studioF(500, 15), txt2, 3.5);
-  studioValue(ctx, view.pct != null ? Math.round(view.pct * 100) + '%' : '–', sL(2) - 2, sy + 134, num(76), studioF(500, 24), '#ffffff', txt2);
-  const fy = sy + sh;
-  studioDistBar(ctx, L, fy + 34, R - L, 12, view.dist, {acc, acc2, base: '#ffffff', legendY: fy + 84, minCells: 5, key: txt2, count: '#ffffff', countPx: 26, countFamily: studioNum, countWeight: 600});
+  studioText(ctx, view.headline, L - 3, top - 86, studioF(400, hpx), '#ffffff', -2.5);
+  studioText(ctx, view.title, L, top - 38, studioF(400, 27), 'rgba(255,255,255,.62)');
+  studioWidgets(ctx, 'glass', view, theme);
   studioCardSheen(ctx, cx, cy, cw, ch, r, tilt, 0.05, acc);
   ctx.restore();
   const rim = ctx.createLinearGradient(cx, cy, cx + cw, cy + ch);
@@ -1908,13 +2588,16 @@ function studioPaintGlass(ctx, view, theme, tilt, photo) {
 
 function studioPaintEditorial(ctx, view, theme, tilt, photo) {
   const W = 1080, H = 1350, acc = theme.acc;
-  const cream = '#f7f3ec', ink = '#1c1b19', soft = '#7a746b', hair = 'rgba(28,27,25,.09)', block = '#efe9df';
+  const cream = '#f7f3ec', ink = '#1c1b19', soft = '#7a746b', hair = 'rgba(28,27,25,.09)';
+  const cfg = Studio.cardConfig('editorial');
+  const top = Studio.CARD_AREAS.editorial.top[cfg.photo] || Studio.CARD_AREAS.editorial.top.tall;
+  const shot = cfg.photo === 'none' ? null : photo;
   ctx.fillStyle = '#3a3936';
   ctx.fillRect(0, 0, W, H);
-  if (photo) {
+  if (shot) {
     ctx.save();
     ctx.filter = 'blur(34px)';
-    ctx.drawImage(studioPhotoCanvas(photo, view.photo, 540, 675, {focus: view.focus, bright: 0.74}), -60, -60, W + 120, H + 120);
+    ctx.drawImage(studioPhotoCanvas(shot, view.photo, 540, 675, {focus: view.focus, bright: 0.74}), -60, -60, W + 120, H + 120);
     ctx.restore();
   }
   ctx.fillStyle = 'rgba(24,23,21,.24)';
@@ -1931,20 +2614,33 @@ function studioPaintEditorial(ctx, view, theme, tilt, photo) {
   ctx.save();
   studioRound(ctx, cx, cy, cw, ch, r);
   ctx.clip();
-  const ph = 450;
-  if (photo) ctx.drawImage(studioPhotoCanvas(photo, view.photo, cw, ph, {focus: view.focus, bright: 0.74, tint: 'rgba(150,140,120,.4)'}), cx, cy);
-  else {
-    ctx.fillStyle = '#4a4844';
-    ctx.fillRect(cx, cy, cw, ph);
+  const pt = top - 200;
+  const framed = cfg.photo !== 'none';
+  if (framed) {
+    const ph = pt - cy + 40;
+    if (shot) ctx.drawImage(studioPhotoCanvas(shot, view.photo, cw, ph, {focus: view.focus, bright: 0.74, tint: 'rgba(150,140,120,.4)'}), cx, cy);
+    else {
+      ctx.fillStyle = '#4a4844';
+      ctx.fillRect(cx, cy, cw, ph);
+    }
+    const shade = ctx.createLinearGradient(0, cy, 0, cy + 200);
+    shade.addColorStop(0, 'rgba(10,10,10,.42)');
+    shade.addColorStop(1, 'rgba(10,10,10,0)');
+    ctx.fillStyle = shade;
+    ctx.fillRect(cx, cy, cw, 200);
+    const pg = ctx.createLinearGradient(0, pt - 90, 0, pt + 10);
+    pg.addColorStop(0, 'rgba(0,0,0,0)');
+    pg.addColorStop(1, 'rgba(0,0,0,.24)');
+    ctx.fillStyle = pg;
+    ctx.fillRect(cx, pt - 90, cw, 100);
+    studioRound(ctx, cx, pt, cw, ch, 34);
+    ctx.fillStyle = cream;
+    ctx.fill();
   }
-  const shade = ctx.createLinearGradient(0, cy, 0, cy + 200);
-  shade.addColorStop(0, 'rgba(10,10,10,.42)');
-  shade.addColorStop(1, 'rgba(10,10,10,0)');
-  ctx.fillStyle = shade;
-  ctx.fillRect(cx, cy, cw, 200);
   const L = cx + 56, R = cx + cw - 56;
+  const mark = framed ? 'rgba(255,255,255,.92)' : ink;
   ctx.save();
-  ctx.strokeStyle = 'rgba(255,255,255,.92)';
+  ctx.strokeStyle = mark;
   ctx.lineWidth = 2.2;
   [17, 8].forEach(k => {
     ctx.beginPath();
@@ -1956,16 +2652,7 @@ function studioPaintEditorial(ctx, view, theme, tilt, photo) {
   ctx.fillStyle = acc;
   ctx.fill();
   ctx.restore();
-  studioText(ctx, 'ARCHERY WATCH', L + 50, cy + 82, studioF(600, 16), 'rgba(255,255,255,.95)', 5);
-  const pt = cy + ph - 40;
-  const pg = ctx.createLinearGradient(0, pt - 90, 0, pt + 10);
-  pg.addColorStop(0, 'rgba(0,0,0,0)');
-  pg.addColorStop(1, 'rgba(0,0,0,.24)');
-  ctx.fillStyle = pg;
-  ctx.fillRect(cx, pt - 90, cw, 100);
-  studioRound(ctx, cx, pt, cw, ch, 34);
-  ctx.fillStyle = cream;
-  ctx.fill();
+  studioText(ctx, 'ARCHERY WATCH', L + 50, cy + 82, studioF(600, 16), framed ? 'rgba(255,255,255,.95)' : ink, 5);
   const tpx = studioFitPx(ctx, view.headline, 560, 58, 750, 36, -1);
   studioText(ctx, view.headline, L - 2, pt + 94, studioF(750, tpx), ink, -1);
   studioText(ctx, view.title, L, pt + 140, studioF(400, 27), soft);
@@ -1973,57 +2660,7 @@ function studioPaintEditorial(ctx, view, theme, tilt, photo) {
   studioText(ctx, view.monthYear, R, pt + 124, studioF(600, 14), soft, 3.5, 'right');
   ctx.fillStyle = hair;
   ctx.fillRect(L, pt + 180, R - L, 1.5);
-  const row1 = [
-    {icon: 'score', label: 'PUNTOS', value: view.scoreMax ? view.scoreMain + ' / ' + view.scoreMax : view.scoreMain},
-    {icon: 'target', label: 'MEDIA', value: view.stats[2].value},
-    {icon: 'clock', label: 'TIEMPO', value: view.stats[3].value}
-  ];
-  const c3 = (R - L) / 3;
-  row1.forEach((m, i) => {
-    const x = L + i * c3 + (i ? 30 : 0);
-    studioIcon(ctx, m.icon, x + 14, pt + 226, 28, acc, 2.4);
-    studioText(ctx, m.label, x, pt + 274, studioF(600, 14), soft, 3);
-    const bits = String(m.value).split(' / ');
-    const w0 = studioValue(ctx, bits[0], x, pt + 320, studioF(750, 42), studioF(600, 22), ink, soft);
-    if (bits[1]) studioText(ctx, '/ ' + bits[1], x + w0 + 8, pt + 320, studioF(600, 22), soft);
-    if (i) {
-      ctx.fillStyle = hair;
-      ctx.fillRect(L + i * c3, pt + 208, 1.5, 120);
-    }
-  });
-  ctx.fillStyle = hair;
-  ctx.fillRect(L, pt + 352, R - L, 1.5);
-  const row2 = [
-    {icon: 'arrow', label: 'FLECHAS', value: view.stats[0].value},
-    {icon: 'series', label: 'SERIES', value: view.stats[1].value},
-    {icon: 'group', label: 'AGRUPACIÓN', value: view.spreadText}
-  ];
-  row2.forEach((m, i) => {
-    const x = L + i * c3 + (i ? 30 : 0);
-    studioIcon(ctx, m.icon, x + 14, pt + 398, 28, acc, 2.4);
-    studioText(ctx, m.label, x + 48, pt + 388, studioF(600, 14), soft, 3);
-    studioValue(ctx, m.value, x + 48, pt + 426, studioF(750, 34), studioF(600, 20), ink, soft);
-    if (i) {
-      ctx.fillStyle = hair;
-      ctx.fillRect(L + i * c3, pt + 372, 1.5, 70);
-    }
-  });
-  const mx = L, mw = R - L, my = pt + 470, mh = 156;
-  studioRound(ctx, mx, my, mw, mh, 24);
-  ctx.fillStyle = block;
-  ctx.fill();
-  studioText(ctx, 'DISTRIBUCIÓN', mx + 30, my + 44, studioF(600, 13.5), soft, 3);
-  studioDistBar(ctx, mx + 30, my + 66, mw - 60, 16, view.dist, {acc, acc2: studioMix(acc, cream, 0.45), base: ink, gap: 5, legendY: my + 128, minCells: 5, key: soft, count: ink, countPx: 26});
-  const ky = my + mh + 14, kh = 164;
-  studioRound(ctx, mx, ky, mw, kh, 24);
-  ctx.fillStyle = block;
-  ctx.fill();
-  studioText(ctx, (view.series && view.series.title) || 'POR SERIE', mx + 30, ky + 44, studioF(600, 13.5), soft, 3);
-  if (view.best && view.series && view.series.title === 'POR SERIE') {
-    studioText(ctx, String(view.best.sum), mx + 28, ky + 108, studioF(750, 44), ink, -1);
-    studioText(ctx, 'mejor · S' + view.best.index, mx + 30, ky + 138, studioF(500, 17), soft);
-  }
-  studioBars(ctx, mx + 200, ky + 22, mw - 236, kh - 44, view.series, {acc, bar: 'rgba(28,27,25,.13)', value: soft, label: soft, maxBar: 34, valuePx: 16, labelPx: 13});
+  studioWidgets(ctx, 'editorial', view, theme);
   ctx.restore();
 }
 
@@ -2143,58 +2780,39 @@ function studioStone(w, h, acc) {
 
 function studioPaintObsidian(ctx, view, theme, tilt, photo) {
   const W = 1080, H = 1350, acc = theme.acc;
-  const ink = '#f1efea', soft = '#8e8a83', hair = 'rgba(255,255,255,.1)';
+  const ink = '#f1efea';
+  const cfg = Studio.cardConfig('obsidian');
+  const top = Studio.CARD_AREAS.obsidian.top[cfg.photo] || Studio.CARD_AREAS.obsidian.top.tall;
   const stone = studioStone(W, H, acc);
   ctx.drawImage(stone, 0, 0);
-  if (photo) {
-    const shot = studioPhotoCanvas(photo, view.photo, W, 760, {focus: view.focus, bright: 0.66, fade: 0.4});
+  const ph = cfg.photo === 'tall' ? 760 : cfg.photo === 'short' ? 560 : 0;
+  if (photo && ph) {
+    const shot = studioPhotoCanvas(photo, view.photo, W, ph, {focus: view.focus, bright: 0.66, fade: 0.4});
     const lay = document.createElement('canvas');
     lay.width = W;
-    lay.height = 760;
+    lay.height = ph;
     const lx = lay.getContext('2d');
     lx.drawImage(shot, 0, 0);
     lx.globalCompositeOperation = 'soft-light';
     lx.globalAlpha = 0.28;
-    lx.drawImage(stone, 0, 0, W, 760, 0, 0, W, 760);
+    lx.drawImage(stone, 0, 0, W, ph, 0, 0, W, ph);
     lx.globalAlpha = 1;
     lx.globalCompositeOperation = 'destination-in';
     lx.drawImage(shot, 0, 0);
     ctx.drawImage(lay, 0, 0);
   }
-  const top = ctx.createLinearGradient(0, 0, 0, 220);
-  top.addColorStop(0, 'rgba(0,0,0,.45)');
-  top.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = top;
+  const shade = ctx.createLinearGradient(0, 0, 0, 220);
+  shade.addColorStop(0, 'rgba(0,0,0,.45)');
+  shade.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = shade;
   ctx.fillRect(0, 0, W, 220);
   const L = 84, R = W - 84;
   studioText(ctx, 'ARCHERY WATCH', L, 96, studioF(600, 17), 'rgba(255,255,255,.88)', 6);
   studioText(ctx, view.date, R, 96, studioF(500, 17), 'rgba(255,255,255,.7)', 4, 'right');
-  studioText(ctx, view.kicker, L, 610, studioF(600, 17), studioMix(acc, '#ffffff', 0.2), 5);
+  studioText(ctx, view.kicker, L, top - 112, studioF(600, 17), studioMix(acc, '#ffffff', 0.2), 5);
   const tpx = studioFitPx(ctx, view.title, R - L, 56, 300, 34, -0.5);
-  studioText(ctx, view.title, L - 2, 676, studioF(300, tpx), ink, -0.5);
-  ctx.save();
-  ctx.shadowColor = 'rgba(0,0,0,.6)';
-  ctx.shadowBlur = 18;
-  ctx.shadowOffsetY = 4;
-  const sw = studioText(ctx, view.scoreMain, L - 10, 914, studioF(200, 236), ink, -8);
-  ctx.restore();
-  if (view.scoreMax) studioText(ctx, '/ ' + view.scoreMax, L + sw + 6, 914, studioF(300, 50), soft);
-  if (view.scoreNote) studioText(ctx, view.scoreNote, L, 966, studioF(400, 22), soft, 1);
-  studioText(ctx, (view.series && view.series.title) || 'POR SERIE', R - 290, 728, studioF(500, 14), soft, 3.5);
-  studioBars(ctx, R - 290, 750, 290, 216, view.series, {acc, acc2: theme.acc2, glow: true, bar: 'rgba(255,255,255,.16)', track: 'rgba(255,255,255,.04)', value: soft, label: 'rgba(255,255,255,.4)', maxBar: 30, valuePx: 17, labelPx: 13, valueFamily: studioGeist});
-  ctx.fillStyle = hair;
-  ctx.fillRect(L, 1012, R - L, 1.5);
-  const colW = (R - L) / 4;
-  view.stats.forEach((cell, i) => {
-    const x = L + colW * i;
-    studioText(ctx, cell.label.toUpperCase(), x, 1066, studioF(500, 14), soft, 3.5);
-    studioValue(ctx, cell.value, x - 2, 1128, studioF(300, 54), studioF(400, 24), ink, soft);
-  });
-  ctx.fillStyle = hair;
-  ctx.fillRect(L, 1168, R - L, 1.5);
-  studioText(ctx, 'AGRUPACIÓN', L, 1222, studioF(500, 14), soft, 3.5);
-  studioValue(ctx, view.spreadText, L, 1262, studioF(300, 30), studioF(400, 18), ink, soft);
-  studioDistBar(ctx, L + 300, 1204, R - L - 300, 10, view.dist, {acc, acc2: theme.acc2, base: '#ffffff', gap: 4, legendY: 1258, minCells: 5, key: soft, count: ink, countPx: 24, countWeight: 300});
+  studioText(ctx, view.title, L - 2, top - 46, studioF(300, tpx), ink, -0.5);
+  studioWidgets(ctx, 'obsidian', view, theme);
   studioText(ctx, view.serial || '', R, 1306, studioF(500, 12.5), 'rgba(255,255,255,.4)', 4, 'right');
   studioCardSheen(ctx, 0, 0, W, H, 0, tilt, 0.05, acc);
   const rim = ctx.createLinearGradient(0, 0, 0, 3);
