@@ -743,8 +743,8 @@ class ArcheryApp extends Application.AppBase {
             sensorFaults += 1;
             inShot = false;
             mark(null);
+            if (sensorFaults >= 3) { note("SENSOR repetido: " + e.getErrorMessage(), "sensor", true); }  // antes del try anidado: tras el, el compilador da e por no inicializada
             if (rateA > 0) { try { configureRate(rateA); } catch (er instanceof Lang.Exception) {} }
-            if (sensorFaults >= 3) { note("SENSOR repetido: " + e.getErrorMessage(), "sensor", true); }
         }
         WatchUi.requestUpdate();
     }
@@ -927,7 +927,12 @@ class ArcheryApp extends Application.AppBase {
         // Conservar al menos el ultimo segundo aun si no se observa una apertura clara.
         if(start>t-1000){start=t-1000;}
         if(start<t-6000){start=t-6000;}  // tope de ventana: nunca mas de 6 s de traza
-        while(first<rn-1 && rt[(ri-rn+rx.size()+first)%rx.size()]<start){first++;}
+        // Buscar desde la muestra mas reciente hacia atras: cuesta ~points iteraciones, no rn
+        // (barrer los ~400 huecos del anillo desde el mas antiguo disparaba el watchdog en la suelta).
+        var sz=rx.size(),back=0;
+        while(back<rn-1 && rt[(ri-1-back+sz)%sz]>=start){back++;}
+        first=rn-1-back;if(first<0){first=0;}
+        if(rt[(ri-rn+sz+first)%sz]<start && first<rn-1){first++;}
         var points=rn-first;
         snapT = t;snapTimes=new [points];
         snapDraw = motionSince >= 0 ? t - motionSince : (drawStart >= 0 ? t - drawStart : -1.0);  // desde la apertura real, no desde colocar la flecha
