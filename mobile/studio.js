@@ -9,7 +9,7 @@ const Studio = {
   picking: false,
   shareOpen: false,
   shareKind: 'session',
-  card: {layout: 'resumen', tone: 'dark', size: 'story', bg: null, crop: {x: 0.5, y: 0.38, z: 1}, tilt: {x: 0, y: 0}},
+  card: {layout: 'session', tilt: {x: 0, y: 0}},
   THEMES: [
     {id: 'amber', name: 'Ámbar', acc: '#FF8A1F', acc2: '#FFC15E', glow: 'rgba(255,138,31,.28)', ink: '#1b0f05', soft: 'rgba(255,138,31,.12)', line: 'rgba(255,138,31,.45)'},
     {id: 'electric', name: 'Azul', acc: '#2F6BFF', acc2: '#9DB6FF', glow: 'rgba(47,107,255,.35)', ink: '#06101f', soft: 'rgba(47,107,255,.16)', line: 'rgba(47,107,255,.55)'},
@@ -23,11 +23,11 @@ const Studio = {
     {id: 'ice', name: 'Hielo', acc: '#7EB6FF', acc2: '#D5E8FF', glow: 'rgba(126,182,255,.28)', ink: '#071018', soft: 'rgba(126,182,255,.14)', line: 'rgba(126,182,255,.5)'}
   ],
   LAYOUTS: [
-    {id: 'resumen', name: 'Resumen'},
-    {id: 'diana', name: 'Diana'},
-    {id: 'tandas', name: 'Tandas'}
+    {id: 'session', name: 'Sesión'},
+    {id: 'profile', name: 'Perfil'},
+    {id: 'best', name: 'Mejor tanda'}
   ],
-  SIZES: {story: {w: 1080, h: 1920}, post: {w: 1080, h: 1350}},
+  SIZES: {card: {w: 1080, h: 1350}},
   theme() {
     let id = 'amber';
     try {
@@ -101,12 +101,48 @@ const Studio = {
   cardCopy(session, when) {
     const indoor = !!(session && session.mode === 'Indoor');
     return {
-      tagline: 'CADA FLECHA CUENTA',
-      date: this.cardDate(when),
-      title: session && session.tanda ? 'Tanda puntuable' : indoor ? 'Sesión Indoor' : ((session && session.mode) || 'Sesión'),
-      subtitle: indoor ? '18 M · DIANA REDUCIDA' : (session && session.mode === 'Outdoor' ? 'AIRE LIBRE' : 'SESIÓN'),
-      foot: indoor ? 'Indoor 18 m' : ((session && session.mode) || 'ArcheryWatch')
+      brand: 'ARCHERY WATCH',
+      kicker: indoor ? 'SESIÓN INDOOR' : (session && session.mode === 'Outdoor' ? 'SESIÓN OUTDOOR' : 'SESIÓN'),
+      date: this.cardDate(when)
     };
+  },
+  breakdown(shots) {
+    const counts = new Map();
+    (shots || []).forEach(s => {
+      if (!s || s.candidate) return;
+      const v = s.result && s.result.value;
+      if (v == null || v === '') return;
+      if (StudioScore.points(v) == null && v !== 'M') return;
+      counts.set(String(v), (counts.get(String(v)) || 0) + 1);
+    });
+    const order = ['X', '11', '10', '9', '8', '7', '6', 'M'];
+    const parts = [];
+    order.forEach(v => {
+      const n = counts.get(v);
+      if (!n) return;
+      parts.push(v === 'X' || v === 'M' ? n + ' ' + v : n + '×' + v);
+      counts.delete(v);
+    });
+    return parts.join(' · ');
+  },
+  bestSet(shots) {
+    const pool = this.scorePool(shots);
+    const order = [];
+    const map = new Map();
+    pool.forEach(s => {
+      const id = String(s.set_id ?? '');
+      if (!map.has(id)) { map.set(id, []); order.push(id); }
+      map.get(id).push(s);
+    });
+    let best = null;
+    order.forEach((id, i) => {
+      const rows = map.get(id);
+      const scored = rows.filter(s => StudioScore.points(s.result && s.result.value) != null);
+      if (!scored.length) return;
+      const sum = scored.reduce((n, s) => n + StudioScore.points(s.result.value), 0);
+      if (!best || sum > best.sum) best = {id, index: i + 1, sum, rows};
+    });
+    return best;
   },
   isRecord(score, peers) {
     if (score == null) return false;
@@ -365,66 +401,13 @@ function studioMount() {
       studioSyncShare();
     };
   }
-  ['shareSizes', 'shareTones'].forEach(id => {
-    const box = $(id);
-    if (!box) return;
-    box.onclick = e => {
-      const b = e.target.closest('[data-size], [data-tone]');
-      if (!b) return;
-      if (b.dataset.size) Studio.card.size = b.dataset.size;
-      if (b.dataset.tone) Studio.card.tone = b.dataset.tone;
-      studioDrawShare();
-      studioSyncShare();
-    };
-  });
-  const cam = $('shareCam'), gal = $('shareGal');
-  const camFile = $('shareCamFile'), galFile = $('shareGalFile');
-  if (cam && camFile) cam.onclick = () => { camFile.value = ''; camFile.click(); };
-  if (gal && galFile) gal.onclick = () => { galFile.value = ''; galFile.click(); };
-  const loadPhoto = input => {
-    const file = input.files && input.files[0];
-    if (!file) return;
-    if (!file.type || file.type.indexOf('image/') !== 0) return;
-    const img = new Image();
-    img.onload = () => {
-      Studio.card.bg = img;
-      Studio.card.crop = {x: 0.5, y: 0.38, z: 1};
-      const crop = $('shareCrop');
-      if (crop) crop.hidden = false;
-      studioPaintCrop();
-      studioDrawShare();
-      URL.revokeObjectURL(img.src);
-    };
-    img.src = URL.createObjectURL(file);
-  };
-  if (camFile) camFile.onchange = () => loadPhoto(camFile);
-  if (galFile) galFile.onchange = () => loadPhoto(galFile);
-  const zoom = $('cropZoom');
-  if (zoom) zoom.oninput = () => {
-    Studio.card.crop.z = Number(zoom.value) || 1;
-    studioPaintCrop();
+  const thumbs = $('shareThumbs');
+  if (thumbs) thumbs.onclick = e => {
+    const b = e.target.closest('[data-layout]');
+    if (!b) return;
+    Studio.card.layout = b.dataset.layout;
     studioDrawShare();
   };
-  const frame = $('cropFrame');
-  if (frame) {
-    let drag = null;
-    frame.onpointerdown = e => {
-      drag = {x: e.clientX, y: e.clientY, crop: {...Studio.card.crop}};
-      frame.setPointerCapture?.(e.pointerId);
-    };
-    frame.onpointermove = e => {
-      if (!drag || !Studio.card.bg) return;
-      const rect = frame.getBoundingClientRect();
-      const z = Studio.card.crop.z || 1;
-      Studio.card.crop.x = Math.max(0, Math.min(1, drag.crop.x - (e.clientX - drag.x) / rect.width / z));
-      Studio.card.crop.y = Math.max(0, Math.min(1, drag.crop.y - (e.clientY - drag.y) / rect.height / z));
-      studioPaintCrop();
-      studioDrawShare();
-    };
-    frame.onpointerup = () => { drag = null; };
-  }
-  const cropDone = $('cropDone');
-  if (cropDone) cropDone.onclick = () => { const crop = $('shareCrop'); if (crop) crop.hidden = true; };
   const stage = $('holoStage');
   if (stage) {
     stage.onpointerdown = e => { stage.setPointerCapture?.(e.pointerId); studioTiltFrom(stage, e); };
@@ -618,14 +601,8 @@ function studioModes() {
 }
 
 function studioSyncShare() {
-  const box = document.getElementById('shareLayouts');
+  const box = document.getElementById('shareThumbs');
   if (box) box.querySelectorAll('[data-layout]').forEach(b => b.classList.toggle('on', b.dataset.layout === Studio.card.layout));
-  const sizes = document.getElementById('shareSizes');
-  if (sizes) sizes.querySelectorAll('[data-size]').forEach(b => b.classList.toggle('on', b.dataset.size === Studio.card.size));
-  const tones = document.getElementById('shareTones');
-  if (tones) tones.querySelectorAll('[data-tone]').forEach(b => b.classList.toggle('on', b.dataset.tone === Studio.card.tone));
-  const stage = document.getElementById('holoStage');
-  if (stage) stage.dataset.tone = Studio.card.tone;
 }
 
 function studioTilt(rx, ry) {
@@ -634,9 +611,10 @@ function studioTilt(rx, ry) {
   const sheen = document.getElementById('holoSheen');
   if (tilt) {
     tilt.style.transform = 'rotateX(' + rx.toFixed(2) + 'deg) rotateY(' + ry.toFixed(2) + 'deg)';
-    tilt.style.boxShadow = (-ry * 1.4).toFixed(1) + 'px ' + (16 - rx).toFixed(1) + 'px 28px rgba(0,0,0,.38)';
+    tilt.style.boxShadow = (-ry * 1.8).toFixed(1) + 'px ' + (26 - rx).toFixed(1) + 'px 42px rgba(0,0,0,.55)';
   }
-  if (sheen) sheen.style.backgroundPosition = (50 + ry * 2.4).toFixed(1) + '% ' + (50 - rx * 2.4).toFixed(1) + '%';
+  if (sheen) sheen.style.backgroundPosition = (50 + ry * 3.2).toFixed(1) + '% ' + (42 - rx * 3.2).toFixed(1) + '%';
+  if (Studio.shareOpen) studioDrawShare(false);
 }
 
 function studioTiltFrom(stage, e) {
@@ -787,381 +765,334 @@ function studioRound(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-function studioCover(ctx, img, w, h) {
-  const scale = Math.max(w / img.width, h / img.height);
-  const dw = img.width * scale, dh = img.height * scale;
-  ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
+function studioRgb(hex) {
+  const h = String(hex || '#FF8A1F').replace('#', '');
+  const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+  const n = parseInt(full, 16);
+  if (!Number.isFinite(n)) return [255, 138, 31];
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
-function studioDrawCrop(ctx, img, dx, dy, dw, dh, crop) {
-  const z = Math.max(1, (crop && crop.z) || 1);
-  const cx = ((crop && crop.x) ?? 0.5) * img.width;
-  const cy = ((crop && crop.y) ?? 0.38) * img.height;
-  let vw = img.width / z;
-  let vh = vw * (dh / dw);
-  if (vh > img.height) { vh = img.height; vw = vh * (dw / dh); }
-  const sx = Math.max(0, Math.min(img.width - vw, cx - vw / 2));
-  const sy = Math.max(0, Math.min(img.height - vh, cy - vh / 2));
-  ctx.drawImage(img, sx, sy, vw, vh, dx, dy, dw, dh);
+function studioRgba(hex, a) {
+  const [r, g, b] = studioRgb(hex);
+  return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
 }
 
-function studioPaintCrop() {
-  const canvas = document.getElementById('cropCanvas');
-  const img = Studio.card.bg;
-  if (!canvas || !img) return;
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  studioDrawCrop(ctx, img, 0, 0, canvas.width, canvas.height, Studio.card.crop);
+function studioMix(a, b, t) {
+  const A = studioRgb(a), B = studioRgb(b);
+  const c = A.map((v, i) => Math.round(v + (B[i] - v) * t));
+  return 'rgb(' + c.join(',') + ')';
 }
 
-function studioInk(tone) {
-  if (tone === 'light') {
-    return {ink: '#17191e', muted: 'rgba(23,25,30,.62)', tile: 'rgba(255,255,255,.72)', glass: 'rgba(255,255,255,.9)', line: 'rgba(23,25,30,.1)'};
+function studioTrack(ctx, text, x, y, tracking) {
+  let cx = x;
+  for (const ch of text) {
+    ctx.fillText(ch, cx, y);
+    cx += ctx.measureText(ch).width + tracking;
   }
-  return {ink: '#f5f7fb', muted: 'rgba(245,247,251,.72)', tile: 'rgba(8,12,20,.55)', glass: 'rgba(12,16,28,.84)', line: 'rgba(255,255,255,.14)'};
 }
 
-function studioIcon(ctx, kind, x, y, r, color) {
-  ctx.save();
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.arc(x, y, r, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = '#fff';
-  ctx.fillStyle = '#fff';
-  ctx.lineWidth = Math.max(2, r * 0.14);
-  ctx.lineCap = 'round';
-  if (kind === 'score') {
-    ctx.beginPath();
-    ctx.arc(x, y, r * 0.46, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(x, y, r * 0.16, 0, Math.PI * 2);
-    ctx.fill();
-  } else if (kind === 'x') {
-    ctx.font = '700 ' + Math.round(r * 1.15) + 'px ' + studioNum;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('X', x, y + 1);
-  } else if (kind === 'heart') {
-    ctx.beginPath();
-    ctx.moveTo(x, y + r * 0.32);
-    ctx.bezierCurveTo(x - r * 0.7, y - r * 0.15, x - r * 0.2, y - r * 0.55, x, y - r * 0.05);
-    ctx.bezierCurveTo(x + r * 0.2, y - r * 0.55, x + r * 0.7, y - r * 0.15, x, y + r * 0.32);
-    ctx.fill();
+function studioCardView(layout) {
+  const session = typeof displayedSession === 'function' ? displayedSession() : null;
+  const profile = Studio.profile();
+  const sessionShots = typeof studioShotSource === 'function' ? studioShotSource() : [];
+  const history = Studio.historyShots();
+  const when = session && session.id ? session.id : Date.now();
+  const copy = Studio.cardCopy(session, when);
+  let shots = sessionShots;
+  let kicker = copy.kicker;
+  let date = copy.date;
+  let hero = 'target';
+  let score = null;
+  let line2 = '';
+  let line3 = profile.name || '';
+  if (layout === 'profile') {
+    shots = history;
+    kicker = 'PERFIL';
+    date = profile.club || '';
+    const totals = StudioScore.totals(shots);
+    score = totals.score;
+    line2 = profile.name || 'ArcheryWatch';
+    line3 = (totals.arrows || 0) + (totals.arrows === 1 ? ' flecha' : ' flechas');
+  } else if (layout === 'best') {
+    const best = Studio.bestSet(sessionShots.length ? sessionShots : history);
+    shots = best ? best.rows : [];
+    kicker = 'MEJOR TANDA';
+    date = best ? 'TANDA ' + best.index : '';
+    score = best ? best.sum : null;
+    hero = 'number';
+    line2 = Studio.breakdown(shots);
+    line3 = profile.name || '';
   } else {
-    ctx.beginPath();
-    ctx.moveTo(x - r * 0.08, y - r * 0.42);
-    ctx.lineTo(x + r * 0.34, y + r * 0.05);
-    ctx.lineTo(x + r * 0.02, y + r * 0.05);
-    ctx.lineTo(x + r * 0.12, y + r * 0.42);
-    ctx.lineTo(x - r * 0.34, y - r * 0.02);
-    ctx.lineTo(x, y - r * 0.02);
-    ctx.closePath();
-    ctx.fill();
+    const pool = Studio.scorePool(shots);
+    score = StudioScore.totals(pool).score;
+    line2 = Studio.breakdown(pool);
   }
+  return {
+    brand: 'ARCHERY WATCH',
+    kicker, date, hero,
+    title: score == null ? '–' : String(score),
+    line2, line3,
+    impacts: hero === 'number' ? [] : StudioScore.impacts(Studio.scorePool(shots))
+  };
+}
+
+function studioHoloTarget(ctx, cx, cy, R, accent, tilt, impacts) {
+  const lx = ((tilt && tilt.y) || 8) / 16;
+  const ly = ((tilt && tilt.x) || -6) / 16;
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,.55)';
+  ctx.beginPath();
+  ctx.ellipse(cx + 8, cy + R * 1.05, R * 0.82, R * 0.13, 0, 0, Math.PI * 2);
+  ctx.fill();
+  const glow = ctx.createRadialGradient(cx, cy, R * 0.1, cx, cy, R * 1.55);
+  glow.addColorStop(0, studioRgba(accent, 0.5));
+  glow.addColorStop(0.4, studioRgba(accent, 0.14));
+  glow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(cx, cy, R * 1.55, 0, Math.PI * 2);
+  ctx.fill();
+  const rings = [
+    {r: 1, color: '#1a6798'},
+    {r: 0.8, color: '#d83a48'},
+    {r: 0.58, color: '#f2d48a'},
+    {r: 0.34, color: accent},
+    {r: 0.16, color: '#fff6e4'}
+  ];
+  rings.forEach(ring => {
+    const rad = R * ring.r;
+    const g = ctx.createRadialGradient(cx - lx * rad * 0.8, cy - ly * rad * 0.8, rad * 0.08, cx + lx * 6, cy + ly * 6, rad);
+    g.addColorStop(0, '#ffffff');
+    g.addColorStop(0.22, studioMix('#ffffff', ring.color, 0.35));
+    g.addColorStop(0.55, ring.color);
+    g.addColorStop(1, studioMix(ring.color, '#07060a', 0.62));
+    ctx.beginPath();
+    ctx.arc(cx, cy, rad, 0, Math.PI * 2);
+    ctx.fillStyle = g;
+    ctx.fill();
+  });
+  const rim = ctx.createLinearGradient(cx - R, cy - R, cx + R, cy + R);
+  [[0, '#d9c6ff'], [0.22, accent], [0.46, '#9af6ff'], [0.68, '#ffe08a'], [0.86, '#ff8ad8'], [1, accent]].forEach(stop => rim.addColorStop(stop[0], stop[1]));
+  ctx.beginPath();
+  ctx.arc(cx, cy, R * 1.05, 0, Math.PI * 2);
+  ctx.lineWidth = Math.max(8, R * 0.07);
+  ctx.strokeStyle = rim;
+  ctx.stroke();
+  ctx.save();
+  ctx.translate(cx - lx * R * 0.28, cy - ly * R * 0.32);
+  ctx.rotate(-0.7);
+  ctx.scale(1.15, 0.42);
+  const spec = ctx.createRadialGradient(0, 0, 4, 0, 0, R * 0.62);
+  spec.addColorStop(0, 'rgba(255,255,255,.72)');
+  spec.addColorStop(0.45, 'rgba(255,255,255,.16)');
+  spec.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = spec;
+  ctx.beginPath();
+  ctx.arc(0, 0, R * 0.62, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+  (impacts || []).forEach(p => {
+    ctx.beginPath();
+    ctx.arc(cx + p.x * R, cy + p.y * R, Math.max(4, R * 0.032), 0, Math.PI * 2);
+    ctx.fillStyle = '#f6f3ec';
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(10,8,6,.85)';
+    ctx.stroke();
+  });
   ctx.restore();
 }
 
-function studioBackdrop(ctx, w, h, accent) {
-  const img = Studio.card.bg;
-  const tone = Studio.card.tone;
-  if (img && img.width) {
-    ctx.save();
-    ctx.filter = 'blur(34px)';
-    studioDrawCrop(ctx, img, -48, -48, w + 96, h + 96, Studio.card.crop);
-    ctx.filter = 'none';
-    ctx.fillStyle = tone === 'light' ? 'rgba(255,255,255,.28)' : 'rgba(8,10,16,.35)';
-    ctx.fillRect(0, 0, w, h);
+function studioChromeText(ctx, text, x, y, size, accent) {
+  ctx.save();
+  ctx.font = '600 ' + size + 'px ' + studioNum;
+  ctx.textAlign = 'left';
+  const width = Math.ceil(ctx.measureText(text).width + size * 0.8);
+  const height = Math.ceil(size * 1.45);
+  const off = (typeof document !== 'undefined' && document.createElement) ? document.createElement('canvas') : null;
+  if (!off) {
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = accent;
+    ctx.fillText(text, x, y);
     ctx.restore();
-    return;
+    return width;
   }
-  const g = ctx.createLinearGradient(0, 0, w, h);
-  g.addColorStop(0, accent);
-  g.addColorStop(0.42, tone === 'light' ? '#f3efe8' : '#24180f');
-  g.addColorStop(1, tone === 'light' ? '#d5dee8' : '#10151f');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, w, h);
+  off.width = Math.max(2, width);
+  off.height = Math.max(2, height);
+  const g = off.getContext('2d');
+  g.font = ctx.font;
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  const cx = off.width / 2, cy = off.height / 2 + size * 0.02;
+  for (let i = 16; i >= 1; i--) {
+    g.fillStyle = i > 9 ? '#05060a' : studioRgba(accent, 0.28);
+    g.fillText(text, cx + i * 0.28, cy + i * 0.85);
+  }
+  const grad = g.createLinearGradient(0, cy - size * 0.55, off.width, cy + size * 0.45);
+  grad.addColorStop(0, '#ffffff');
+  grad.addColorStop(0.16, accent);
+  grad.addColorStop(0.38, '#b9fff6');
+  grad.addColorStop(0.58, '#ffe7a0');
+  grad.addColorStop(0.78, '#ff86d6');
+  grad.addColorStop(1, accent);
+  g.fillStyle = grad;
+  g.fillText(text, cx, cy - size * 0.04);
+  g.globalCompositeOperation = 'source-atop';
+  const shine = g.createLinearGradient(0, 0, 0, off.height);
+  shine.addColorStop(0, 'rgba(255,255,255,.78)');
+  shine.addColorStop(0.46, 'rgba(255,255,255,0)');
+  shine.addColorStop(1, 'rgba(0,0,0,.28)');
+  g.fillStyle = shine;
+  g.fillRect(0, 0, off.width, off.height);
+  ctx.drawImage(off, x - off.width / 2, y - off.height / 2);
+  ctx.restore();
+  return width;
 }
 
-function studioSheen(ctx, w, h, accent) {
-  const tilt = Studio.card.tilt || {x: 0, y: -8};
+function studioCardSheen(ctx, w, h, tilt) {
+  const ang = (((tilt && tilt.y) || 10) * Math.PI) / 180;
   ctx.save();
+  studioRound(ctx, 0, 0, w, h, 72);
+  ctx.clip();
   ctx.globalCompositeOperation = 'screen';
-  ctx.translate(w / 2, h / 2);
-  ctx.rotate((-18 + tilt.y) * Math.PI / 180);
-  const grad = ctx.createLinearGradient(-w, 0, w, 0);
-  [[0, 'rgba(123,43,255,0)'], [0.32, 'rgba(123,43,255,.20)'], [0.42, 'rgba(0,229,255,.28)'], [0.5, 'rgba(198,255,61,.16)'], [0.58, 'rgba(255,210,80,.22)'], [0.68, accent], [0.78, 'rgba(255,43,214,.22)'], [1, 'rgba(123,43,255,0)']].forEach(s => grad.addColorStop(s[0], s[1]));
-  ctx.fillStyle = grad;
-  ctx.globalAlpha = 0.28;
+  ctx.translate(w / 2 + ((tilt && tilt.y) || 0) * 8, h / 2);
+  ctx.rotate(-0.45 + ang);
+  const g = ctx.createLinearGradient(-w, 0, w, 0);
+  g.addColorStop(0, 'rgba(255,255,255,0)');
+  g.addColorStop(0.4, 'rgba(255,255,255,0)');
+  g.addColorStop(0.48, 'rgba(255,255,255,.2)');
+  g.addColorStop(0.52, 'rgba(190,255,255,.18)');
+  g.addColorStop(0.58, 'rgba(255,255,255,0)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g;
   ctx.fillRect(-w, -h, w * 2, h * 2);
   ctx.restore();
 }
 
-function studioMiniFace(ctx, x, y, R, impacts) {
-  const disk = (r, color) => { ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill(); };
-  disk(R, '#3F5F78');
-  disk(R * 0.8, '#8F4A4C');
-  disk(R * 0.4, '#C2A36A');
-  ctx.strokeStyle = 'rgba(0,0,0,.45)';
-  ctx.lineWidth = 2;
-  [1, 0.8, 0.6, 0.4, 0.2, 0.1].forEach(k => { ctx.beginPath(); ctx.arc(x, y, R * k, 0, Math.PI * 2); ctx.stroke(); });
-  impacts.forEach(p => {
-    ctx.beginPath();
-    ctx.arc(x + p.x * R, y + p.y * R, 7, 0, Math.PI * 2);
-    ctx.fillStyle = '#f7f4ee';
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(12,10,8,.8)';
-    ctx.stroke();
-  });
-}
-
-function studioSetChart(ctx, x, y, w, h, sets, ink, accent) {
-  const rows = (sets || []).filter(s => s.sum != null);
-  ctx.save();
-  studioRound(ctx, x, y, w, h, 28);
-  ctx.fillStyle = ink.tile;
-  ctx.fill();
-  if (rows.length < 2) {
-    ctx.fillStyle = ink.muted;
-    ctx.font = '500 28px ' + studioSans;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('Sin tandas suficientes', x + w / 2, y + h / 2);
-    ctx.restore();
-    return;
-  }
-  const max = Math.max(...rows.map(s => s.sum), 1);
-  const pad = 36;
-  ctx.beginPath();
-  rows.forEach((s, i) => {
-    const px = x + pad + (rows.length === 1 ? w / 2 : i * (w - pad * 2) / (rows.length - 1));
-    const py = y + h - pad - (s.sum / max) * (h - pad * 2);
-    i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
-  });
-  ctx.strokeStyle = accent;
-  ctx.lineWidth = 6;
-  ctx.lineJoin = 'round';
-  ctx.stroke();
-  ctx.restore();
-}
-
-function studioDrawShare() {
-  const canvas = document.getElementById('shareCanvas');
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  const size = Studio.SIZES[Studio.card.size] || Studio.SIZES.story;
-  const w = size.w, h = size.h;
-  canvas.width = w;
-  canvas.height = h;
+function studioPaintCard(ctx, w, h, layout) {
+  const view = studioCardView(layout || Studio.card.layout);
   const theme = Studio.theme();
-  const shots = studioShotSource();
-  const stats = Studio.radar(shots);
-  const profile = Studio.profile();
-  const session = typeof displayedSession === 'function' ? displayedSession() : null;
-  const when = session ? session.id : Date.now();
-  const copy = Studio.cardCopy(session, when);
-  const ink = studioInk(Studio.card.tone);
-  const totals = stats.totals;
-  const format = session && typeof Score !== 'undefined' && Score.formatOf ? Score.formatOf(session) : null;
-  const maxPt = format === 'lancaster' ? 11 : 10;
-  const arrows = totals.arrows || 0;
-  const denom = arrows ? arrows * maxPt : 0;
-  const scoreText = totals.score == null ? '–' : String(totals.score) + (denom ? '/' + denom : '');
-  const peers = (typeof store !== 'undefined' && Studio.shareKind !== 'profile') ? store.list().filter(s => !session || s.id !== session.id) : [];
-  const record = totals.score != null && peers.length ? Studio.isRecord(totals.score, peers) : false;
-  const hrs = Studio.scorePool(shots).map(s => s.hr_bpm).filter(v => Number.isFinite(v) && v > 0).sort((a, b) => a - b);
-  let med = null;
-  if (hrs.length) {
-    const mid = Math.floor(hrs.length / 2);
-    med = hrs.length % 2 ? hrs[mid] : (hrs[mid - 1] + hrs[mid]) / 2;
-  }
-  const xCount = totals.x || 0;
-  const precision = stats.axes.find(a => a.id === 'precision');
-  studioBackdrop(ctx, w, h, theme.acc);
-  const m = 48;
-  studioRound(ctx, m, m, w - m * 2, h - m * 2, 48);
-  ctx.fillStyle = ink.glass;
+  const tilt = Studio.card.tilt || {x: 0, y: 0};
+  const s = w / 1080;
+  ctx.setTransform(s, 0, 0, s, 0, 0);
+  ctx.clearRect(0, 0, 1080, 1350);
+  studioRound(ctx, 0, 0, 1080, 1350, 72);
+  ctx.fillStyle = '#07080c';
   ctx.fill();
   ctx.save();
-  studioRound(ctx, m, m, w - m * 2, h - m * 2, 48);
+  studioRound(ctx, 0, 0, 1080, 1350, 72);
   ctx.clip();
-  const tall = h > 1600;
-  const photoH = tall ? 480 : 260;
-  const photoX = m + 22, photoY = m + 22, photoW = w - (m + 22) * 2;
-  studioRound(ctx, photoX, photoY, photoW, photoH, 36);
-  ctx.save();
-  ctx.clip();
-  if (Studio.card.bg && Studio.card.bg.width) studioDrawCrop(ctx, Studio.card.bg, photoX, photoY, photoW, photoH, Studio.card.crop);
-  else {
-    const pg = ctx.createLinearGradient(photoX, photoY, photoX, photoY + photoH);
-    pg.addColorStop(0, theme.acc);
-    pg.addColorStop(1, Studio.card.tone === 'light' ? '#d7dee6' : '#1b2433');
-    ctx.fillStyle = pg;
-    ctx.fillRect(photoX, photoY, photoW, photoH);
-    studioMiniFace(ctx, photoX + photoW * 0.72, photoY + photoH * 0.46, photoH * 0.28, []);
-  }
-  const veil = ctx.createLinearGradient(0, photoY + photoH * 0.35, 0, photoY + photoH);
-  veil.addColorStop(0, 'rgba(0,0,0,0)');
-  veil.addColorStop(1, Studio.card.tone === 'light' ? 'rgba(20,16,12,.55)' : 'rgba(6,8,14,.72)');
-  ctx.fillStyle = veil;
-  ctx.fillRect(photoX, photoY, photoW, photoH);
-  ctx.fillStyle = '#fff';
+  const wash = ctx.createRadialGradient(540, 520, 40, 540, 560, 780);
+  wash.addColorStop(0, studioRgba(theme.acc, 0.22));
+  wash.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = wash;
+  ctx.fillRect(0, 0, 1080, 1350);
+  ctx.fillStyle = 'rgba(255,255,255,.72)';
   ctx.font = '600 22px ' + studioSans;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
-  ctx.fillText(copy.tagline, photoX + 28, photoY + photoH - 28);
-  ctx.restore();
-  let y = photoY + photoH + 36;
-  ctx.fillStyle = ink.muted;
-  ctx.font = '600 22px ' + studioSans;
-  ctx.textAlign = 'left';
-  ctx.fillText(copy.date, m + 40, y);
-  y += 58;
-  ctx.fillStyle = ink.ink;
-  ctx.font = '700 64px ' + studioSans;
-  ctx.fillText(copy.title, m + 40, y);
-  y += 36;
-  ctx.fillStyle = ink.muted;
-  ctx.font = '600 22px ' + studioSans;
-  ctx.fillText(copy.subtitle, m + 40, y);
-  y += 28;
-  const gap = 16;
-  const gridX = m + 28, gridW = w - gridX - m - 28;
-  const tileW = (gridW - gap) / 2, tileH = tall ? 150 : 112;
-  const tiles = [
-    {k: 'score', label: 'PUNTUACIÓN', value: scoreText, unit: '', color: theme.acc},
-    {k: 'x', label: 'X', value: String(xCount), unit: '', color: '#FF8A1F'},
-    {k: 'heart', label: 'PULSO MEDIO', value: med == null ? '–' : String(Math.round(med)), unit: med == null ? '' : 'lpm', color: '#FF4D5A'},
-    {k: 'arrow', label: 'FLECHAS', value: String(arrows), unit: '', color: '#3DDC97'}
-  ];
-  tiles.forEach((tile, i) => {
-    const tx = gridX + (i % 2) * (tileW + gap);
-    const ty = y + Math.floor(i / 2) * (tileH + gap);
-    studioRound(ctx, tx, ty, tileW, tileH, 28);
-    ctx.fillStyle = ink.tile;
-    ctx.fill();
-    studioIcon(ctx, tile.k, tx + 36, ty + 40, 16, tile.color);
-    ctx.fillStyle = ink.muted;
-    ctx.font = '600 16px ' + studioSans;
-    ctx.textAlign = 'left';
-    ctx.fillText(tile.label, tx + 62, ty + 46);
-    ctx.fillStyle = ink.ink;
-    ctx.font = '600 ' + (tall ? 52 : 40) + 'px ' + studioNum;
-    ctx.fillText(tile.value, tx + 24, ty + (tall ? 108 : 86));
-    if (tile.unit) {
-      const tw = ctx.measureText(tile.value).width;
-      ctx.font = '500 20px ' + studioSans;
-      ctx.fillStyle = ink.muted;
-      ctx.fillText(tile.unit, tx + 32 + tw, ty + 108);
-    }
-  });
-  y += tileH * 2 + gap + 16;
-  const hiH = tall ? 160 : 112;
-  studioRound(ctx, gridX, y, gridW, hiH, 28);
-  ctx.fillStyle = ink.tile;
-  ctx.fill();
-  if (record) {
-    studioIcon(ctx, 'score', gridX + 56, y + hiH / 2, 28, theme.acc);
-    ctx.fillStyle = theme.acc;
-    ctx.font = '700 22px ' + studioSans;
-    ctx.fillText('NUEVO RÉCORD', gridX + 104, y + hiH / 2 - 16);
-    ctx.fillStyle = ink.ink;
-    ctx.font = '600 48px ' + studioNum;
-    ctx.fillText(totals.score + ' PTS', gridX + 104, y + hiH / 2 + 36);
-  } else {
-    const pct = precision && precision.value != null ? precision.value : (totals.scored ? xCount / totals.scored * 100 : 0);
-    const cx = gridX + 70, cy = y + hiH / 2, rad = 42;
-    ctx.beginPath();
-    ctx.arc(cx, cy, rad, 0, Math.PI * 2);
-    ctx.strokeStyle = ink.line;
-    ctx.lineWidth = 8;
-    ctx.stroke();
-    ctx.beginPath();
+  studioTrack(ctx, view.brand, 78, 108, 7);
+  ctx.fillStyle = '#f4f6fb';
+  ctx.font = '600 28px ' + studioSans;
+  studioTrack(ctx, view.kicker, 78, 156, 3);
+  if (view.date) {
+    ctx.fillStyle = 'rgba(244,246,251,.5)';
+    ctx.font = '500 20px ' + studioSans;
+    studioTrack(ctx, view.date, 78, 196, 2);
+  }
+  if (view.hero === 'number') {
+    studioChromeText(ctx, view.title, 540, 640, view.title.length > 3 ? 250 : 320, theme.acc);
     ctx.strokeStyle = theme.acc;
-    ctx.lineWidth = 8;
-    ctx.arc(cx, cy, rad, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0, Math.min(100, pct)) / 100);
+    ctx.lineWidth = 6;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(540 - 70, 860);
+    ctx.lineTo(540 + 70, 860);
     ctx.stroke();
-    ctx.fillStyle = ink.ink;
-    ctx.font = '600 22px ' + studioNum;
+    let y = 940;
     ctx.textAlign = 'center';
-    ctx.fillText(Math.round(pct) + '%', cx, cy + 8);
-    ctx.textAlign = 'left';
-    ctx.fillStyle = ink.muted;
-    ctx.font = '600 16px ' + studioSans;
-    ctx.fillText('PRECISIÓN', gridX + 132, y + hiH / 2 - 18);
-    ctx.fillStyle = ink.ink;
-    ctx.font = '600 42px ' + studioNum;
-    ctx.fillText((precision && precision.text) || '–', gridX + 132, y + hiH / 2 + 28);
-  }
-  y += hiH + 16;
-  const footTop = h - m - 64;
-  const setCap = Studio.card.layout === 'diana' ? 0 : Math.min(stats.sets.length, tall ? 5 : 3);
-  const setRoom = setCap * 36;
-  const blockH = Math.max(140, Math.min(tall ? 280 : 180, footTop - y - setRoom - 12));
-  const impacts = StudioScore.impacts(Studio.scorePool(shots));
-  if (Studio.card.layout === 'tandas') studioSetChart(ctx, gridX, y, gridW, blockH, stats.sets, ink, theme.acc);
-  else if (Studio.card.layout === 'diana' || impacts.length) {
-    studioRound(ctx, gridX, y, gridW, blockH, 28);
-    ctx.fillStyle = ink.tile;
-    ctx.fill();
-    studioMiniFace(ctx, gridX + gridW / 2, y + blockH / 2, Math.min(gridW, blockH) * 0.38, impacts);
-  } else studioSetChart(ctx, gridX, y, gridW, blockH, stats.sets, ink, theme.acc);
-  y += blockH + 18;
-  if (Studio.card.layout !== 'diana' && stats.sets.length) {
-    const best = Math.max(...stats.sets.map(s => s.sum == null ? -1 : s.sum));
-    stats.sets.slice(0, setCap).forEach((set, i) => {
-      if (y > footTop - 8) return;
-      ctx.fillStyle = ink.muted;
-      ctx.font = '500 22px ' + studioSans;
-      ctx.textAlign = 'left';
-      ctx.fillText('Tanda ' + (i + 1), gridX + 8, y);
-      ctx.textAlign = 'right';
-      ctx.fillStyle = ink.ink;
-      ctx.font = '600 28px ' + studioNum;
-      const star = set.sum != null && set.sum === best ? ' ★' : '';
-      ctx.fillText((set.sum == null ? '–' : String(set.sum)) + star, gridX + gridW - 8, y);
-      y += 40;
+    [view.line2, view.line3].filter(Boolean).forEach((line, i) => {
+      ctx.fillStyle = i === 0 ? 'rgba(244,246,251,.82)' : 'rgba(244,246,251,.5)';
+      ctx.font = (i === 0 ? '500 32px ' : '500 26px ') + studioSans;
+      ctx.fillText(line, 540, y);
+      y += 52;
     });
+  } else {
+    studioHoloTarget(ctx, 540, 590, 250, theme.acc, tilt, view.impacts);
+    const size = view.title.length > 3 ? 132 : 168;
+    studioChromeText(ctx, view.title, 540, 980, size, theme.acc);
+    ctx.strokeStyle = theme.acc;
+    ctx.lineWidth = 6;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(540 - 64, 1062);
+    ctx.lineTo(540 + 64, 1062);
+    ctx.stroke();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(244,246,251,.84)';
+    ctx.font = '500 30px ' + studioSans;
+    if (view.line2) ctx.fillText(view.line2, 540, 1124);
+    ctx.fillStyle = 'rgba(244,246,251,.5)';
+    ctx.font = '500 26px ' + studioSans;
+    if (view.line3) ctx.fillText(view.line3, 540, 1172);
   }
-  ctx.textAlign = 'left';
-  ctx.fillStyle = ink.muted;
-  ctx.font = '600 18px ' + studioSans;
-  const foot = copy.foot + (profile.name ? '  ·  ' + profile.name : '');
-  ctx.fillText(foot, m + 40, h - m - 36);
-  ctx.textAlign = 'right';
-  ctx.fillText('ARCHERYWATCH', w - m - 40, h - m - 36);
   ctx.restore();
-  ctx.save();
-  studioRound(ctx, m, m, w - m * 2, h - m * 2, 48);
-  ctx.strokeStyle = theme.acc;
-  ctx.globalAlpha = 0.7;
-  ctx.lineWidth = 3;
-  ctx.stroke();
-  ctx.restore();
-  studioSheen(ctx, w, h, theme.acc);
+  studioCardSheen(ctx, 1080, 1350, tilt);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+}
+
+function studioPaintThumbs() {
+  const host = document.getElementById('shareThumbs');
+  if (!host) return;
+  if (host.childElementCount !== Studio.LAYOUTS.length) {
+    host.innerHTML = Studio.LAYOUTS.map(t => `<button type="button" data-layout="${t.id}" aria-label="${t.name}"><canvas width="180" height="225"></canvas></button>`).join('');
+  }
+  const keep = Studio.card.layout;
+  host.querySelectorAll('[data-layout]').forEach(b => {
+    b.classList.toggle('on', b.dataset.layout === keep);
+    const canvas = b.querySelector('canvas');
+    if (!canvas) return;
+    Studio.card.layout = b.dataset.layout;
+    studioPaintCard(canvas.getContext('2d'), canvas.width, canvas.height, b.dataset.layout);
+  });
+  Studio.card.layout = keep;
+}
+
+function studioDrawShare(withThumbs) {
+  const canvas = document.getElementById('shareCanvas');
+  if (!canvas) return;
+  const size = Studio.SIZES.card;
+  if (canvas.width !== size.w) canvas.width = size.w;
+  if (canvas.height !== size.h) canvas.height = size.h;
+  studioPaintCard(canvas.getContext('2d'), size.w, size.h, Studio.card.layout);
+  if (withThumbs !== false) studioPaintThumbs();
+  studioSyncShare();
 }
 
 async function studioExport() {
   const canvas = document.getElementById('shareCanvas');
   if (!canvas) return;
-  studioDrawShare();
+  const tilt = {...(Studio.card.tilt || {x: 0, y: 0})};
+  Studio.card.tilt = {x: -6, y: 10};
+  studioDrawShare(false);
   const png = canvas.toDataURL('image/png');
-  const jpeg = Studio.card.bg ? canvas.toDataURL('image/jpeg', 0.92) : png;
-  const payload = jpeg.length > 900000 ? canvas.toDataURL('image/jpeg', 0.86) : jpeg;
-  const raw = payload.split(',')[1] || '';
+  Studio.card.tilt = tilt;
+  if (Studio.shareOpen) studioDrawShare(false);
+  const raw = png.split(',')[1] || '';
   if (window.Native && Native.sharePng) { Native.sharePng(raw); return; }
   try {
-    const blob = await (await fetch(payload)).blob();
-    const file = new File([blob], payload.startsWith('data:image/jpeg') ? 'archerywatch.jpg' : 'archerywatch.png', {type: blob.type});
+    const blob = await (await fetch(png)).blob();
+    const file = new File([blob], 'archerywatch.png', {type: 'image/png'});
     if (navigator.share && (!navigator.canShare || navigator.canShare({files: [file]}))) {
       await navigator.share({files: [file], title: 'ArcheryWatch'});
       return;
     }
   } catch (e) {}
   const a = document.createElement('a');
-  a.href = payload;
-  a.download = payload.startsWith('data:image/jpeg') ? 'archerywatch.jpg' : 'archerywatch.png';
+  a.href = png;
+  a.download = 'archerywatch.png';
   a.click();
 }
 

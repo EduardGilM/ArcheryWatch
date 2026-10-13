@@ -320,20 +320,17 @@
   .heatLegend { display:flex; gap:4px; align-items:center; margin-top:8px; font-size:11px; color:var(--txt-3); }
   #shareSheet:not([hidden]) { display:flex; position:fixed; inset:0; z-index:60; background:rgba(0,0,0,.82); align-items:flex-end; justify-content:center; }
   .sharePanel { width:min(100%, 460px); max-height:100%; overflow:auto; background:#0b0b0d; border-top:1px solid var(--line-2); border-radius:20px 20px 0 0; padding:14px 14px 22px; display:grid; gap:10px; }
-  .holoStage { perspective:900px; width:min(100%, 320px); margin:0 auto; touch-action:none; }
-  .holoTilt { position:relative; transform-style:preserve-3d; transition:transform .08s linear, box-shadow .08s linear; border-radius:22px; }
-  .holoSheen { position:absolute; inset:0; border-radius:22px; pointer-events:none; mix-blend-mode:screen;
-    background:linear-gradient(115deg, transparent 18%, rgba(123,43,255,.28) 36%, rgba(0,229,255,.38) 46%, rgba(198,255,61,.22) 54%, rgba(255,210,80,.3) 62%, rgba(255,43,214,.34) 72%, transparent 86%);
-    background-size:220% 220%; background-position:50% 50%; }
-  .holoStage[data-tone="light"] .holoSheen { mix-blend-mode:soft-light; opacity:.9; }
-  #shareCanvas { width:100%; height:auto; border-radius:22px; display:block; background:#111; }
-  .shareOpts { display:flex; flex-wrap:wrap; gap:8px; }
-  .shareOpts button, #shareGyro, #cropDone { flex:1; min-height:44px; border-radius:12px; border:1px solid var(--line-2); background:var(--surface-2); color:var(--txt); font-weight:600; }
-  #shareCrop { display:grid; gap:8px; }
-  #shareCrop[hidden] { display:none; }
-  #cropFrame { position:relative; border-radius:16px; overflow:hidden; touch-action:none; background:#000; }
-  #cropCanvas { width:100%; height:auto; display:block; }
-  #cropZoom { width:100%; }
+  .holoStage { perspective:1100px; width:min(100%, 300px); margin:0 auto; touch-action:none; }
+  .holoTilt { position:relative; transform-style:preserve-3d; transition:transform .08s linear, box-shadow .08s linear; border-radius:18px; }
+  .holoSheen { position:absolute; inset:0; border-radius:18px; pointer-events:none; mix-blend-mode:screen;
+    background:linear-gradient(115deg, transparent 32%, rgba(255,255,255,.55) 46%, rgba(190,255,255,.28) 52%, transparent 66%);
+    background-size:240% 240%; background-position:40% 40%; }
+  #shareCanvas { width:100%; height:auto; border-radius:18px; display:block; background:#07080c; }
+  .cardThumbs { display:flex; gap:10px; justify-content:center; }
+  .cardThumbs button { width:72px; padding:0; border-radius:10px; border:1px solid transparent; background:#07080c; overflow:hidden; }
+  .cardThumbs button.on { border-color:var(--acc); }
+  .cardThumbs canvas { width:100%; height:auto; display:block; }
+  #shareGyro { min-height:44px; border-radius:12px; border:1px solid var(--line-2); background:var(--surface-2); color:var(--txt); font-weight:600; }
 
   /* Diálogo */
   #askModal:not([hidden]) { display:flex; position:fixed; inset:0; background:rgba(6,7,9,.72); z-index:40; align-items:flex-end; justify-content:center; padding:16px; }
@@ -574,32 +571,12 @@
   <div class="sharePanel">
     <div class="holoStage" id="holoStage" data-tone="dark">
       <div class="holoTilt" id="holoTilt">
-        <canvas id="shareCanvas" width="1080" height="1920" aria-label="Tarjeta para compartir"></canvas>
+        <canvas id="shareCanvas" width="1080" height="1350" aria-label="Tarjeta para compartir"></canvas>
         <div class="holoSheen" id="holoSheen"></div>
       </div>
     </div>
-    <div class="lensBar" id="shareLayouts"></div>
-    <div class="lensBar" id="shareSizes">
-      <button type="button" data-size="story">Historia</button>
-      <button type="button" data-size="post">Post</button>
-    </div>
-    <div class="lensBar" id="shareTones">
-      <button type="button" data-tone="dark">Oscura</button>
-      <button type="button" data-tone="light">Clara</button>
-    </div>
-    <div class="shareOpts">
-      <button type="button" id="shareCam">Cámara</button>
-      <button type="button" id="shareGal">Galería</button>
-      <button type="button" id="shareGyro">Inclinar</button>
-    </div>
-    <input id="shareCamFile" type="file" accept="image/*" capture="environment" hidden>
-    <input id="shareGalFile" type="file" accept="image/*" hidden>
-    <div id="shareCrop" hidden>
-      <p class="caption">Arrastra para encuadrar</p>
-      <div id="cropFrame"><canvas id="cropCanvas" width="640" height="800"></canvas></div>
-      <label>Zoom <input id="cropZoom" type="range" min="1" max="2.6" step="0.01" value="1"></label>
-      <button type="button" id="cropDone">Listo</button>
-    </div>
+    <div class="cardThumbs" id="shareThumbs"></div>
+    <button type="button" id="shareGyro">Inclinar</button>
     <button type="button" class="btnPrimary" id="shareExport">Compartir</button>
     <button type="button" class="btnSecondary" id="shareClose">Cerrar</button>
   </div>

@@ -74,14 +74,27 @@ test('radar scores only the six new axes and leaves a thin sample blank', () => 
   assert.equal(Studio.radar(drop).axes.find(a => a.id === 'endure').value, 0);
 });
 
-test('the share card dates a Tuesday in October and treats a higher score as a record', () => {
+test('the share card is a portrait holographic collectible with a short score line', () => {
   assert.equal(Studio.cardDate(new Date(2026, 9, 13, 12).getTime()), 'MAR 13 OCT 2026');
-  assert.equal(Studio.cardCopy({mode: 'Indoor', tanda: true}, new Date(2026, 9, 13, 12).getTime()).title, 'Tanda puntuable');
-  assert.equal(Studio.cardCopy({mode: 'Indoor'}, 0).subtitle, '18 M · DIANA REDUCIDA');
-  assert.equal(Studio.isRecord(297, [{shots: [{result: {value: '10'}}]}]), true);
-  assert.equal(Studio.isRecord(10, [{shots: [{result: {value: 'X'}}, {result: {value: '10'}}]}]), false);
-  assert.deepEqual(Studio.LAYOUTS.map(t => t.id), ['resumen', 'diana', 'tandas']);
-  assert.deepEqual([Studio.SIZES.story.w, Studio.SIZES.story.h, Studio.SIZES.post.h], [1080, 1920, 1350]);
+  const copy = Studio.cardCopy({mode: 'Indoor'}, new Date(2026, 9, 13, 12).getTime());
+  assert.equal(copy.brand, 'ARCHERY WATCH');
+  assert.equal(copy.kicker, 'SESIÓN INDOOR');
+  assert.equal(copy.date, 'MAR 13 OCT 2026');
+  const shots = [
+    ...Array.from({length: 16}, () => ({result: {value: 'X'}})),
+    ...Array.from({length: 11}, () => ({result: {value: '10'}})),
+    ...Array.from({length: 3}, () => ({result: {value: '9'}}))
+  ];
+  assert.equal(Studio.breakdown(shots), '16 X · 11×10 · 3×9');
+  const best = Studio.bestSet([
+    {set_id: 1, result: {value: '9'}},
+    {set_id: 2, result: {value: 'X'}},
+    {set_id: 2, result: {value: '10'}}
+  ]);
+  assert.equal(best.index, 2);
+  assert.equal(best.sum, 20);
+  assert.deepEqual(Studio.LAYOUTS.map(t => t.id), ['session', 'profile', 'best']);
+  assert.deepEqual([Studio.SIZES.card.w, Studio.SIZES.card.h], [1080, 1350]);
 });
 
 test('the training calendar counts a day and skips the future', () => {
