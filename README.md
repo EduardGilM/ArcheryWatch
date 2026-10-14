@@ -1,6 +1,32 @@
 # ArcheryWatch
 
+<p align="center"><img src="docs/images/hero.jpg" alt="ArcheryWatch: tiro, sesión, set y tarjeta para compartir" width="100%"></p>
+
 Detección de tiros de arquería en tiempo real con un Garmin Forerunner 165 y visualización en vivo en Android.
+
+> **Relojes:** Garmin Forerunner 165 (disponible) · **CMF Watch 3 Pro** (próximamente, giroscopio en vivo por Bluetooth).
+
+## Lo que hace
+
+- 🎯 **Traza de apunte** de cada flecha sobre la diana, con fases y reproducción del tiro.
+- 📈 **Estabilidad, radio y tiempo de tiro** por flecha, set y sesión, con pulso y estabilización.
+- 🏹 **Sets automáticos y puntuación** tocando la diana (X a M, formatos Indoor).
+- 🗂️ **Historial y perfil** con progreso, medias y comparación entre sesiones.
+- 🖼️ **Tarjetas para compartir** en tres estilos: Cristal, Editorial y Obsidiana.
+
+## Capturas
+
+| Sesión | Tiro | Set | Historial | Perfil |
+|:-:|:-:|:-:|:-:|:-:|
+| <img src="docs/images/app-sesion.jpg" width="160"> | <img src="docs/images/app-tiro.jpg" width="160"> | <img src="docs/images/app-set.jpg" width="160"> | <img src="docs/images/app-historial.jpg" width="160"> | <img src="docs/images/app-perfil.jpg" width="160"> |
+
+| Cristal | Editorial | Obsidiana |
+|:-:|:-:|:-:|
+| <img src="docs/images/tarjeta-cristal.jpg" width="240"> | <img src="docs/images/tarjeta-editorial.jpg" width="240"> | <img src="docs/images/tarjeta-obsidiana.jpg" width="240"> |
+
+<sub>Capturas reales de la interfaz (`mobile/index.html`) renderizada con datos de ejemplo.</sub>
+
+## Detalles técnicos
 
 - **Reloj (Connect IQ / Monkey C)**: detecta la suelta por acelerómetro (energía/jerk + ventana de apuntado quieta), segmenta el tiro (apertura → apunte → suelta → follow-through), mide brújula (yaw real), pulso e intervalos RR, y envía cada flecha por BLE vía Garmin Connect.
 - **Móvil (APK sin Gradle)**: servicio en primer plano que recibe las flechas en vivo (pantalla apagada incluida) y una interfaz de análisis: traza de apunte en la diana con fases coloreadas, reproducción del tiro, magnitud en escala log, estabilidad/deriva, tiempo de tiro, radio de apunte, sets automáticos, historial y progreso.
