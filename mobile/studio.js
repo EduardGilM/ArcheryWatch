@@ -5,7 +5,6 @@ const studioSans = "'Geist', system-ui, sans-serif";
 const studioNum = "'Barlow Condensed', sans-serif";
 const studioGeist = "'Geist', system-ui, -apple-system, sans-serif";
 const Studio = {
-  lens: 'all',
   picks: new Set(),
   arrows: new Set(),
   dayIds: new Set(),
@@ -184,12 +183,6 @@ const Studio = {
     if (typeof ACOLORS !== 'undefined' && ACOLORS) ACOLORS[0] = theme.acc;
     return theme;
   },
-  pool(shots, lens) {
-    const rows = shots || [];
-    const mode = lens || this.lens || 'all';
-    if (mode !== 'warm' && mode !== 'score') return rows;
-    return rows.filter(s => s && s.phase === mode);
-  },
   dayKey(ms) {
     const d = new Date(ms);
     if (!Number.isFinite(d.getTime())) return '';
@@ -205,22 +198,6 @@ const Studio = {
       if (phase === 'warm' || phase === 'score') s.phase = phase;
       else delete s.phase;
     });
-    return session;
-  },
-  applyPhase(session, phase, setIds) {
-    return this.tag(session, phase, {sets: setIds});
-  },
-  startRound(session, phase) {
-    if (!session) return session;
-    const mark = phase === 'warm' || phase === 'score' ? phase : '';
-    if (mark) session.phase = mark;
-    else delete session.phase;
-    const shots = session.shots || [];
-    const real = shots.filter(s => s && !s.candidate);
-    let setId = session.currentSet;
-    const has = setId != null && real.some(s => String(s.set_id) === String(setId));
-    if (!has) setId = real.length ? real[real.length - 1].set_id : (shots.length ? shots[shots.length - 1].set_id : null);
-    if (setId != null) this.applyPhase(session, mark, [setId]);
     return session;
   },
   scorePool(shots) {
@@ -632,19 +609,6 @@ function studioMount() {
   Studio.applyTheme();
   const profileNav = $('nProfile');
   if (profileNav) profileNav.onclick = () => show('Profile');
-  const lens = $('lensBar');
-  if (lens) lens.onclick = e => {
-    const b = e.target.closest('[data-lens]');
-    if (!b) return;
-    Studio.lens = b.dataset.lens;
-    if (typeof render === 'function') render();
-  };
-  const rounds = $('roundBar');
-  if (rounds) rounds.onclick = e => {
-    const b = e.target.closest('[data-round]');
-    if (!b) return;
-    studioCommit(s => Studio.startRound(s, b.dataset.round));
-  };
   const list = $('setList');
   const root = $('vSession') || list;
   let hold = 0, suppress = false, x0 = 0, y0 = 0;
@@ -957,24 +921,14 @@ function studioPaint() {
 }
 
 function studioSync() {
-  const lens = document.getElementById('lensBar');
-  if (lens) lens.querySelectorAll('[data-lens]').forEach(b => b.classList.toggle('on', b.dataset.lens === Studio.lens));
   const sw = document.getElementById('themeSwatches');
   if (sw) sw.querySelectorAll('[data-theme]').forEach(b => b.classList.toggle('on', b.dataset.theme === Studio.theme().id));
   studioModes();
-  const session = typeof displayedSession === 'function' ? displayedSession() : null;
-  const round = document.getElementById('roundBar');
-  if (round) {
-    round.hidden = !session || Studio.picking;
-    const mark = session && (session.phase === 'warm' || session.phase === 'score') ? session.phase : '';
-    round.querySelectorAll('[data-round]').forEach(b => b.classList.toggle('on', b.dataset.round === mark));
-  }
   const share = document.getElementById('openShare');
   if (share) share.hidden = !(typeof data !== 'undefined' && data && data.shots && data.shots.length);
   document.querySelectorAll('#setList details').forEach(d => {
     const setOn = Studio.picking && Studio.picks.has(d.dataset.sid);
     d.classList.toggle('picked', setOn);
-    d.hidden = Studio.lens !== 'all' && d.dataset.phase !== Studio.lens;
     d.querySelectorAll('.trendRow').forEach(row => {
       const t = Number(row.dataset.t);
       row.classList.toggle('picked', !!(Studio.picking && (setOn || (Number.isFinite(t) && Studio.arrows.has(t)))));
@@ -1405,8 +1359,7 @@ function studioPaintHeat() {
 
 function studioShotSource() {
   if (Studio.shareKind === 'profile') return Studio.historyShots();
-  const rows = (typeof data !== 'undefined' && data && data.shots) || [];
-  return Studio.pool(rows);
+  return (typeof data !== 'undefined' && data && data.shots) || [];
 }
 
 function studioOpenShare(kind) {

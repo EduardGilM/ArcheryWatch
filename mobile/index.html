@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="aw-version" content="4.41">
+<meta name="aw-version" content="4.42">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#000000">
 <link rel="manifest" href="manifest.json">
@@ -280,10 +280,8 @@
   main[data-empty="true"] > .emptyState { display:block; }
 
   input, textarea { user-select:text; }
-  .lensBar, .roundBar { display:flex; gap:6px; }
-  .lensBar button, .roundBar button { flex:1; min-height:36px; border-radius:999px; background:var(--surface); color:var(--txt-2); border:1px solid var(--line); font-size:12px; font-weight:600; }
-  .lensBar button.on, .roundBar button.on, .modeSeg button.on, .pickScope button.on { background:var(--acc-soft); color:var(--acc); border-color:var(--acc-line); }
-  .roundBar[hidden], #openShare[hidden] { display:none !important; }
+  .modeSeg button.on, .pickScope button.on { background:var(--acc-soft); color:var(--acc); border-color:var(--acc-line); }
+  #openShare[hidden] { display:none !important; }
   .modeSeg { display:flex; gap:4px; grid-column:1 / -1; }
   .modeSeg button { flex:1; min-width:0; min-height:40px; padding:8px 4px; border-radius:8px; background:var(--surface-2); color:var(--txt-2); border:1px solid var(--line); font-size:13px; font-weight:600; }
   .setModes { display:grid; gap:8px; padding:10px 12px; background:var(--surface); border:1px solid var(--line); border-radius:16px; }
@@ -524,16 +522,6 @@
     <div class="aimwrap" id="sessionGroupWrap" hidden><canvas id="sessionGroup" aria-label="Agrupación"></canvas></div>
     <details class="info" id="sessionScoreMore"><summary>Detalle</summary><div id="sessionScoreGroups" class="scoreGroups"></div><p id="sessionScoreInsight"></p></details>
   </section>
-  <div class="lensBar" id="lensBar">
-    <button type="button" data-lens="all" class="on">Todas</button>
-    <button type="button" data-lens="score">Puntuable</button>
-    <button type="button" data-lens="warm">Calentamiento</button>
-  </div>
-  <div class="roundBar" id="roundBar" aria-label="Siguiente ronda">
-    <button type="button" data-round="warm">Calentamiento</button>
-    <button type="button" data-round="score">Puntuable</button>
-    <button type="button" data-round="">Libre</button>
-  </div>
   <div id="pickBar" class="pickBar" hidden></div>
   <div id="setList"></div>
   <button type="button" class="btnSecondary" id="openShare">Compartir sesión</button>
@@ -1419,11 +1407,10 @@ function paintScore(id, shots) {
   };
 }
 function renderSession(S) {
-  const pool = (typeof Studio !== 'undefined' && Studio.pool) ? Studio.pool(data.shots) : data.shots;
-  const sc = pool.map(s => s.aim_score).filter(Number.isFinite), a = Math.round(avg(sc));
-  document.getElementById('sTotal').textContent = pool.filter(s=>!s.candidate).length;
-  document.getElementById('sSets').textContent = new Set(pool.filter(s=>!s.candidate).map(s=>s.set_id)).size;
-  const real = pool.filter(s => !s.candidate);
+  const real = data.shots.filter(s => !s.candidate);
+  const sc = data.shots.map(s => s.aim_score).filter(Number.isFinite), a = Math.round(avg(sc));
+  document.getElementById('sTotal').textContent = real.length;
+  document.getElementById('sSets').textContent = new Set(real.map(s=>s.set_id)).size;
   const tAvg = document.getElementById('sAvg');
   setMetric('sAvg', Number.isFinite(a) ? a : '–');
   tAvg.style.color = Number.isFinite(a) && a >= 80 ? 'var(--acc)' : 'var(--txt)';
@@ -2293,14 +2280,6 @@ function drawTrace(s) {
   }
   x.textAlign = 'left';
 }
-function phaseOfGroup(g) {
-  const rows = g.map(j => data.shots[j]).filter(s => s && !s.candidate);
-  const src = rows.length ? rows : g.map(j => data.shots[j]).filter(Boolean);
-  if (!src.length) return '';
-  const mark = s => (s && (s.phase === 'warm' || s.phase === 'score')) ? s.phase : '';
-  const phase = mark(src[0]);
-  return src.every(s => mark(s) === phase) ? phase : 'mixed';
-}
 function drawTrend(S) {
   const c = document.getElementById('trend'), list=document.getElementById('setList');
   const opened=new Set([...list.querySelectorAll('details[open]')].map(d=>d.dataset.set));
@@ -2330,9 +2309,8 @@ function drawTrend(S) {
     const pts=Score.totals(setShots);
     const points=`<span class="setPts${pts.scored?' on':''}"><b>${formatScore(pts, setShots)}</b><small>pts</small></span>`;
     const mini=g.map(j=>{const v=data.shots[j].aim_score;const h=Number.isFinite(v)?Math.max(3,(Math.min(100,v)-40)/60*22):3;return `<i style="height:${h}px;background:${barOf(v)}"></i>`;}).join('');
-    const phase = phaseOfGroup(g);
     const sid = escapeText(String(data.shots[g[0]].set_id));
-    return `<details data-set="${key}" data-sid="${sid}" data-phase="${phase}" ${opened.has(key)?'open':''}><summary class="setline"><b>${setLabel(S,i)}</b><span class="mini">${mini}</span>${points}<span class="setVal" style="color:${numOf(sa)}">${Number.isFinite(sa)?sa:'–'}</span><span class="r"></span></summary>${rows[i]}</details>`;
+    return `<details data-set="${key}" data-sid="${sid}" ${opened.has(key)?'open':''}><summary class="setline"><b>${setLabel(S,i)}</b><span class="mini">${mini}</span>${points}<span class="setVal" style="color:${numOf(sa)}">${Number.isFinite(sa)?sa:'–'}</span><span class="r"></span></summary>${rows[i]}</details>`;
   }).join('');
   c.onclick=list.onclick=e=>{if(typeof Studio!=='undefined'&&Studio.onSetClick&&Studio.onSetClick(e))return;const i=e.target.closest('[data-shot]')?.dataset.shot;if(i!=null){cur=+i;show('Shot');}};
 }

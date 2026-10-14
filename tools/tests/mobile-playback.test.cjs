@@ -470,6 +470,15 @@ test('a tanda keeps set progress and an old session stays free', () => {
   assert.doesNotMatch(p.elements.get('histList').innerHTML, /Tanda/);
 });
 
+test('the session has no category filters and a new arrow arrives without a category', () => {
+  const html = fs.readFileSync(path.join(root, 'mobile/index.html'), 'utf8');
+  assert.ok(!/data-lens=|data-round=/.test(html), 'the session view still shows category filter bars');
+  const p = page();
+  p.run("curSess.phase='score';store.save([curSess]);view='Session';liveEvent({sid:'test',eid:2,kind:'shot',t:2000,set:1,score:80,peak:1200,instab:10})");
+  assert.equal(p.run("store.list()[0].shots.length"), 2);
+  assert.equal(p.run("store.list()[0].shots.find(s=>s.t_ms===2000).phase"), undefined);
+});
+
 test('a stretched aim box is stored as a square bitmap', () => {
   const p = page();
   const aim = p.elements.get('aim');

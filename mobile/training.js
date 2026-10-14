@@ -133,10 +133,6 @@ window.liveEvent = e => {
   const openEnds=new Set((L[i].ends||[]).map(x=>x.id)), beforeDone=!!L[i].roundDone;
   if(e.kind==='start')L.forEach((s,j)=>{if(i!==j)s.live=false;});
   const follow=!data?.shots.length||cur===data.shots.length-1, s=Training.apply(L[i],e);
-  if (e.kind==='shot' && (s.phase==='warm' || s.phase==='score')) {
-    const shot=s.shots.find(x=>x.t_ms===Math.round(e.t));
-    if (shot && shot.phase!=='warm' && shot.phase!=='score') shot.phase=s.phase;
-  }
   L[i]=s;store.save(L);
   if(e.kind==='calibration')notice(e.result);  // se calibra desde el reloj; aqui solo informamos
   if(!historyMode) {

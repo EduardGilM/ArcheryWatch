@@ -3,22 +3,14 @@ const assert = require('node:assert/strict');
 const Studio = require('../../mobile/studio.js');
 const Goals = require('../../mobile/goals.js');
 
-test('uncategorized arrows stay out of the scoring and warm-up lenses', () => {
-  const shots = [{phase: 'score', id: 1}, {phase: 'warm', id: 2}, {id: 3}];
-  assert.deepEqual(Studio.pool(shots, 'score').map(s => s.id), [1]);
-  assert.deepEqual(Studio.pool(shots, 'warm').map(s => s.id), [2]);
-  assert.equal(Studio.pool(shots, 'all').length, 3);
-  assert.equal(Studio.pool(shots).length, 3);
-});
-
 test('assigning a phase does not touch the other sets', () => {
   const session = {shots: [{set_id: 1, phase: 'warm'}, {set_id: 2, result: {value: 'X'}}, {set_id: 1}]};
-  Studio.applyPhase(session, 'score', [1]);
+  Studio.tag(session, 'score', {sets: [1]});
   assert.equal(session.shots[0].phase, 'score');
   assert.equal(session.shots[2].phase, 'score');
   assert.equal(session.shots[1].phase, undefined);
   assert.equal(session.shots[1].result.value, 'X');
-  Studio.applyPhase(session, '', [1]);
+  Studio.tag(session, '', {sets: [1]});
   assert.equal(session.shots[0].phase, undefined);
   assert.equal(session.shots[1].phase, undefined);
 });
@@ -46,25 +38,6 @@ test('dayKey uses the local calendar day', () => {
   assert.equal(Studio.dayKey(ms), d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate());
   assert.equal(Studio.dayKey(NaN), '');
   assert.equal(Studio.dayKey('nope'), '');
-});
-
-test('starting a round tags the current set and the next arrows', () => {
-  const session = {currentSet: 2, shots: [{set_id: 1}, {set_id: 2}, {set_id: 2, candidate: true}]};
-  Studio.startRound(session, 'score');
-  assert.equal(session.phase, 'score');
-  assert.equal(session.shots[0].phase, undefined);
-  assert.equal(session.shots[1].phase, 'score');
-  assert.equal(session.shots[2].phase, 'score');
-  const fresh = {currentSet: 9, shots: [{set_id: 1}, {set_id: 4}]};
-  Studio.startRound(fresh, 'warm');
-  assert.equal(fresh.phase, 'warm');
-  assert.equal(fresh.shots[0].phase, undefined);
-  assert.equal(fresh.shots[1].phase, 'warm');
-  const libre = {phase: 'score', currentSet: 1, shots: [{set_id: 1, phase: 'score'}, {set_id: 2, phase: 'warm'}]};
-  Studio.startRound(libre, '');
-  assert.equal(libre.phase, undefined);
-  assert.equal(libre.shots[0].phase, undefined);
-  assert.equal(libre.shots[1].phase, 'warm');
 });
 
 test('radar scores only the six new axes and leaves a thin sample blank', () => {
