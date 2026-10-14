@@ -25,7 +25,7 @@
   $('sessionHero').insertAdjacentHTML('beforebegin','<div class="statFilter" data-scope="session"></div>');
   $('histList').insertAdjacentHTML('beforebegin','<div class="statFilter" data-scope="all"></div>');
   $('profileNums').closest('.card').querySelector('.cardTitle').insertAdjacentHTML('beforeend','<select class="pfChip" id="pfChip"></select>');
-  css.textContent+=`.cardTitle{align-items:center}.cardTitle small#profileSpan{font-size:11px;font-weight:400;color:var(--txt-3);white-space:nowrap}
+  css.textContent+=`.cardTitle{align-items:center}
 .pfChip{margin-left:auto;appearance:none;-webkit-appearance:none;height:28px;padding:0 28px 0 12px;border-radius:999px;border:1px solid var(--line-2);color:var(--txt);font:inherit;font-size:12px;font-weight:500;background:transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f59e0b' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='M7 10l5 5 5-5'/%3E%3C/svg%3E") no-repeat right 9px center/14px}`;
   function sessRef(){ return curSess && !historyMode ? curSess : null; }
   function tandaStats(s,n){ const sh=s.shots.filter(x=>!x.candidate&&x.tanda===n), p=Score.totals(sh);
