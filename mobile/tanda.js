@@ -24,7 +24,9 @@
   $('trainingStatus').insertAdjacentHTML('afterend','<div class="tandaBar" id="tandaBar"><button class="tandaBtn" id="tandaBtn"></button><span class="tandaInfo" id="tandaInfo"></span></div>');
   $('sessionHero').insertAdjacentHTML('beforebegin','<div class="statFilter" data-scope="session"></div>');
   $('histList').insertAdjacentHTML('beforebegin','<div class="statFilter" data-scope="all"></div>');
-  $('profileNums').closest('.card')?.insertAdjacentHTML('beforebegin','<div class="statFilter" data-scope="all"></div>');
+  $('profileNums').closest('.card').querySelector('.cardTitle').insertAdjacentHTML('beforeend','<select class="pfChip" id="pfChip"></select>');
+  css.textContent+=`.cardTitle{align-items:center}.cardTitle small#profileSpan{font-size:11px;font-weight:400;color:var(--txt-3);white-space:nowrap}
+.pfChip{margin-left:auto;appearance:none;-webkit-appearance:none;height:28px;padding:0 28px 0 12px;border-radius:999px;border:1px solid var(--line-2);color:var(--txt);font:inherit;font-size:12px;font-weight:500;background:transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f59e0b' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='M7 10l5 5 5-5'/%3E%3C/svg%3E") no-repeat right 9px center/14px}`;
   function sessRef(){ return curSess && !historyMode ? curSess : null; }
   function tandaStats(s,n){ const sh=s.shots.filter(x=>!x.candidate&&x.tanda===n), p=Score.totals(sh);
     return `${sh.length} flecha${sh.length===1?'':'s'}${p.scored?' · '+p.score+' pts':''}`; }
@@ -45,6 +47,9 @@
       el.innerHTML=opts.map(([v,l])=>`<button data-v="${v}" class="${v===statFilter?'on':''}">${l}</button>`).join('');
       el.querySelectorAll('button').forEach(b=>b.onclick=()=>{ statFilter=b.dataset.v; localStorage.setItem('awStatFilter',statFilter); render(); });
     });
+    const pc=$('pfChip'); if(pc){ const o=[['all','Todas'],['score','Solo puntuables'],...tandaNums('all').map(n=>['t'+n,'Tanda '+n])];
+      pc.setAttribute('aria-label','Filtrar estadísticas'); pc.innerHTML=o.map(([v,l])=>`<option value="${v}"${v===statFilter?' selected':''}>${l}</option>`).join('');
+      pc.onchange=()=>{ statFilter=pc.value; localStorage.setItem('awStatFilter',statFilter); render(); }; }
     const s=sessRef(), bar=$('tandaBar'); bar.hidden=!s;
     if(s){ const a=s.activeTanda; $('tandaBtn').className='tandaBtn'+(a?' on':'');
       $('tandaBtn').innerHTML=a?`<i></i>Terminar tanda ${a}`:`<i></i>Empezar tanda ${(s.tandas?.length||0)+1}`;

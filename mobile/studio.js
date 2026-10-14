@@ -1311,7 +1311,7 @@ function studioPaintProfile() {
   const nums = document.getElementById('profileNums');
   if (nums) nums.innerHTML =
     `<div><span class="lbl">Flechas</span><b class="num">${shots.length || '–'}</b></div>` +
-    `<div><span class="lbl">Sesiones</span><b class="num">${sessions.length || '–'}</b></div>` +
+    `<div><span class="lbl">Sesiones</span><b class="num">${sessions.filter(x => statShots(x.shots || []).length).length || '–'}</b></div>` +
     `<div><span class="lbl">Media</span><b class="num">${totals.avg == null ? '–' : esNum(totals.avg, 1)}</b></div>` +
     `<div><span class="lbl">${markLabel}</span><b class="num">${totals.scored ? markN : '–'}</b></div>`;
   const span = document.getElementById('profileSpan');
