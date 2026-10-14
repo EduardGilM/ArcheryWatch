@@ -50,7 +50,7 @@ const Studio = {
     {id: 'best', name: 'Mejor serie', size: 'small'},
     {id: 'precision', name: 'Precisión', size: 'small'},
     {id: 'streak', name: 'Mejor racha', size: 'small'},
-    {id: 'train', name: 'Racha de entrenamiento', size: 'small', variants: [{id: 'week', name: 'Semana'}, {id: 'month', name: 'Mes'}]}
+    {id: 'train', name: 'Días entrenados', size: 'small'}
   ],
   WIDGET_SIZES: [{id: 'small', name: 'Pequeño'}, {id: 'wide', name: 'Ancho'}],
   FX: [{id: 'foot', name: 'Pie de edición', on: true}, {id: 'grain', name: 'Grano', on: false}, {id: 'foil', name: 'Canto holográfico', on: false}, {id: 'mark', name: 'Diana', on: false}, {id: 'duo', name: 'Duotono', on: false}],
@@ -1674,7 +1674,9 @@ function studioCardPack(headline, subtitle, when, shots, series, duration, bars,
     photo: photo || '',
     focus: Studio.card.photo ? 0.5 : ((studioPreset() || {}).focus ?? 0.5),
     streak: Studio.arrowStreak(shots),
-    train: Studio.trainingStreak(typeof studioSessions === 'function' ? studioSessions() : [], when)
+    train: Studio.trainingStreak(typeof studioSessions === 'function' ? studioSessions() : [], when),
+    heatSessions: typeof studioSessions === 'function' ? studioSessions() : [],
+    when
   };
 }
 
@@ -2655,46 +2657,36 @@ const studioWidgetPaint = {
     studioTicks(ctx, b.x, stripY, b.w, stripH, run, S);
   },
   train(ctx, b, view, S) {
-    const t = view.train || {current: 0, best: 0, week: [], two: [], weeks: [], trained: 0};
-    const wide = b.size === 'wide', month = b.widget.variant === 'month';
-    const cap = S.style === 'editorial' ? 76 : S.style === 'obsidian' ? 84 : 96;
-    const top = studioWLabel(ctx, wide ? 'RACHA DE ENTRENAMIENTO' : 'ENTRENAMIENTO', b.x, b.y, S);
-    const color = t.current ? S.acc : S.soft;
-    const cells = wide ? t.two : t.week;
-    const n = cells.length || 7, gap = 7;
-    const days = (x0, y, w, side) => {
-      const step = n > 1 ? (w - side) / (n - 1) : 0;
-      cells.forEach((c, i) => {
-        if (wide && i && !c.dow) {
-          ctx.fillStyle = S.hair;
-          ctx.fillRect(x0 + side / 2 + step * (i - 0.5) - 1, y + side * 0.15, 2, side * 0.7);
-        }
-        studioDayPill(ctx, x0 + side / 2 + step * i, y + side / 2, side / 2, c, STUDIO_DAYS[c.dow], S);
-      });
-    };
-    if (!month && !wide) {
-      const side = Math.min((b.w - (n - 1) * gap) / n, b.h * 0.42, 48);
-      const rowY = b.y + b.h - side;
-      const px = Math.round(Math.min(cap, (rowY - top - 24) / 0.76));
-      studioFitValue(ctx, String(t.current), b.x - 2, Math.min(rowY - 18, (top + rowY) / 2 + px * 0.37), b.w * 0.5, px, S, color);
-      days(b.x, rowY, b.w, side);
-      return;
+    // Calendario de días entrenados (estilo GitHub), como en Perfil > Global.
+    const wide = b.size === 'wide';
+    const top = studioWLabel(ctx, 'DÍAS ENTRENADOS', b.x, b.y, S);
+    const area = b.y + b.h - top - 12;
+    let s = Math.min(wide ? 22 : 18, (area - 6 * 3) / 7);
+    let g = Math.max(2.5, s * 0.24);
+    s = (area - 6 * g) / 7; if (s > (wide ? 22 : 18)) { s = wide ? 22 : 18; }
+    const probe = Studio.heatmap(view.heatSessions || [], view.when || new Date(), 53);
+    const trained = probe.cells.filter(c => c.n > 0);
+    let x0 = b.x, w = b.w;
+    if (wide) {
+      const px = Math.round(Math.min(S.style === 'editorial' ? 76 : 92, (area - 4) / 0.76));
+      const fit = studioFitValue(ctx, String(trained.length), b.x - 2, b.y + b.h - (area - px * 0.72) / 2, b.w * 0.26, px, S, trained.length ? S.acc : S.soft);
+      x0 = b.x + fit.w + 28; w = b.x + b.w - x0;
     }
-    const area = b.y + b.h - top - 14;
-    const px = Math.round(Math.min(cap, (area - 4) / 0.76));
-    const fit = studioFitValue(ctx, String(t.current), b.x - 2, b.y + b.h - (area - px * 0.72) / 2, b.w * 0.3, px, S, color);
-    const x0 = b.x + fit.w + 32, w = b.x + b.w - x0;
-    if (!month) {
-      const side = Math.min((w - (n - 1) * gap) / n, area, 56);
-      days(x0, b.y + b.h - (area + side) / 2, w, side);
-      return;
+    const weeks = Math.max(4, Math.min(53, Math.floor((w + g) / (s + g))));
+    const m = Studio.heatmap(view.heatSessions || [], view.when || new Date(), weeks);
+    const gw = weeks * s + (weeks - 1) * g, gh = 7 * s + 6 * g;
+    const gx = x0 + w - gw, gy = b.y + b.h - (area + gh) / 2;
+    const alpha = [0, 0.32, 0.55, 0.8, 1];
+    m.cells.forEach(c => {
+      if (c.future) return;
+      studioRound(ctx, gx + c.w * (s + g), gy + c.r * (s + g), s, s, Math.max(1.5, s * 0.24));
+      ctx.fillStyle = c.level ? studioRgba(S.acc, alpha[c.level]) : studioRgba(S.base, 0.09);
+      ctx.fill();
+    });
+    if (!wide) {
+      const label = trained.length + (trained.length === 1 ? ' día' : ' días');
+      studioText(ctx, label, b.x + b.w, top - S.labelPx + S.labelPx, studioF(S.labelW, S.labelPx), S.soft, S.labelTrack, 'right');
     }
-    const s = Math.min(wide ? 40 : 36, area / 4.66, w / 8.32);
-    const g = Math.max(5, s * 0.22);
-    const cw = wide ? Math.min(s * 1.8, (w - 6 * g) / 7) : s;
-    const gh = 4 * s + 3 * g;
-    const gx = b.x + b.w - (7 * cw + 6 * g), gy = b.y + b.h - (area + gh) / 2;
-    t.weeks.forEach((week, r) => week.forEach((c, i) => studioDayCell(ctx, gx + i * (cw + g), gy + r * (s + g), cw, s, c, S)));
   }
 };
 const STUDIO_DAYS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
