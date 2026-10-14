@@ -204,7 +204,7 @@ public class LiveService extends Service {
         values.put("source", cmfOn ? "cmf" : "garmin");
         values.put("cmf", cmfOn);
         values.put("cmfAddress", cmf != null && cmf.address() != null ? cmf.address() : "");
-        values.put("version",120);
+        values.put("version",122);
         if(instance!=null){values.put("receivedAt",instance.diagnostics.getLong("receivedAt",0));values.put("kind",instance.diagnostics.getString("kind",""));}
         return MainActivity.toJson(values);
     }

@@ -214,7 +214,7 @@
   .goalEdit[open] summary { color:var(--txt-2); }
   .goalEdit #goalForm { margin-top:0; }
   #goalHint { font-size:12px; color:var(--txt-3); margin-top:10px; text-align:center; }
-  .streakBox { display:grid; grid-template-columns:auto minmax(0,1fr); gap:16px; align-items:center; padding:2px 0 12px; border-bottom:1px solid var(--line); }
+  .streakBox { display:grid; grid-template-columns:auto minmax(0,1fr); gap:16px; align-items:center; padding:6px 0 14px; }
   .streakBox b { display:block; font:600 56px/.8 var(--num); color:var(--acc); }
   .streakBox span { display:block; margin-top:6px; font-size:13px; font-weight:500; }
   .weekPills { display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:5px; }
@@ -362,8 +362,7 @@
   .bannerPick button.on i { box-shadow:0 0 0 2px var(--surface), 0 0 0 3.5px var(--acc); }
   #radarCard .cardTitle small .dash { color:var(--txt-2); letter-spacing:.1em; }
   #vProgress { display:flex; flex-direction:column; gap:10px; }
-  #profileSpark, #progressRadar { width:100%; display:block; }
-  #profileSpark { height:84px; }
+  #progressRadar { width:100%; display:block; }
   #progressRadar { height:280px; }
   .swatches { display:grid; grid-template-columns:repeat(5, minmax(0,1fr)); gap:14px 12px; }
   .swatches button { min-width:0; display:flex; flex-direction:column; align-items:stretch; gap:7px; padding:0; border:0; background:none; color:var(--txt-3); font-size:11px; font-weight:500; }
@@ -693,13 +692,12 @@
   <section class="card">
     <div class="cardTitle">Global<small id="profileSpan"></small></div>
     <div class="mrow quad" id="profileNums"></div>
-    <canvas id="profileSpark" aria-label="Evolución"></canvas>
+    <div class="streakBox" id="streakBox" hidden></div>
     <button type="button" class="btnSecondary" id="shareProfile">Compartir perfil</button>
   </section>
   <div id="vProgress">
   <section class="card" id="goalCard">
     <div class="cardTitle">Esta semana</div>
-    <div class="streakBox" id="streakBox" hidden></div>
     <div id="goalBars"></div>
     <p id="goalStreak" class="scoreNote"></p>
     <details class="goalEdit"><summary>Editar objetivos</summary>

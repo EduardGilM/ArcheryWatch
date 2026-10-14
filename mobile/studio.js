@@ -1316,23 +1316,6 @@ function studioPaintProfile() {
     `<div><span class="lbl">${markLabel}</span><b class="num">${totals.scored ? markN : '–'}</b></div>`;
   const span = document.getElementById('profileSpan');
   if (span) span.textContent = aim == null ? '' : 'estabilidad ' + aim;
-  const spark = studioFit(document.getElementById('profileSpark'), 84);
-  const vals = sessions.map(row => {
-    const a = row.shots.map(x => x.aim_score).filter(Number.isFinite);
-    return a.length ? a.reduce((m, n) => m + n, 0) / a.length : null;
-  }).filter(v => v != null).slice(-12);
-  if (spark && vals.length >= 2) {
-    const min = Math.min(...vals), max = Math.max(...vals), scale = Math.max(8, max - min);
-    spark.x.beginPath();
-    vals.forEach((v, i) => {
-      const px = 8 + i * ((spark.w - 16) / (vals.length - 1));
-      const py = spark.h - 12 - ((v - min) / scale) * (spark.h - 24);
-      i ? spark.x.lineTo(px, py) : spark.x.moveTo(px, py);
-    });
-    spark.x.strokeStyle = Studio.theme().acc;
-    spark.x.lineWidth = 2;
-    spark.x.stroke();
-  }
   const box = document.getElementById('streakBox');
   if (box && typeof store !== 'undefined') {
     const t = Studio.trainingStreak(sessions, new Date());
