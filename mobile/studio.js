@@ -395,15 +395,25 @@ const Studio = {
       ]
     };
   },
-  // Longest run of consecutive training days, plus the run still open today. Same day-serial streak as the weekly goals.
-  trainingStreak(sessions, now) {
-    const when = now instanceof Date ? now : new Date(now || Date.now());
-    const {days} = StudioGoals.buckets(sessions);
-    const today = StudioGoals.daySerial(when);
-    const run = StudioGoals.streak(days, today, 1);
-    const recent = [];
-    if (today != null) for (let i = 13; i >= 0; i--) recent.push(days.has(today - i) ? 1 : 0);
-    return {current: run.current, best: run.best, recent};
+  // Racha de la tarjeta: flechas seguidas en el anillo alto, el grupo x10 de Score (X, 10 y 11).
+  // Un 9 o menos, o una M, la corta. Las candidatas no entran. La más larga es el primer tramo que llega al máximo; la actual es el tramo que sigue abierto al final.
+  arrowStreak(shots) {
+    const run = [];
+    let best = 0, current = 0, bestValues = [];
+    (shots || []).forEach(s => {
+      if (!s || s.candidate) return;
+      const v = s.result && s.result.value;
+      if (v == null || v === '' || (StudioScore.points(v) == null && v !== 'M')) return;
+      if (StudioScore.groupOf(v) === 'x10') {
+        current++;
+        run.push(String(v));
+        if (current > best) { best = current; bestValues = run.slice(); }
+      } else {
+        current = 0;
+        run.length = 0;
+      }
+    });
+    return {best, current, values: bestValues.slice(0, 16)};
   },
   heatmap(sessions, now, weeks) {
     const nWeeks = weeks || 18;
@@ -1636,7 +1646,7 @@ function studioCardPack(headline, subtitle, when, shots, series, duration, bars,
     ],
     photo: photo || '',
     focus: Studio.card.photo ? 0.5 : ((studioPreset() || {}).focus ?? 0.5),
-    streak: Studio.trainingStreak(typeof studioSessions === 'function' ? studioSessions() : [])
+    streak: Studio.arrowStreak(shots)
   };
 }
 
@@ -2255,31 +2265,6 @@ function studioChip(ctx, cx, cy, r, v, S) {
   studioText(ctx, v, cx, cy + r * 0.36, studioF(650, Math.round(r * 0.95)), hot ? S.chipInk : ten ? S.ink : S.soft, 0, 'center');
 }
 
-function studioStreakPips(ctx, x, y, w, recent, current, S) {
-  const n = recent.length;
-  const gap = Math.max(4, Math.min(8, w / (n * 4)));
-  const d = Math.min(11, (w - gap * (n - 1)) / n);
-  let i = n - 1;
-  if (!recent[i]) i--;
-  const hot = new Array(n).fill(false);
-  for (let k = 0; k < current && i >= 0; k++, i--) hot[i] = !!recent[i];
-  recent.forEach((on, k) => {
-    const cx = x + k * (d + gap) + d / 2;
-    ctx.beginPath();
-    ctx.arc(cx, y, d / 2, 0, Math.PI * 2);
-    if (hot[k]) {
-      ctx.fillStyle = S.acc;
-      ctx.fill();
-    } else if (on) {
-      ctx.fillStyle = studioRgba(S.acc, 0.4);
-      ctx.fill();
-    } else {
-      ctx.fillStyle = studioRgba(S.base, 0.14);
-      ctx.fill();
-    }
-  });
-}
-
 const studioWidgetPaint = {
   score(ctx, b, view, S) {
     const unit = view.scoreMax ? 'PUNTOS' : 'FLECHAS';
@@ -2508,33 +2493,48 @@ const studioWidgetPaint = {
     studioBar(ctx, b.x, st.bottom - 6, b.w, S.style === 'obsidian' ? 4 : 6, view.pct, S);
   },
   streak(ctx, b, view, S) {
-    const streak = view.streak || {current: 0, best: 0, recent: []};
+    const streak = view.streak || {current: 0, best: 0, values: []};
     const best = streak.best || 0;
     const current = streak.current || 0;
+    const values = streak.values || [];
     const wide = b.size === 'wide';
-    const recent = streak.recent || [];
-    const foot = wide && recent.length ? 26 : 22;
-    const cap = S.style === 'editorial' ? (wide ? 52 : 48) : S.style === 'obsidian' ? (wide ? 78 : 64) : (wide ? 78 : 86);
-    const st = studioStack(b, S, cap, b.h >= 100 ? foot : 0);
-    studioWLabel(ctx, 'RACHA MÁS LARGA', b.x, wide ? b.y : st.top, S);
-    const base = wide ? Math.min(st.base, b.y + b.h - foot - 2) : st.base;
-    const room = wide ? b.w * 0.46 : b.w * 0.7;
-    const fit = studioFitValue(ctx, String(best), b.x - 2, base, room, st.px, S, best ? S.acc : S.soft);
-    studioText(ctx, best === 1 ? 'día' : 'días', b.x + fit.w + 8, base, studioF(500, Math.max(15, Math.round(fit.px * 0.3))), S.soft);
-    if (b.h < 100) return;
-    if (wide) {
-      studioText(ctx, 'AHORA', b.x + b.w, b.y + S.labelPx, studioF(S.labelW, S.labelPx * 0.9), S.soft, S.labelTrack, 'right');
-      const nowPx = Math.max(22, Math.round(fit.px * 0.46));
-      const unit = current === 1 ? 'día' : 'días';
-      const uFont = studioF(500, Math.max(14, Math.round(nowPx * 0.55)));
-      const uw = studioTextWidth(ctx, unit, uFont, 0);
-      studioFitValue(ctx, String(current), b.x + b.w - uw - 8, base, b.w * 0.28, nowPx, S, current ? S.ink : S.soft, 'right');
-      studioText(ctx, unit, b.x + b.w - uw, base, uFont, S.soft);
-      if (recent.length) studioStreakPips(ctx, b.x, b.y + b.h - 12, b.w, recent, current, S);
+    const noun = n => n === 1 ? 'flecha' : 'flechas';
+    const n = values.length;
+    const chipR = wide && n > 1 ? Math.min(16, (b.w / n - 8) / 2) : 0;
+    const showChips = chipR >= 9 && b.h >= 110;
+    const foot = showChips ? chipR * 2 + 10 : (b.h >= 100 ? 22 : 0);
+    const cap = S.style === 'editorial' ? (wide ? 52 : 48) : S.style === 'obsidian' ? (wide ? 78 : 64) : (wide ? 72 : 86);
+    if (!wide) {
+      const st = studioStack(b, S, cap, foot);
+      studioWLabel(ctx, 'RACHA MÁS LARGA', b.x, st.top, S);
+      const fit = studioFitValue(ctx, String(best), b.x - 2, st.base, b.w * 0.62, st.px, S, best ? S.acc : S.soft);
+      studioText(ctx, noun(best), b.x + fit.w + 8, st.base, studioF(500, Math.max(15, Math.round(fit.px * 0.3))), S.soft);
+      if (b.h < 100) return;
+      const nowLine = current ? 'actual ' + current + ' ' + noun(current) : 'cortada';
+      studioText(ctx, nowLine, b.x, st.base + Math.max(20, Math.round(fit.px * 0.32)), studioF(500, Math.max(14, Math.round(fit.px * 0.24))), S.soft);
       return;
     }
-    const nowLine = current ? 'actual ' + current + (current === 1 ? ' día' : ' días') : 'parada';
-    studioText(ctx, nowLine, b.x, base + Math.max(20, Math.round(fit.px * 0.32)), studioF(500, Math.max(14, Math.round(fit.px * 0.24))), S.soft);
+    studioWLabel(ctx, 'RACHA MÁS LARGA', b.x, b.y, S);
+    studioText(ctx, 'AHORA', b.x + b.w, b.y + S.labelPx, studioF(S.labelW, S.labelPx * 0.9), S.soft, S.labelTrack, 'right');
+    const contentBot = b.y + b.h - foot - 2;
+    const legendY = b.y + S.labelPx + 18;
+    const legend = contentBot - legendY > 40;
+    if (legend) studioText(ctx, 'X · 10 · 11', b.x, legendY, studioF(500, 13), S.soft, 1.5);
+    const contentTop = legend ? legendY + 8 : b.y + S.labelPx + 10;
+    const px = Math.round(Math.max(22, Math.min(cap, (contentBot - contentTop) / 0.78)));
+    const base = Math.min(contentBot, contentTop + px * 0.78);
+    const fit = studioFitValue(ctx, String(best), b.x - 2, base, b.w * 0.42, px, S, best ? S.acc : S.soft);
+    studioText(ctx, noun(best), b.x + fit.w + 8, base, studioF(500, Math.max(15, Math.round(fit.px * 0.3))), S.soft);
+    const nowPx = Math.max(22, Math.round(fit.px * 0.46));
+    const uFont = studioF(500, Math.max(14, Math.round(nowPx * 0.55)));
+    const uw = studioTextWidth(ctx, noun(current), uFont, 0);
+    studioFitValue(ctx, String(current), b.x + b.w - uw - 8, base, b.w * 0.28, nowPx, S, current ? S.ink : S.soft, 'right');
+    studioText(ctx, noun(current), b.x + b.w - uw, base, uFont, S.soft);
+    if (!showChips) return;
+    const step = chipR * 2 + 8;
+    const x0 = b.x + (b.w - (n * step - 8)) / 2 + chipR;
+    const cy = b.y + b.h - chipR - 2;
+    values.forEach((v, i) => studioChip(ctx, x0 + i * step, cy, chipR, v, S));
   }
 };
 function studioWidgets(ctx, style, view, theme) {

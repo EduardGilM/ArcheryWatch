@@ -215,35 +215,32 @@ test('two small widgets share a row and a small one left alone takes the whole r
   assert.deepEqual(rows[2].map(it => [it.widget.id, it.size]), [['best', 'wide']]);
 });
 
-test('the longest training streak reuses the goals day streak', () => {
-  const at = (y, m, d) => new Date(y, m - 1, d, 12).getTime();
-  const shot = {t_ms: 1, result: {value: '10'}};
-  const day = id => ({id, shots: [shot]});
-  const now = new Date(2026, 9, 14, 18);
-  const older = [10, 11, 12, 13, 14, 15].map(d => day(at(2026, 9, d)));
-  const open = [11, 12, 13, 14].map(d => day(at(2026, 10, d)));
-  const streak = Studio.trainingStreak([
-    ...older,
-    ...open,
-    {id: at(2026, 10, 14), shots: [{candidate: true, result: {value: 'X'}}]},
-    {id: at(2026, 10, 13), shots: []},
-    {id: at(2026, 10, 9), shots: [shot]}
-  ], now);
+test('the card streak is consecutive arrows in the high ring, X 10 and 11', () => {
+  const shot = value => ({result: {value}});
+  const streak = Studio.arrowStreak([
+    shot('X'), shot('10'), shot('11'), shot('9'),
+    shot('X'), shot('X'), shot('10'), shot('10'), shot('X'), shot('10'),
+    shot('M'),
+    shot('10'), shot('X'),
+    {candidate: true, result: {value: 'X'}},
+    shot('8')
+  ]);
   assert.equal(streak.best, 6);
-  assert.equal(streak.current, 4);
-  assert.equal(streak.recent.length, 14);
-  assert.deepEqual(streak.recent.slice(-5), [0, 1, 1, 1, 1]);
-  assert.equal(streak.recent.filter(Boolean).length, 5);
-  const stopped = Studio.trainingStreak(older, new Date(2026, 9, 20, 9));
-  assert.equal(stopped.current, 0);
-  assert.equal(stopped.best, 6);
-  const sameDay = Studio.trainingStreak([day(at(2026, 10, 14)), day(at(2026, 10, 14) + 1000)], now);
-  assert.equal(sameDay.current, 1);
-  assert.equal(sameDay.best, 1);
+  assert.deepEqual(streak.values, ['X', 'X', '10', '10', 'X', '10']);
+  assert.equal(streak.current, 0);
+  const open = Studio.arrowStreak([shot('9'), shot('X'), shot('10'), shot('X')]);
+  assert.equal(open.best, 3);
+  assert.equal(open.current, 3);
+  const tie = Studio.arrowStreak([shot('X'), shot('10'), shot('9'), shot('11'), shot('X')]);
+  assert.deepEqual(tie.values, ['X', '10']);
+  assert.equal(tie.current, 2);
+  assert.equal(Studio.arrowStreak([]).best, 0);
   assert.equal(Studio.WIDGETS.find(w => w.id === 'streak').name, 'Racha más larga');
   for (const style of Object.keys(Studio.CARD_DEFAULTS)) {
-    const cfg = {photo: 'short', widgets: [{id: 'streak', size: 'wide'}, {id: 'score', size: 'wide'}]};
-    assert.equal(Studio.cardRows(style, Studio.sanitizeCard(style, cfg)).fits, true, style);
+    const cfg = {photo: 'short', widgets: [{id: 'streak', size: 'small'}, {id: 'score', size: 'small'}, {id: 'streak', size: 'wide'}]};
+    const clean = Studio.sanitizeCard(style, cfg);
+    assert.deepEqual(clean.widgets.map(w => w.id), ['streak', 'score']);
+    assert.equal(Studio.cardRows(style, clean).fits, true, style);
   }
 });
 

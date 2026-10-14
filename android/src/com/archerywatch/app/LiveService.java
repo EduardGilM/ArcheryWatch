@@ -185,7 +185,7 @@ public class LiveService extends Service {
         Map<String,Object> values=new java.util.HashMap<>();values.put("status",STATUS);
         values.put("pending",inbox==null?0:inbox.size());values.put("commands",outbox==null?0:outbox.size());
         values.put("connected", STATUS != null && STATUS.contains("listo"));
-        values.put("version",98);
+        values.put("version",99);
         if(instance!=null){values.put("receivedAt",instance.diagnostics.getLong("receivedAt",0));values.put("kind",instance.diagnostics.getString("kind",""));}
         return MainActivity.toJson(values);
     }
