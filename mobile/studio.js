@@ -2465,35 +2465,66 @@ const studioWidgetPaint = {
     const dist = view.dist || [];
     const total = dist.reduce((n, d) => n + d.n, 0);
     const variant = b.widget.variant || 'bar';
-    const top = studioWLabel(ctx, 'DISTRIBUCIÓN', b.x, b.y, S);
+    const top = studioWLabel(ctx, 'DISTRIBUCIÓN', b.x, b.y, S) + 14;
     if (variant === 'bar') {
       const perRow = b.size === 'wide' || b.w > 600 ? Math.max(5, dist.length) : 3;
       const lines = Math.max(1, Math.ceil(dist.length / perRow));
       const px = b.w > 600 ? 34 : 30, rowH = px + 22;
       const legendY = b.y + b.h - 4 - (lines - 1) * rowH;
       const bh = S.style === 'editorial' ? 16 : S.style === 'obsidian' ? 10 : 12;
-      const barY = top + (legendY - px - top - bh) / 2;
+      const barY = Math.max(top, top + (legendY - px - 10 - top - bh) / 2);
       studioDistBar(ctx, b.x, barY, b.w, bh, dist, {acc: S.acc, acc2: S.acc2, base: S.base, gap: S.style === 'editorial' ? 5 : 4});
       studioDistLegend(ctx, b.x, legendY, b.w, dist, S, perRow, rowH, px);
       return;
     }
     if (variant === 'donut') {
-      const avail = b.y + b.h - top - 4;
-      const D = Math.max(80, Math.min(avail, b.w * (b.size === 'wide' ? 0.42 : 0.5)));
-      const R = D / 2, lw = Math.max(12, R * 0.2);
-      const cx = b.x + R, cy = top + avail / 2;
-      studioDonut(ctx, cx, cy, R - lw / 2, lw, dist, S);
-      const npx = Math.round(R * 0.62);
-      studioText(ctx, String(total), cx, cy + npx * 0.2, S.num(npx), S.ink, 0, 'center');
-      studioText(ctx, 'FLECHAS', cx, cy + npx * 0.2 + Math.max(22, R * 0.28), studioF(500, Math.max(15, Math.round(R * 0.14))), S.soft, 2.5, 'center');
-      const lx = b.x + D + Math.max(28, b.w * 0.06);
-      const room = b.x + b.w - lx;
       const n = Math.max(1, dist.length);
-      const cellW = room / n;
-      const px = Math.round(Math.max(26, Math.min(D * 0.42, cellW * 0.5, 64)));
-      const kpx = Math.round(Math.max(15, px * 0.42));
-      const blockH = kpx + 12 + px * 0.74;
-      const ky = cy - blockH / 2 + kpx * 0.8, vy = cy + blockH / 2;
+      const bottom = b.y + b.h - 6;
+      const availH = Math.max(40, bottom - top);
+      const gap = Math.max(20, b.w * 0.04);
+      const fitPx = (cellW, maxPx) => {
+        let px = maxPx;
+        const widest = Math.max(...dist.map(d => Math.max(studioTextWidth(ctx, String(d.n), S.num(px), 0), 1)), 1);
+        while (px > 18 && studioTextWidth(ctx, String(Math.max(...dist.map(d => d.n), 0)), S.num(px), 0) > cellW - 10) px -= 2;
+        return widest ? px : maxPx;
+      };
+      const legendH = px => Math.round(px * 0.42) + 10 + px * 0.74;
+      // side legend if there is room for at least ~64 px per item next to a donut as tall as the box
+      const sideRoom = b.w - Math.min(availH, b.w * 0.5) - gap;
+      const side = sideRoom >= n * 64;
+      let D, cx, cy, lx, ly, cellW, px;
+      if (side) {
+        D = Math.min(availH, b.w * 0.5);
+        cx = b.x + D / 2; cy = top + availH / 2;
+        lx = b.x + D + gap; cellW = (b.x + b.w - lx) / n;
+        px = fitPx(cellW, Math.round(Math.max(22, Math.min(D * 0.4, 60))));
+        while (px > 18 && legendH(px) > availH) px -= 2;
+        ly = cy;
+      } else {
+        cellW = b.w / n;
+        px = fitPx(cellW, Math.round(Math.max(22, Math.min(b.w * 0.09, 44))));
+        const lh = legendH(px);
+        D = Math.max(0, Math.min(availH - lh - 16, b.w));
+        cx = b.x + b.w / 2; cy = top + D / 2;
+        lx = b.x; ly = top + D + 16 + lh / 2;
+      }
+      const R = D / 2;
+      if (R >= 18) {
+        const lw = Math.max(8, Math.min(R * 0.22, 26));
+        studioDonut(ctx, cx, cy, R - lw / 2, lw, dist, S);
+        const inner = R - lw - 6;
+        let npx = Math.round(inner * (R >= 70 ? 0.75 : 0.95));
+        while (npx > 12 && studioTextWidth(ctx, String(total), S.num(npx), 0) > inner * 1.6) npx -= 2;
+        if (R >= 70) {
+          const lpx = Math.max(13, Math.round(inner * 0.2));
+          const blk = npx * 0.72 + 8 + lpx * 0.72;
+          studioText(ctx, String(total), cx, cy - blk / 2 + npx * 0.72, S.num(npx), S.ink, 0, 'center');
+          studioText(ctx, 'FLECHAS', cx, cy + blk / 2, studioF(500, lpx), S.soft, 2, 'center');
+        } else if (npx >= 12) studioText(ctx, String(total), cx, cy + npx * 0.36, S.num(npx), S.ink, 0, 'center');
+      }
+      const kpx = Math.round(Math.max(13, px * 0.42));
+      const lh = legendH(px);
+      const ky = ly - lh / 2 + kpx * 0.8, vy = ly + lh / 2;
       dist.forEach((d, i) => {
         const x = lx + cellW * i;
         const dot = Math.max(4, kpx * 0.3);
@@ -2509,7 +2540,7 @@ const studioWidgetPaint = {
     const n = Math.max(1, dist.length);
     const peak = Math.max(1, ...dist.map(d => d.n));
     const keyPx = 23, valPx = b.w > 600 ? 30 : 26;
-    const plotTop = top + valPx + 8, plotBot = b.y + b.h - keyPx - 10;
+    const plotTop = top + valPx + 8, plotBot = Math.max(top + valPx + 16, b.y + b.h - keyPx - 10);
     const cw = b.w / n, bw = Math.min(cw * 0.42, 48);
     ctx.fillStyle = studioRgba(S.base, S.style === 'editorial' ? 0.12 : 0.1);
     ctx.fillRect(b.x, plotBot, b.w, 1.5);
