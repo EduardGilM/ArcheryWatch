@@ -96,7 +96,7 @@ const Compare = {
       return best ? [left.id, best.id] : null;
     }
     if (kind === 'tanda') {
-      const pool = rows.filter(s => s.tanda);
+      const pool = rows.filter(s => s.tanda || (s.tandas && s.tandas.length));
       const anchor = left && left.tanda ? left : [...pool].sort((a, b) => b.id - a.id)[0];
       if (!anchor) return null;
       const other = pool.filter(s => s.id !== anchor.id && s.mode === anchor.mode).sort((a, b) => b.id - a.id)[0];

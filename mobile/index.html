@@ -784,6 +784,15 @@
 </div>
 <div id="askModal" hidden role="dialog" aria-modal="true"><div class="ask"><p id="askMsg"></p>
 <div class="askBtns"><button id="askNo">Cancelar</button><button id="askYes">Confirmar</button></div></div></div>
+<script>
+let statFilter = localStorage.getItem('awStatFilter') || 'all';
+function statShots(shots) {
+  shots = shots || [];
+  if (statFilter === 'score') return shots.filter(s => s.phase === 'score');
+  if (/^t\d+$/.test(statFilter)) { const n = +statFilter.slice(1); return shots.filter(s => s.tanda === n); }
+  return shots;
+}
+</script>
 <script src="session-model.js"></script>
 <script src="trace-geom.js"></script>
 <script src="backup.js"></script>
@@ -937,7 +946,7 @@ window.liveShot = ev => {
     window: Array.isArray(ev.mp) && Array.isArray(ev.mq) ? {
       pre: ev.mp.map((_, i) => -(ev.mp.length - i) * (ev.dt || 50)), mag_pre: ev.mp,
       post: ev.mq.map((_, i) => (i + 1) * (ev.dt || 50)), mag_post: ev.mq
-    } : null, wt: Date.now()
+    } : null, wt: Date.now(), ...(sess.activeTanda ? { tanda: sess.activeTanda } : {})
   });
   sess.shots.sort((a, b) => a.t_ms - b.t_ms);
   identifySets(sess.shots);
@@ -1490,8 +1499,8 @@ function paintScore(id, shots) {
   };
 }
 function renderSession(S) {
-  const real = data.shots.filter(s => !s.candidate);
-  const sc = data.shots.map(s => s.aim_score).filter(Number.isFinite), a = Math.round(avg(sc));
+  const fshots = statShots(data.shots), real = fshots.filter(s => !s.candidate);
+  const sc = fshots.map(s => s.aim_score).filter(Number.isFinite), a = Math.round(avg(sc));
   document.getElementById('sTotal').textContent = real.length;
   document.getElementById('sSets').textContent = new Set(real.map(s=>s.set_id)).size;
   const tAvg = document.getElementById('sAvg');
@@ -1715,16 +1724,16 @@ function exportBackup() {
   }
 }
 function renderHistory() {
-  const L = store.list().filter(s => s.shots.length).sort((a, b) => b.id - a.id);
+  const L = store.list().filter(s => statShots(s.shots).length).sort((a, b) => b.id - a.id);
   document.getElementById('histList').innerHTML = L.length ? L.map(s => {
-    const a = Math.round(avg(s.shots.map(x => x.aim_score)));
-    const pts = Score.totals(s.shots);
+    const fs = statShots(s.shots), a = Math.round(avg(fs.map(x => x.aim_score)));
+    const pts = Score.totals(fs);
     const format = Score.formatOf(s);
     const scoreBit = pts.scored ? (format ? Score.scoreText(pts, s.shots, format) : pts.score + ' pts') : '';
     const formatName = format && Score.FORMATS[format] ? Score.FORMATS[format].name : '';
     const meta = [scoreBit, formatName, Training.roundLabel(s), s.bow, s.arrows].filter(Boolean).map(escapeText).join(' · ');
     return `<div class="setline" data-sess="${s.id}"><div class="rowMain"><b>${fmtDate(s.id)}</b>` +
-      `<span class="m">${[`${s.shots.length} flecha${s.shots.length > 1 ? 's' : ''}`, meta].filter(Boolean).join(' · ')}</span></div>` +
+      `<span class="m">${[`${fs.length} flecha${fs.length > 1 ? 's' : ''}`, meta].filter(Boolean).join(' · ')}</span></div>` +
       `<span class="chip" style="--c:${grade(a)[0]}">${Number.isFinite(a)?a:'–'}</span><span class="r"></span>` +
       `<button class="deleteAction deleteSession" data-delete="${s.id}" aria-label="Eliminar sesión del ${fmtDate(s.id)}">${TRASH}</button></div>`;
   }).join('') : '<div class="empty"><b>Sin sesiones</b></div>';
@@ -2420,6 +2429,7 @@ addEventListener('resize', () => data && render());
 </script>
 <script src="training.js"></script>
 <script src="studio.js"></script>
+<script src="tanda.js"></script>
 <script>boot();</script>
 </body>
 </html>

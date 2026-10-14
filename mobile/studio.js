@@ -424,7 +424,7 @@ const Studio = {
   historyShots() {
     if (typeof store === 'undefined') return [];
     const out = [];
-    store.list().forEach(s => (s.shots || []).forEach(a => { if (a && !a.candidate) out.push(a); }));
+    store.list().forEach(s => statShots(s.shots || []).forEach(a => { if (a && !a.candidate) out.push(a); }));
     return out;
   },
   onSetClick(e) {
