@@ -493,6 +493,37 @@
     header h1 { font-size:37px; }
     .mrow > div, .top3 > div { padding:10px 8px; }
   }
+
+  /* ===== Restyle: superficies planas, acento solo en datos clave ===== */
+  :root { --surface:#141416; --surface-2:#1c1c1e; --surface-3:#242427; --line:transparent; --line-2:rgba(255,255,255,.08);
+          --glow:transparent; --acc-line:transparent; --acc-soft:rgba(255,138,31,.14); }
+  .card, .target, .metrics, .mrow, .top3, #tip, #setList details, .setModes, #askModal .ask { border:none !important; border-radius:20px !important; box-shadow:none !important; }
+  main { gap:14px; }
+  .card, .target { padding:18px; }
+  .mrow > div, .top3 > div { border:none !important; padding:16px 14px; }
+  .lbl, .caption, .tclock, .tl span, .sessbars small, #sessionScoreMore summary, .cropPanel p { text-transform:none !important; letter-spacing:0 !important; font-size:12px !important; color:var(--txt-2); }
+  .dateRow small { text-transform:none; letter-spacing:0; font-size:12px; }
+  #setList { gap:10px; }
+  #setList details[open]::before { display:none; }
+  #setList details[open] { background:var(--surface); }
+  .trendRow { border-top:none; }
+  .setbar button, .tracebar button, .modeSeg button, .pickScope button, .scoreSlots button { border-radius:999px; border-color:transparent !important; background:var(--surface-2); }
+  .setbar button.sel, .tracebar button.sel, .modeSeg button.on, .pickScope button.on, .scoreSlots button.on { background:var(--acc-soft); color:var(--acc); }
+  #link, #returnCurrent { border-color:transparent; background:var(--surface-2); }
+  #live { box-shadow:none; }
+  #live::before { box-shadow:none; }
+  .sessbars i.last { box-shadow:none; }
+  nav { border-top:none; background:#0a0a0b; padding:8px 10px max(10px,env(safe-area-inset-bottom)); }
+  nav button { position:relative; gap:4px; padding:6px 0; border-radius:16px; font-size:10px; color:var(--txt-3); }
+  nav button svg { width:21px; height:21px; }
+  nav button svg path { stroke:currentColor; stroke-width:0; }
+  nav button.sel { color:var(--txt); background:var(--surface-2); }
+  nav button.sel svg { color:var(--acc); }
+  nav button.sel::before { display:none; }
+  .scorepad { gap:6px; }
+  .scorepad button { border:none; border-radius:14px; }
+  .scorepad button.on { background:var(--acc-soft); }
+  .scoreSlots button { border:none; border-radius:14px; }
 </style>
 </head>
 <body>
