@@ -2333,7 +2333,6 @@ function studioDistLegend(ctx, x, y, w, dist, S, perRow, rowH, px) {
     ctx.fill();
     const kw = studioText(ctx, d.v, lx + 23, ly, studioF(500, Math.round(px * 0.72)), S.soft);
     const cw = studioText(ctx, String(d.n), lx + 23 + kw + 9, ly, S.num(px), S.ink);
-    if (cellW > 175) studioText(ctx, Math.round(d.n / total * 100) + '%', lx + 23 + kw + cw + 12, ly, studioF(500, Math.round(px * 0.62)), S.soft);
   });
 }
 function studioDonut(ctx, cx, cy, R, lw, dist, S) {
@@ -2479,29 +2478,31 @@ const studioWidgetPaint = {
       return;
     }
     if (variant === 'donut') {
-      const D = Math.min(b.h - (top - b.y) - 8, b.size === 'wide' ? b.w * 0.34 : b.w * 0.48);
-      const R = D / 2, lw = Math.max(12, R * 0.22);
-      const cx = b.x + R, cy = top + 10 + R;
+      const avail = b.y + b.h - top - 4;
+      const D = Math.max(80, Math.min(avail, b.w * (b.size === 'wide' ? 0.42 : 0.5)));
+      const R = D / 2, lw = Math.max(12, R * 0.2);
+      const cx = b.x + R, cy = top + avail / 2;
       studioDonut(ctx, cx, cy, R - lw / 2, lw, dist, S);
-      const npx = Math.round(R * 0.58);
-      studioText(ctx, String(total), cx, cy + npx * 0.16, S.num(npx), S.ink, 0, 'center');
-      studioText(ctx, 'FLECHAS', cx, cy + npx * 0.16 + Math.max(24, R * 0.26), studioF(500, Math.max(17, Math.round(R * 0.15))), S.soft, 2.5, 'center');
-      const cols = b.size === 'wide' && dist.length > 3 ? 2 : 1;
-      const perCol = Math.ceil(dist.length / cols);
-      const lx = b.x + D + (b.size === 'wide' ? 40 : 28);
-      const colW = (b.x + b.w - lx) / cols;
-      const rowH = Math.min(44, (D - 4) / perCol);
-      const px = Math.round(Math.min(32, rowH * 0.62));
-      const y0 = cy - (perCol - 1) * rowH / 2 + px * 0.32;
+      const npx = Math.round(R * 0.62);
+      studioText(ctx, String(total), cx, cy + npx * 0.2, S.num(npx), S.ink, 0, 'center');
+      studioText(ctx, 'FLECHAS', cx, cy + npx * 0.2 + Math.max(22, R * 0.28), studioF(500, Math.max(15, Math.round(R * 0.14))), S.soft, 2.5, 'center');
+      const lx = b.x + D + Math.max(28, b.w * 0.06);
+      const room = b.x + b.w - lx;
+      const n = Math.max(1, dist.length);
+      const cellW = room / n;
+      const px = Math.round(Math.max(26, Math.min(D * 0.42, cellW * 0.5, 64)));
+      const kpx = Math.round(Math.max(15, px * 0.42));
+      const blockH = kpx + 12 + px * 0.74;
+      const ky = cy - blockH / 2 + kpx * 0.8, vy = cy + blockH / 2;
       dist.forEach((d, i) => {
-        const x = lx + Math.floor(i / perCol) * colW, y = y0 + (i % perCol) * rowH;
+        const x = lx + cellW * i;
+        const dot = Math.max(4, kpx * 0.3);
         ctx.beginPath();
-        ctx.arc(x + 5, y - px * 0.32, 5, 0, Math.PI * 2);
+        ctx.arc(x + dot, ky - kpx * 0.33, dot, 0, Math.PI * 2);
         ctx.fillStyle = studioDistTone(d.v, S.acc, S.acc2, S.base);
         ctx.fill();
-        const kw = studioText(ctx, d.v, x + 18, y, studioF(500, Math.round(px * 0.78)), S.soft);
-        const cw = studioText(ctx, String(d.n), x + 18 + Math.max(28, kw) + 12, y, S.num(px), S.ink);
-        studioText(ctx, Math.round(d.n / Math.max(1, total) * 100) + '%', x + 18 + Math.max(28, kw) + 12 + cw + 10, y, studioF(500, Math.round(px * 0.68)), S.soft);
+        studioText(ctx, d.v, x + dot * 2 + 8, ky, studioF(600, kpx), S.soft, 1);
+        studioText(ctx, String(d.n), x, vy, S.num(px), d.v === 'X' || d.v === '11' ? S.acc : S.ink);
       });
       return;
     }
