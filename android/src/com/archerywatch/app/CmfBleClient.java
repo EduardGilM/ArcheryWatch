@@ -36,8 +36,6 @@ public class CmfBleClient {
     static final UUID FATE_N = UUID.fromString("77d4ff02-2fe2-2334-0d35-9ccd078f529c");
     static final UUID CCCD = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
     private static final byte[] LOG_PREPARE = hex("1D108105000002000100");
-    private static final Pattern MDW = Pattern.compile(
-        "(?i)38010fd8\\s*:\\s*((?:[0-9a-f]{8}(?:\\s+|$))+)");
     private static final long POLL_MS = 20;
     private static final String TAG = "ArcheryWatchCMF";
 
@@ -283,45 +281,37 @@ public class CmfBleClient {
         }
     }
 
+    // Acumula palabras de un dump mdw partido en varias lineas (fd8 / fe8).
+    private final ArrayList<Integer> mdwWords = new ArrayList<>();
+    private long mdwBase = -1;
+    private long mdwAt;
+
     private void parseMdw(String text) {
-        Matcher m = MDW.matcher(text);
-        while (m.find()) {
+        Matcher line = Pattern.compile("(?i)(38010f[0-9a-f]{2})\s*:\s*((?:[0-9a-f]{8}(?:\s+|$))+)")
+            .matcher(text);
+        while (line.find()) {
+            long base = Long.parseLong(line.group(1), 16);
             ArrayList<Integer> words = new ArrayList<>();
-            Matcher w = Pattern.compile("[0-9a-fA-F]{8}").matcher(m.group(1));
+            Matcher w = Pattern.compile("[0-9a-fA-F]{8}").matcher(line.group(2));
             while (w.find()) words.add((int) Long.parseLong(w.group(), 16));
-            // mdw imprime 4 palabras por línea; puede venir partida
-            if (words.size() < 3) continue;
-            float a0 = bits(words.get(0)), a1 = bits(words.get(1)), a2 = bits(words.get(2));
-            float g0 = 0, g1 = 0, g2 = 0;
-            if (words.size() >= 6) {
-                g0 = bits(words.get(3)); g1 = bits(words.get(4)); g2 = bits(words.get(5));
-            } else if (words.size() >= 4) {
-                // segunda línea 38010fe4 puede llegar aparte; usar lo disponible
-                continue;
+            if (words.isEmpty()) continue;
+            long now = System.currentTimeMillis();
+            if (base == 0x38010fd8L || mdwBase < 0 || now - mdwAt > 80) {
+                mdwWords.clear();
+                mdwBase = base;
             }
-            // Si solo 3 words, podría ser fe4 line — detectar por magnitud
-            boolean looksGyro = Math.abs(a0) < 50 && Math.abs(a1) < 50 && Math.abs(a2) < 50
-                && Math.hypot(a0, Math.hypot(a1, a2)) < 30;
-            long t = System.currentTimeMillis();
-            if (words.size() >= 6) {
-                onImu(t, g0, g1, g2, a0, a1, a2);
-            } else if (looksGyro) {
-                // línea solo gyro (fe4): no actualizar accel
-                detector.lastGyro(t, a0, a1, a2);
-            } else {
-                onImu(t, detector.gx, detector.gy, detector.gz, a0, a1, a2);
+            mdwAt = now;
+            mdwWords.addAll(words);
+            if (mdwWords.size() >= 6 && mdwBase == 0x38010fd8L) {
+                onImu(now,
+                    bits(mdwWords.get(3)), bits(mdwWords.get(4)), bits(mdwWords.get(5)),
+                    bits(mdwWords.get(0)), bits(mdwWords.get(1)), bits(mdwWords.get(2)));
+                mdwWords.clear();
+                mdwBase = -1;
+            } else if (base == 0x38010fe4L && words.size() >= 3) {
+                onImu(now, bits(words.get(0)), bits(words.get(1)), bits(words.get(2)),
+                    detector.ax, detector.ay, detector.az);
             }
-        }
-        // también líneas 38010fe4
-        Matcher mg = Pattern.compile("(?i)38010fe4\\s*:\\s*((?:[0-9a-f]{8}(?:\\s+|$))+)").matcher(text);
-        while (mg.find()) {
-            ArrayList<Integer> words = new ArrayList<>();
-            Matcher w = Pattern.compile("[0-9a-fA-F]{8}").matcher(mg.group(1));
-            while (w.find()) words.add((int) Long.parseLong(w.group(), 16));
-            if (words.size() < 3) continue;
-            long t = System.currentTimeMillis();
-            onImu(t, bits(words.get(0)), bits(words.get(1)), bits(words.get(2)),
-                detector.ax, detector.ay, detector.az);
         }
     }
 
