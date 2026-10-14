@@ -1073,7 +1073,7 @@ function render() {
   }
   if (!data || !data.shots.length) {
     document.getElementById('title').textContent = view === 'Shot' ? 'Tiro' : (view === 'Set' ? 'Sets' : 'Sesión');
-    document.getElementById('subtitle').textContent = 'Esperando flechas';
+    document.getElementById('subtitle').textContent = '';
     ['sTotal', 'sSets', 'sAvg', 'sSd', 'sShot', 'sBest', 'sHr', 'sSettle'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '–'; });
     document.getElementById('sAvg').style.color = '';
     const gauge = document.getElementById('stabGauge'); if (gauge) gauge.innerHTML = '';
