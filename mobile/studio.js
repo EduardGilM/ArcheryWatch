@@ -50,7 +50,7 @@ const Studio = {
     {id: 'best', name: 'Mejor serie', size: 'small'},
     {id: 'precision', name: 'Precisión', size: 'small'},
     {id: 'streak', name: 'Mejor racha', size: 'small'},
-    {id: 'train', name: 'Días entrenados', size: 'small'},
+    {id: 'train', name: 'Días entrenados', size: 'small', variants: [{id: 'year', name: 'Año'}, {id: 'month', name: 'Mes'}, {id: 'week', name: 'Semana'}]},
     {id: 'recent', name: 'Media reciente', size: 'small', variants: [{id: 'a30', name: '30 flechas'}, {id: 'a60', name: '60 flechas'}, {id: 'a120', name: '120 flechas'}, {id: 'a300', name: '300 flechas'}, {id: 'a1000', name: '1000 flechas'}, {id: 'd7', name: '7 días'}, {id: 'd30', name: '30 días'}]},
     {id: 'total', name: 'Flechas totales', size: 'small'},
     {id: 'week', name: 'Esta semana', size: 'small'},
@@ -2717,37 +2717,72 @@ const studioWidgetPaint = {
     studioTicks(ctx, b.x, stripY, b.w, stripH, run, S);
   },
   train(ctx, b, view, S) {
-    // Calendario de días entrenados (estilo GitHub), como en Perfil > Global.
-    const wide = b.size === 'wide';
+    // Días entrenados por periodo: Año (calendario de 52 semanas), Mes (cuadrícula del mes) o Semana (7 días).
+    const wide = b.size === 'wide', vr = b.widget.variant || 'year';
     const top = studioWLabel(ctx, 'DÍAS ENTRENADOS', b.x, b.y, S);
     const area = b.y + b.h - top - 12;
-    let s = Math.min(wide ? 22 : 18, (area - 6 * 3) / 7);
-    let g = Math.max(2.5, s * 0.24);
-    s = (area - 6 * g) / 7; if (s > (wide ? 22 : 18)) { s = wide ? 22 : 18; }
-    const probe = Studio.heatmap(view.heatSessions || [], view.when || new Date(), 53);
-    const trained = probe.cells.filter(c => c.n > 0);
+    const when = view.when || new Date();
+    const probe = Studio.heatmap(view.heatSessions || [], when, 53);
+    const byDay = new Map(probe.cells.map(c => [c.day, c]));
+    const lvl = n => !n ? 0 : n >= 60 ? 4 : n >= 30 ? 3 : n >= 12 ? 2 : 1;
+    let cells = [], C, R, cap;
+    if (vr === 'week') {
+      const mon = probe.today - (probe.today - probe.start) % 7;
+      for (let i = 0; i < 7; i++) { const c = byDay.get(mon + i) || {n: 0}; cells.push({col: i, row: 0, n: c.n || 0, future: mon + i > probe.today}); }
+      C = 7; R = 1; cap = wide ? 56 : 40;
+    } else if (vr === 'month') {
+      const d = new Date(when), first = new Date(d.getFullYear(), d.getMonth(), 1), days = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      const s0 = StudioGoals.daySerial(first), off = (first.getDay() + 6) % 7;
+      for (let i = 0; i < days; i++) { const k = off + i, c = byDay.get(s0 + i) || {n: 0}; cells.push({col: k % 7, row: Math.floor(k / 7), n: c.n || 0, future: s0 + i > probe.today}); }
+      C = 7; R = Math.ceil((off + days) / 7); cap = wide ? 60 : 20;
+    } else {
+      cap = wide ? 22 : 18; R = 7; C = 53;
+    }
     let x0 = b.x, w = b.w;
+    const periodN = vr === 'year' ? probe.cells.filter(c => c.n > 0).length : cells.filter(c => c.n > 0).length;
     if (wide) {
       const px = Math.round(Math.min(S.style === 'editorial' ? 76 : 92, (area - 4) / 0.76));
-      const fit = studioFitValue(ctx, String(trained.length), b.x - 2, b.y + b.h - (area - px * 0.72) / 2, b.w * 0.26, px, S, trained.length ? S.acc : S.soft);
+      const fit = studioFitValue(ctx, String(periodN), b.x - 2, b.y + b.h - (area - px * 0.72) / 2, b.w * 0.26, px, S, periodN ? S.acc : S.soft);
       x0 = b.x + fit.w + 28; w = b.x + b.w - x0;
+    } else {
+      ctx.font = studioF(S.labelW, S.labelPx);
+      const lblW = ctx.measureText('DÍAS ENTRENADOS').width * 1.15 + 10;
+      let ct = periodN + (periodN === 1 ? ' día' : ' días');
+      if (ctx.measureText(ct).width * 1.15 + lblW > b.w) ct = String(periodN);
+      studioText(ctx, ct, b.x + b.w, top, studioF(S.labelW, S.labelPx), S.soft, S.labelTrack, 'right');
     }
-    const weeks = Math.max(4, Math.min(53, Math.floor((w + g) / (s + g))));
-    const m = Studio.heatmap(view.heatSessions || [], view.when || new Date(), weeks);
-    const gw = weeks * s + (weeks - 1) * g, gh = 7 * s + 6 * g;
-    const gx = x0 + w - gw, gy = b.y + b.h - (area + gh) / 2;
+    // Iniciales de día: cabecera en Semana/Mes, columna izquierda en Año.
+    const dpx = Math.max(7, Math.round(S.labelPx * 0.85)), dF = studioF(S.labelW, dpx);
+    const head = vr === 'year' ? 0 : dpx + 5;
+    const ga = area - head;
+    let s = Math.min(cap, (ga - (R - 1) * 3) / R), g = Math.max(2.5, s * 0.24);
+    s = Math.min(cap, (ga - (R - 1) * g) / R);
+    let side = 0;
+    if (vr === 'year') {
+      ctx.font = dF; side = s >= dpx * 0.9 ? ctx.measureText('X').width + 5 : 0;
+      C = Math.max(4, Math.min(53, Math.floor((w - side + g) / (s + g))));
+      Studio.heatmap(view.heatSessions || [], when, C).cells.forEach(c => cells.push({col: c.w, row: c.r, n: c.n, future: c.future}));
+    } else { s = Math.min(s, (w - (C - 1) * g) / C); g = Math.max(2.5, s * 0.24); }
+    // Mes ancho: celdas rectangulares para llenar el hueco horizontal.
+    const cw = vr === 'month' && wide ? Math.max(s, Math.min(s * 2.4, (w * 0.9 - (C - 1) * g) / C)) : s;
+    const gw = C * cw + (C - 1) * g, gh = R * s + (R - 1) * g;
+    const gx = x0 + w - gw, gy = b.y + b.h - (area + gh + head) / 2 + head;
+    ctx.save(); ctx.font = dF; ctx.fillStyle = studioRgba(S.base, 0.38); ctx.textBaseline = 'middle';
+    if (vr === 'year') {
+      if (side) { ctx.textAlign = 'right'; [0, 2, 4].forEach(r => ctx.fillText(STUDIO_DAYS[r], gx - 5, gy + r * (s + g) + s / 2)); }
+    } else {
+      ctx.textAlign = 'center';
+      for (let i = 0; i < 7; i++) ctx.fillText(STUDIO_DAYS[i], gx + i * (cw + g) + cw / 2, gy - 5 - dpx / 2);
+    }
+    ctx.restore();
     const alpha = [0, 0.32, 0.55, 0.8, 1];
-    m.cells.forEach(c => {
-      if (c.future) return;
-      const cx = gx + c.w * (s + g), cy = gy + c.r * (s + g);
-      studioRound(ctx, cx, cy, s, s, Math.max(1.5, s * 0.24));
-      ctx.fillStyle = c.level ? studioRgba(S.acc, alpha[c.level]) : studioRgba(S.base, 0.09);
+    cells.forEach(c => {
+      if (c.future && vr === 'year') return;
+      studioRound(ctx, gx + c.col * (cw + g), gy + c.row * (s + g), cw, s, Math.max(1.5, s * 0.24));
+      const L = lvl(c.n);
+      ctx.fillStyle = c.future ? studioRgba(S.base, 0.04) : L ? studioRgba(S.acc, alpha[L]) : studioRgba(S.base, 0.09);
       ctx.fill();
     });
-    if (!wide) {
-      const label = trained.length + (trained.length === 1 ? ' día' : ' días');
-      studioText(ctx, label, b.x + b.w, top - S.labelPx + S.labelPx, studioF(S.labelW, S.labelPx), S.soft, S.labelTrack, 'right');
-    }
   }
 };
 const STUDIO_DAYS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
