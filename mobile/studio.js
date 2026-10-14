@@ -448,6 +448,7 @@ function studioClearPick() {
 }
 
 function studioHaptic(el) {
+  Studio._vib = Date.now();
   try { if (navigator.vibrate) navigator.vibrate([14, 28, 18]); } catch (e) {}
   if (!el || !el.classList) return;
   const node = el.classList.contains('trendRow') ? el : (el.closest && el.closest('details')) || el;
@@ -936,14 +937,19 @@ function studioSync() {
   studioModes();
   const share = document.getElementById('openShare');
   if (share) share.hidden = !(typeof data !== 'undefined' && data && data.shots && data.shots.length);
+  let newlyPicked = false;
   document.querySelectorAll('#setList details').forEach(d => {
     const setOn = Studio.picking && Studio.picks.has(d.dataset.sid);
+    if (setOn && !d.classList.contains('picked')) newlyPicked = true;
     d.classList.toggle('picked', setOn);
     d.querySelectorAll('.trendRow').forEach(row => {
       const t = Number(row.dataset.t);
-      row.classList.toggle('picked', !!(Studio.picking && (setOn || (Number.isFinite(t) && Studio.arrows.has(t)))));
+      const on = !!(Studio.picking && (setOn || (Number.isFinite(t) && Studio.arrows.has(t))));
+      if (on && !setOn && !row.classList.contains('picked')) newlyPicked = true;
+      row.classList.toggle('picked', on);
     });
   });
+  if (newlyPicked && navigator.vibrate && Date.now() - (Studio._vib || 0) > 250) { try { navigator.vibrate(8); } catch (e) {} }
   studioSyncShare();
 }
 
@@ -968,7 +974,7 @@ function studioModes() {
   const n = studioPickCount();
   if (count) {
     const noun = n === 1 ? 'flecha' : 'flechas';
-    count.textContent = Studio.dayIds.size ? (n + ' ' + noun + ' · día') : (n + ' ' + noun);
+    count.textContent = '';
   }
   const others = studioSameDay(session);
   const full = studioSessionFull(session);

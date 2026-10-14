@@ -325,6 +325,13 @@
   .pickScope button { flex:1; min-height:40px; border-radius:10px; background:var(--surface-2); color:var(--txt-2); border:1px solid var(--line); font-size:13px; font-weight:600; }
   #setList details.picked { border-color:var(--acc); box-shadow:0 0 0 1px var(--acc-line); }
   .trendRow.picked { background:var(--acc-soft); }
+  @keyframes awJig { 0%,100% { transform:rotate(-.8deg); } 50% { transform:rotate(.8deg); } }
+  #setList details.picked, #setList .trendRow.picked { animation:awJig .34s ease-in-out infinite; transform-origin:50% 50%; will-change:transform; }
+  #setList details.picked:nth-of-type(2n), #setList .trendRow.picked:nth-child(2n) { animation-delay:-.12s; animation-duration:.31s; }
+  #setList details.picked:nth-of-type(3n), #setList .trendRow.picked:nth-child(3n) { animation-delay:-.21s; animation-duration:.37s; }
+  #setList details.picked .trendRow.picked { animation:none; }
+  #setList details.picked { box-shadow:inset 0 0 0 1.5px var(--acc) !important; }
+  @media (prefers-reduced-motion: reduce) { #setList details.picked, #setList .trendRow.picked { animation:none; } }
   @keyframes awWiggle {
     0%, 100% { transform:translateX(0); }
     18% { transform:translateX(-5px) rotate(-.6deg); }
