@@ -2647,16 +2647,24 @@ const studioWidgetPaint = {
     // Semana: anillo grande con el avance de flechas y días cumplidos.
     const top = studioWLabel(ctx, g && g.now.ok ? 'SEMANA CUMPLIDA' : 'ESTA SEMANA', b.x, b.y, S, null, g && g.now.ok ? S.acc : null);
     if (!g) { studioText(ctx, 'Sin plan semanal', b.x, top + 50, studioF(500, 26), S.soft, 0); return; }
-    const w = g.now, R = Math.min((b.h - 8) / 2, b.w * 0.2), cx = b.x + b.w - R - 4, cy = b.y + b.h / 2, lw = Math.max(10, R * 0.2);
-    ctx.lineCap = 'round'; ctx.lineWidth = lw;
-    ctx.strokeStyle = studioRgba(S.base, 0.1); ctx.beginPath(); ctx.arc(cx, cy, R - lw / 2, 0, Math.PI * 2); ctx.stroke();
-    const f = Math.min(1, w.total / Math.max(1, w.goal));
-    if (f > 0) { ctx.strokeStyle = S.acc; ctx.beginPath(); ctx.arc(cx, cy, R - lw / 2, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * f); ctx.stroke(); }
-    ctx.lineCap = 'butt';
-    studioText(ctx, Math.min(w.total, w.goal) + '/' + w.goal, cx, cy + 10, studioF(600, Math.round(R * 0.36)), S.ink || S.base, 0, 'center');
-    const px = Math.round(Math.min(S.statMax * 1.6, (b.h - S.labelPx - 20) * 0.85)), base = top + 14 + px * 0.76;
-    const fit = studioFitValue(ctx, String(w.met), b.x - 2, base, b.w * 0.3, px, S, w.ok ? S.acc : null);
-    studioText(ctx, 'de ' + w.planned + ' días', b.x + fit.w + 12, base, small(px), S.soft, 0);
+    const w = g.now;
+    const frac = w.met + '/' + w.planned;
+    const px = Math.round(Math.min(S.statMax * 1.6, (b.h - S.labelPx - 20) * 0.85)), base = b.y + b.h - 6;
+    const fit = studioFitValue(ctx, frac, b.x - 2, base, b.w * 0.3, px, S, w.ok ? S.acc : null);
+    const mid = base - px * 0.36;
+    const P = w.days.filter(d => d.planned), x0 = b.x + fit.w + 32, wAvail = b.x + b.w - x0, gap = 6, ph = Math.min(28, px * 0.42);
+    const pw = (wAvail - (P.length - 1) * gap) / Math.max(1, P.length);
+    P.forEach((d, i) => {
+      const x = x0 + i * (pw + gap), r = ph / 2;
+      ctx.beginPath();
+      const L = i === 0, R = i === P.length - 1;
+      ctx.moveTo(x + (L ? r : 3), mid - r); ctx.lineTo(x + pw - (R ? r : 3), mid - r);
+      R ? ctx.arc(x + pw - r, mid, r, -Math.PI / 2, Math.PI / 2) : (ctx.quadraticCurveTo(x + pw, mid - r, x + pw, mid - r + 3), ctx.lineTo(x + pw, mid + r - 3), ctx.quadraticCurveTo(x + pw, mid + r, x + pw - 3, mid + r));
+      ctx.lineTo(x + (L ? r : 3), mid + r);
+      L ? ctx.arc(x + r, mid, r, Math.PI / 2, Math.PI * 1.5) : (ctx.quadraticCurveTo(x, mid + r, x, mid + r - 3), ctx.lineTo(x, mid - r + 3), ctx.quadraticCurveTo(x, mid - r, x + 3, mid - r));
+      ctx.closePath();
+      ctx.fillStyle = d.done ? S.acc : studioRgba(S.base, 0.1); ctx.fill();
+    });
   },
   best(ctx, b, view, S) {
     const st = studioStack(b, S, S.statMax * (S.style === 'glass' ? 0.9 : 1.1));
@@ -2782,7 +2790,7 @@ function studioGoalWeeks(sessions, when, n) {
   for (let k = n - 1; k >= 0; k--) { const s = new Date(mon); s.setDate(s.getDate() - 7 * k); weeks.push({ok: okWeek(s), current: k === 0}); }
   let streak = 0; const s = new Date(mon); if (!okWeek(s)) s.setDate(s.getDate() - 7);
   for (let k = 0; k < 104 && okWeek(s); k++) { streak++; s.setDate(s.getDate() - 7); }
-  const cur = (() => { let total = 0, met = 0; for (let i = 0; i < 7; i++) { const d = new Date(mon); d.setDate(d.getDate() + i); const c = by[key(d)] || 0; total += c; if (plan.days.includes(i) && c >= plan.arrows) met++; } return {total, met, planned: plan.days.length, goal: plan.days.length * plan.arrows, ok: okWeek(mon)}; })();
+  const today = (now.getDay() + 6) % 7, cur = (() => { let total = 0, met = 0; const days = []; for (let i = 0; i < 7; i++) { const d = new Date(mon); d.setDate(d.getDate() + i); const c = by[key(d)] || 0; total += c; const planned = plan.days.includes(i); if (planned && c >= plan.arrows) met++; days.push({n: c, planned, done: planned && c >= plan.arrows, future: i > today}); } return {days, total, met, planned: plan.days.length, goal: plan.days.length * plan.arrows, ok: okWeek(mon)}; })();
   return {weeks, streak, now: cur};
 }
 function studioPlanMet() {
