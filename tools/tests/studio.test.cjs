@@ -40,49 +40,80 @@ test('dayKey uses the local calendar day', () => {
   assert.equal(Studio.dayKey('nope'), '');
 });
 
-test('radar scores only the six new axes and leaves a thin sample blank', () => {
+test('performance shows five plain measures and leaves a thin sample blank', () => {
   const shots = [];
-  for (let i = 0; i < 8; i++) {
-    shots.push({
-      t_ms: i * 1000, set_id: Math.floor(i / 2) + 1, phase: 'score', aim_score: 80,
-      draw_ms: 7000, hr_bpm: 68,
-      result: {value: 'X', impact: {x: 0.01, y: 0.01}}
-    });
-  }
-  shots.push({t_ms: 9000, set_id: 1, phase: 'warm', aim_score: 10, draw_ms: 1000, hr_bpm: 140, result: {value: 'M', impact: {x: 0.9, y: 0.9}}});
-  const by = Object.fromEntries(Studio.radar(shots).axes.map(a => [a.id, a]));
-  assert.deepEqual(Object.keys(by), ['precision', 'group', 'vertical', 'window', 'pulse', 'endure']);
-  assert.equal(by.precision.value, 100);
+  for (let set = 1; set <= 4; set++) for (let j = 0; j < 3; j++) shots.push({set_id: set, aim_score: 80, result: {value: set % 2 ? 'X' : '9', impact: {x: 0.05 * j, y: 0.05}}});
+  const by = Object.fromEntries(Studio.performance([{shots}]).map(a => [a.id, a]));
+  assert.deepEqual(Object.keys(by), ['points', 'center', 'group', 'stability', 'steady']);
+  assert.equal(by.points.text, '9,5');
+  assert.equal(by.points.value, 87.5);
+  assert.equal(by.center.text, '50%');
+  assert.equal(by.group.text, '0,3 cm');
   assert.equal(by.group.value, 100);
-  assert.equal(by.vertical.value, 100);
-  assert.equal(by.window.value, 100);
-  assert.equal(by.pulse.value, 100);
-  assert.equal(by.pulse.text, '68 lpm');
-  assert.equal(by.endure.value, 100);
-  const thin = Studio.radar([{aim_score: 90, draw_ms: 7000, hr_bpm: 80, result: {value: 'X', impact: {x: 0.1, y: 0.4}}}]);
-  thin.axes.forEach(ax => { assert.equal(ax.value, null); assert.equal(ax.thin, true); assert.equal(ax.text, '–'); });
-  const wide = Array.from({length: 8}, (_, i) => ({
-    set_id: 1, phase: 'score', result: {value: '10', impact: {x: 0, y: (i - 3.5) * 0.2}}
-  }));
-  assert.equal(Studio.radar(wide).axes.find(a => a.id === 'vertical').value, 0);
-  const drop = [];
-  for (let s = 1; s <= 4; s++) {
-    for (let n = 0; n < 3; n++) drop.push({set_id: s, phase: 'score', aim_score: 80, result: {value: s < 3 ? '10' : '9'}});
-  }
-  assert.equal(Studio.radar(drop).axes.find(a => a.id === 'endure').value, 0);
-  const vegas = Array.from({length: 8}, () => ({phase: 'score', result: {value: 'X', impact: {x: 0.05, y: 0.05}}}));
-  assert.equal(Studio.radar(vegas, 'vegas').axes.find(a => a.id === 'precision').value, 100);
-  assert.equal(Studio.radar(vegas, 'wa').axes.find(a => a.id === 'precision').value, 0);
-  const wa = Array.from({length: 8}, () => ({phase: 'score', result: {value: '10', impact: {x: 0.12, y: 0.05}}}));
-  assert.equal(Studio.radar(wa, 'wa').axes.find(a => a.id === 'precision').value, 100);
-  const lancaster = Array.from({length: 8}, () => ({phase: 'score', result: {value: '11', impact: {x: 0.02, y: 0.02}}}));
-  assert.equal(Studio.radar(lancaster, 'lancaster').axes.find(a => a.id === 'precision').value, 100);
+  assert.equal(by.stability.text, '80');
+  assert.equal(by.steady.text, '±0,5');
+  const thin = Studio.performance([{shots: shots.slice(0, 4)}]);
+  thin.forEach(a => { assert.equal(a.value, null); assert.equal(a.thin, true); assert.equal(a.text, '–'); });
+  assert.ok(Studio.performance([]).every(a => a.thin));
+});
+
+test('a shared format needs every scored session in the same one', () => {
   assert.equal(Studio.sharedFormat([{mode: 'Indoor', shots: [{result: {value: 'X'}}]}]), 'vegas');
   assert.equal(Studio.sharedFormat([{mode: 'Indoor', scoreFormat: 'wa', shots: [{result: {value: '10'}}]}]), 'wa');
   assert.equal(Studio.sharedFormat([
     {mode: 'Indoor', scoreFormat: 'wa', shots: [{result: {value: 'X'}}]},
     {mode: 'Indoor', scoreFormat: 'lancaster', shots: [{result: {value: '11'}}]}
   ]), null);
+});
+
+test('the training streak counts days in a row and lays out the week', () => {
+  const day = d => new Date(2026, 9, d, 18).getTime();
+  const sessions = [5, 6, 12, 13, 14].map(d => ({id: day(d), shots: [{}, {}]}));
+  sessions.push({id: day(9), shots: [{candidate: true}]});
+  const t = Studio.trainingStreak(sessions, new Date(2026, 9, 14, 20));
+  assert.equal(t.current, 3);
+  assert.equal(t.best, 3);
+  assert.deepEqual(t.week.map(c => c.run), [false, false, false, false, true, true, true]);
+  assert.deepEqual(t.week.map(c => c.dow), [3, 4, 5, 6, 0, 1, 2]);
+  assert.ok(t.week.every(c => !c.future));
+  assert.equal(t.week[6].today, true);
+  assert.equal(t.two.length, 14);
+  assert.equal(t.two[4].on, true);
+  assert.equal(t.two[4].run, false);
+  assert.equal(t.two[8].on, false);
+  assert.equal(t.weeks.length, 4);
+  assert.deepEqual(t.weeks[3].map(c => c.run), [true, true, true, false, false, false, false]);
+  const next = Studio.trainingStreak(sessions, new Date(2026, 9, 15, 9));
+  assert.equal(next.current, 3);
+  assert.equal(next.week[6].today, true);
+  assert.equal(next.week[6].run, false);
+  assert.deepEqual(next.week.map(c => c.run), [false, false, false, true, true, true, false]);
+  const sessionsRun = [10, 11, 12, 13, 14].map(d => ({id: day(d), shots: [{}]}));
+  assert.equal(Studio.trainingStreak(sessionsRun, new Date(2026, 9, 14, 20)).week.filter(c => c.run).length, 5);
+  assert.equal(Studio.trainingStreak([], new Date(2026, 9, 14)).current, 0);
+});
+
+test('the best streak keeps the whole session strip and where it happened', () => {
+  const shot = (set, value) => ({set_id: set, result: {value}});
+  const run = Studio.arrowStreak([shot(1, '9'), shot(1, 'X'), shot(2, '10'), shot(2, '10'), {set_id: 2, candidate: true, result: {value: '8'}}, shot(3, '8'), shot(3, 'X')]);
+  assert.equal(run.best, 3);
+  assert.equal(run.start, 1);
+  assert.deepEqual([run.from, run.to], [1, 2]);
+  assert.deepEqual(run.seq.map(a => a.group), ['98', 'x10', 'x10', 'x10', '98', 'x10']);
+  assert.equal(run.current, 1);
+});
+
+test('card details default to the edition line only and keep what the user turns on', () => {
+  const clean = Studio.sanitizeCard('glass', {photo: 'tall', widgets: [{id: 'score', size: 'small'}], fx: {grain: true, foil: 'yes', nope: true}});
+  assert.deepEqual(clean.fx, {foot: true, grain: true, foil: false, mark: false, duo: false});
+  assert.deepEqual(Studio.sanitizeCard('obsidian', null).fx, {foot: true, grain: false, foil: false, mark: false, duo: false});
+  const both = Studio.sanitizeCard('glass', {widgets: [{id: 'train', size: 'wide', variant: 'month'}, {id: 'streak', size: 'small'}]});
+  assert.deepEqual(both.widgets, [{id: 'train', size: 'wide', variant: 'month'}, {id: 'streak', size: 'small'}]);
+  assert.equal(Studio.sanitizeCard('glass', {widgets: [{id: 'train', variant: 'year'}]}).widgets[0].variant, 'week');
+  for (const style of Object.keys(Studio.CARD_DEFAULTS)) {
+    const cfg = {photo: 'short', widgets: [{id: 'streak', size: 'small'}, {id: 'train', size: 'small'}, {id: 'streak', size: 'wide'}, {id: 'train', size: 'wide', variant: 'month'}]};
+    assert.equal(Studio.cardRows(style, Studio.sanitizeCard(style, cfg)).fits, true, style);
+  }
 });
 
 test('the share card is a portrait holographic collectible with a short score line', () => {
@@ -208,13 +239,56 @@ test('the card streak is consecutive arrows in the high ring, X 10 and 11', () =
   assert.deepEqual(tie.values, ['X', '10']);
   assert.equal(tie.current, 2);
   assert.equal(Studio.arrowStreak([]).best, 0);
-  assert.equal(Studio.WIDGETS.find(w => w.id === 'streak').name, 'Racha más larga');
+  assert.equal(Studio.WIDGETS.find(w => w.id === 'streak').name, 'Mejor racha');
+  assert.deepEqual(Studio.WIDGETS.find(w => w.id === 'train').variants.map(v => v.name), ['Semana', 'Mes']);
   for (const style of Object.keys(Studio.CARD_DEFAULTS)) {
     const cfg = {photo: 'short', widgets: [{id: 'streak', size: 'small'}, {id: 'score', size: 'small'}, {id: 'streak', size: 'wide'}]};
     const clean = Studio.sanitizeCard(style, cfg);
     assert.deepEqual(clean.widgets.map(w => w.id), ['streak', 'score']);
     assert.equal(Studio.cardRows(style, clean).fits, true, style);
   }
+});
+
+test('the profile banner is a preset, a photo of the user or nothing, and starts on Campo', () => {
+  const mem = {};
+  const previous = global.localStorage;
+  global.localStorage = {
+    getItem: key => (key in mem ? mem[key] : null),
+    setItem: (key, value) => { mem[key] = value; }
+  };
+  assert.equal(Studio.profile().banner, 'campo');
+  Studio.saveProfile({name: 'Ana', banner: 'diana'});
+  assert.equal(Studio.profile().banner, 'diana');
+  assert.equal(Studio.profile().name, 'Ana');
+  Studio.saveProfile({banner: 'none'});
+  assert.equal(Studio.profile().banner, 'none');
+  Studio.saveProfile({banner: 'data:image/jpeg;base64,AAAA'});
+  assert.equal(Studio.profile().banner, 'data:image/jpeg;base64,AAAA');
+  mem.awProfile = JSON.stringify({name: 'Ana', banner: "data:image/png;base64,AA');x:y('"});
+  assert.equal(Studio.profile().banner, 'campo');
+  if (previous === undefined) delete global.localStorage;
+  else global.localStorage = previous;
+});
+
+test('the profile card takes the banner and the photo of the user', () => {
+  const mem = {};
+  const previous = global.localStorage;
+  global.localStorage = {
+    getItem: key => (key in mem ? mem[key] : null),
+    setItem: (key, value) => { mem[key] = value; }
+  };
+  Studio.saveProfile({name: 'Ana  López', photo: 'data:image/jpeg;base64,BBBB', banner: 'data:image/jpeg;base64,AAAA'});
+  const art = Studio.profileArt();
+  assert.equal(art.photo, 'data:image/jpeg;base64,AAAA');
+  assert.equal(art.avatar, 'data:image/jpeg;base64,BBBB');
+  assert.equal(art.initials, 'AL');
+  assert.equal(art.focus, 0.5);
+  Studio.saveProfile({banner: 'visor'});
+  assert.equal(Studio.profileArt().focus, Studio.PRESETS.find(p => p.id === 'visor').focus);
+  Studio.saveProfile({banner: 'none'});
+  assert.equal(Studio.profileArt().photo, '');
+  if (previous === undefined) delete global.localStorage;
+  else global.localStorage = previous;
 });
 
 test('a layout that does not fit is rejected and the saved one stays', () => {

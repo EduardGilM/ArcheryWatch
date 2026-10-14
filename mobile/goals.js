@@ -171,7 +171,7 @@ const Goals = {
       const pct = shown == null ? 0 : Math.round(shown / goal * 100);
       const num = v => digits ? v.toFixed(digits).replace('.', ',') : String(v);
       const text = (shown == null ? '–' : num(shown)) + '/' + num(goal);
-      return {id: key, label, text: text + ' · ' + pct + '%', pct, width: Math.max(0, Math.min(100, pct)), met: shown != null && shown >= goal};
+      return {id: key, label, value: text, text: text + ' · ' + pct + '%', pct, width: Math.max(0, Math.min(100, pct)), met: shown != null && shown >= goal};
     });
   },
   round(value, digits) {

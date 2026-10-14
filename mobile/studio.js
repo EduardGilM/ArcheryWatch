@@ -22,6 +22,7 @@ const Studio = {
     {id: 'diana', name: 'Diana', src: 'photos/diana.js', focus: 0.45},
     {id: 'visor', name: 'Visor', src: 'photos/visor.js', focus: 0.35}
   ],
+  BANNERS: [{id: 'none', name: 'Sin banner'}, {id: 'campo', name: 'Campo'}, {id: 'diana', name: 'Diana'}, {id: 'visor', name: 'Visor'}],
   THEMES: [
     {id: 'amber', name: 'Ámbar', acc: '#FF8A1F', acc2: '#FFC15E', glow: 'rgba(255,138,31,.28)', ink: '#1b0f05', soft: 'rgba(255,138,31,.12)', line: 'rgba(255,138,31,.45)'},
     {id: 'electric', name: 'Azul', acc: '#2F6BFF', acc2: '#9DB6FF', glow: 'rgba(47,107,255,.35)', ink: '#06101f', soft: 'rgba(47,107,255,.16)', line: 'rgba(47,107,255,.55)'},
@@ -48,9 +49,11 @@ const Studio = {
     {id: 'group', name: 'Agrupación', size: 'small'},
     {id: 'best', name: 'Mejor serie', size: 'small'},
     {id: 'precision', name: 'Precisión', size: 'small'},
-    {id: 'streak', name: 'Racha más larga', size: 'small'}
+    {id: 'streak', name: 'Mejor racha', size: 'small'},
+    {id: 'train', name: 'Racha de entrenamiento', size: 'small', variants: [{id: 'week', name: 'Semana'}, {id: 'month', name: 'Mes'}]}
   ],
   WIDGET_SIZES: [{id: 'small', name: 'Pequeño'}, {id: 'wide', name: 'Ancho'}],
+  FX: [{id: 'foot', name: 'Pie de edición', on: true}, {id: 'grain', name: 'Grano', on: false}, {id: 'foil', name: 'Canto holográfico', on: false}, {id: 'mark', name: 'Diana', on: false}, {id: 'duo', name: 'Duotono', on: false}],
   PHOTO_SIZES: [{id: 'tall', name: 'Alta'}, {id: 'short', name: 'Baja'}, {id: 'none', name: 'Sin foto'}],
   CARD_DEFAULTS: {
     glass: {photo: 'tall', widgets: [{id: 'score', size: 'small'}, {id: 'stats', size: 'small'}, {id: 'best', size: 'small'}, {id: 'group', size: 'small'}, {id: 'dist', size: 'wide', variant: 'bar'}]},
@@ -59,9 +62,9 @@ const Studio = {
   },
   // Preferred height of each widget in 1080-wide card pixels: [small, wide]. Distribution depends on its chart.
   WIDGET_HEIGHTS: {
-    glass: {score: [270, 210], stats: [270, 150], bar: [200, 130], donut: [290, 230], columns: [250, 210], series: [250, 190], group: [140, 150], best: [140, 150], precision: [140, 130], streak: [210, 190]},
-    editorial: {score: [200, 140], stats: [230, 120], bar: [200, 136], donut: [270, 210], columns: [230, 186], series: [230, 190], group: [140, 130], best: [150, 130], precision: [130, 120], streak: [168, 156]},
-    obsidian: {score: [280, 240], stats: [230, 130], bar: [130, 120], donut: [210, 180], columns: [168, 156], series: [280, 200], group: [130, 130], best: [150, 130], precision: [120, 120], streak: [160, 148]}
+    glass: {score: [270, 210], stats: [270, 150], bar: [210, 150], donut: [290, 230], columns: [250, 210], series: [250, 190], group: [160, 160], best: [160, 160], precision: [160, 150], streak: [250, 224], train: [250, 224]},
+    editorial: {score: [200, 140], stats: [230, 120], bar: [210, 150], donut: [270, 210], columns: [230, 186], series: [230, 190], group: [160, 145], best: [165, 145], precision: [150, 135], streak: [212, 186], train: [212, 186]},
+    obsidian: {score: [280, 240], stats: [230, 130], bar: [150, 135], donut: [210, 180], columns: [168, 156], series: [280, 200], group: [150, 145], best: [165, 145], precision: [140, 135], streak: [204, 178], train: [204, 178]}
   },
   // Widget area per style: horizontal span, gap between rows and columns, and top edge by photo size.
   CARD_AREAS: {
@@ -83,7 +86,9 @@ const Studio = {
       if (def.variants) out.variant = def.variants.some(v => v.id === w.variant) ? w.variant : def.variants[0].id;
       return out;
     }).filter(Boolean);
-    return {photo, widgets};
+    const fx = {};
+    this.FX.forEach(f => { fx[f.id] = src.fx && typeof src.fx[f.id] === 'boolean' ? src.fx[f.id] : f.on; });
+    return {photo, widgets, fx};
   },
   cardConfig(style) {
     const id = this.CARD_DEFAULTS[style] ? style : 'glass';
@@ -281,116 +286,82 @@ const Studio = {
     const only = [...formats][0];
     return only === 'pad' ? null : only;
   },
-  radar(shots, format) {
-    const pool = this.scorePool(shots);
-    const scored = pool.filter(s => StudioScore.points(s.result && s.result.value) != null);
-    const totals = StudioScore.totals(pool);
-    const clamp = v => Math.max(0, Math.min(100, v));
+  performance(sessions) {
+    const real = [], setAvg = [];
+    (sessions || []).forEach(session => {
+      const rows = ((session && session.shots) || []).filter(x => x && !x.candidate);
+      real.push(...rows);
+      studioSetsOf(rows).forEach(g => {
+        const p = g.rows.map(x => StudioScore.points(x.result && x.result.value)).filter(v => v != null);
+        if (p.length >= 2) setAvg.push(p.reduce((x, y) => x + y, 0) / p.length);
+      });
+    });
     const mean = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
-    const sd = a => {
-      if (!a.length) return null;
-      const m = mean(a);
-      return Math.sqrt(a.reduce((n, x) => n + (x - m) ** 2, 0) / a.length);
+    const clamp = v => Math.max(0, Math.min(100, v));
+    const one = n => (Math.round(n * 10) / 10).toFixed(1).replace('.', ',');
+    const scored = real.filter(x => StudioScore.points(x.result && x.result.value) != null);
+    const avg = mean(scored.map(x => StudioScore.points(x.result.value)));
+    const center = scored.length ? scored.filter(x => StudioScore.groupOf(x.result.value) === 'x10').length / scored.length : null;
+    const impacts = StudioScore.impacts(scored).length;
+    const spread = studioSpread(scored);
+    const cm = spread == null ? null : spread * 10;
+    const aims = real.map(x => x.aim_score).filter(Number.isFinite);
+    const stab = mean(aims);
+    const m = mean(setAvg);
+    const sd = setAvg.length >= 3 ? Math.sqrt(mean(setAvg.map(v => (v - m) ** 2))) : null;
+    const axis = (id, label, raw, n, need, v, text) => {
+      const thin = raw == null || n < need;
+      return {id, label, n, thin, raw: thin ? null : raw, value: thin ? null : clamp(v), text: thin ? '–' : text};
     };
-    const axis = (id, label, value, text, n) => ({
-      id, label, n, thin: n < 8,
-      value: n < 8 || value == null ? null : value,
-      text: n < 8 || value == null ? '–' : text
-    });
-    const precisionN = scored.length;
-    const mark = format === 'wa' ? '10' : format === 'lancaster' ? '11' : 'X';
-    const precision = precisionN ? scored.filter(s => s.result.value === mark).length / precisionN * 100 : null;
-    const pts = StudioScore.impacts(scored);
-    let group = null;
-    if (pts.length >= 2) {
-      const rs = pts.map(p => Math.hypot(p.x, p.y));
-      const spread = sd(rs);
-      const tight = 0.25 * 0.2, wide = 0.6;
-      group = spread <= tight ? 100 : spread >= wide ? 0 : clamp((1 - (spread - tight) / (wide - tight)) * 100);
-    }
-    let vertical = null;
-    if (pts.length >= 2) {
-      const sx = sd(pts.map(p => p.x)) || 0;
-      const sy = sd(pts.map(p => p.y)) || 0;
-      const ratio = sx < 1e-6 ? (sy < 1e-6 ? 1 : 2) : sy / sx;
-      vertical = ratio <= 1 ? 100 : ratio >= 2 ? 0 : clamp((2 - ratio) * 100);
-    }
-    const draws = pool.map(s => s.draw_ms).filter(v => Number.isFinite(v) && v >= 0);
-    const windowPct = draws.length ? draws.filter(ms => ms >= 6000 && ms <= 8000).length / draws.length * 100 : null;
-    const hrs = pool.map(s => s.hr_bpm).filter(v => Number.isFinite(v) && v > 0).sort((a, b) => a - b);
-    let pulse = null, pulseMed = null;
-    if (hrs.length) {
-      const mid = Math.floor(hrs.length / 2);
-      pulseMed = hrs.length % 2 ? hrs[mid] : (hrs[mid - 1] + hrs[mid]) / 2;
-      pulse = pulseMed <= 70 ? 100 : pulseMed >= 100 ? 0 : clamp((100 - pulseMed) / 30 * 100);
-    }
-    const order = [];
-    const bySet = new Map();
-    pool.forEach(s => {
-      const id = String(s.set_id ?? '');
-      if (!bySet.has(id)) { bySet.set(id, []); order.push(id); }
-      bySet.get(id).push(s);
-    });
-    const packed = order.map(id => {
-      const rows = bySet.get(id);
-      const p = rows.map(s => StudioScore.points(s.result && s.result.value)).filter(v => v != null);
-      const a = rows.map(s => s.aim_score).filter(Number.isFinite);
-      return {
-        id,
-        pts: p.length ? p.reduce((x, y) => x + y, 0) / p.length : null,
-        sum: p.length ? p.reduce((x, y) => x + y, 0) : null,
-        aim: a.length ? a.reduce((x, y) => x + y, 0) / a.length : null,
-        n: rows.length
-      };
-    });
-    let endure = null, endureN = 0;
-    if (packed.length >= 4) {
-      const first = packed.slice(0, 2), last = packed.slice(-2);
-      endureN = [...first, ...last].reduce((n, s) => n + s.n, 0);
-      const avg = (rows, key) => {
-        const v = rows.map(r => r[key]).filter(x => x != null);
-        return v.length ? v.reduce((x, y) => x + y, 0) / v.length : null;
-      };
-      let a = avg(first, 'pts'), b = avg(last, 'pts');
-      const flat = a != null && b != null && Math.abs(a - b) < 1e-6;
-      if (a == null || b == null || !(a > 0) || flat) { a = avg(first, 'aim'); b = avg(last, 'aim'); }
-      if (a != null && b != null && a > 0) {
-        const ratio = b / a;
-        endure = ratio >= 1 ? 100 : ratio <= 0.93 ? 0 : clamp((ratio - 0.93) / 0.07 * 100);
-      }
-    }
-    const round = v => v == null ? '–' : String(Math.round(v));
-    return {
-      totals, sets: packed, pulseMed,
-      axes: [
-        axis('precision', 'Precisión', precision, precision == null ? '–' : Math.round(precision) + '%', precisionN),
-        axis('group', 'Agrupación', group, round(group), pts.length),
-        axis('vertical', 'Control vertical', vertical, round(vertical), pts.length),
-        axis('window', 'Ventana de apunte', windowPct, windowPct == null ? '–' : Math.round(windowPct) + '%', draws.length),
-        axis('pulse', 'Pulso al soltar', pulse, pulseMed == null ? '–' : Math.round(pulseMed) + ' lpm', hrs.length),
-        axis('endure', 'Aguante', endure, round(endure), endureN)
-      ]
-    };
+    return [
+      axis('points', 'Puntos', avg, scored.length, 8, (avg - 6) / 4 * 100, avg == null ? '' : one(avg)),
+      axis('center', 'Centro', center, scored.length, 8, center * 100, Math.round(center * 100) + '%'),
+      axis('group', 'Agrupación', cm, impacts, 8, 100 - (cm - 1) / 5 * 100, cm == null ? '' : one(cm) + ' cm'),
+      axis('stability', 'Estabilidad', stab, aims.length, 8, stab, String(Math.round(stab))),
+      axis('steady', 'Constancia', sd, setAvg.length, 3, 100 - sd / 1.5 * 100, sd == null ? '' : '±' + one(sd))
+    ];
   },
   // Racha de la tarjeta: flechas seguidas en el anillo alto, el grupo x10 de Score (X, 10 y 11).
   // Un 9 o menos, o una M, la corta. Las candidatas no entran. La más larga es el primer tramo que llega al máximo; la actual es el tramo que sigue abierto al final.
   arrowStreak(shots) {
-    const run = [];
-    let best = 0, current = 0, bestValues = [];
+    const seq = [], sets = [];
+    let best = 0, current = 0, start = -1, from = 0;
     (shots || []).forEach(s => {
       if (!s || s.candidate) return;
       const v = s.result && s.result.value;
       if (v == null || v === '' || (StudioScore.points(v) == null && v !== 'M')) return;
-      if (StudioScore.groupOf(v) === 'x10') {
+      const set = String(s.set_id ?? '');
+      if (!sets.includes(set)) sets.push(set);
+      const group = StudioScore.groupOf(String(v));
+      if (group === 'x10') {
+        if (!current) from = seq.length;
         current++;
-        run.push(String(v));
-        if (current > best) { best = current; bestValues = run.slice(); }
-      } else {
-        current = 0;
-        run.length = 0;
-      }
+        if (current > best) { best = current; start = from; }
+      } else current = 0;
+      seq.push({v: String(v), group, set: sets.indexOf(set) + 1});
     });
-    return {best, current, values: bestValues.slice(0, 16)};
+    const run = start < 0 ? [] : seq.slice(start, start + best);
+    return {best, current, values: run.map(a => a.v).slice(0, 16), seq, start, from: run.length ? run[0].set : 0, to: run.length ? run[run.length - 1].set : 0};
+  },
+  trainingStreak(sessions, now) {
+    const when = now instanceof Date ? now : new Date(now || Date.now());
+    const today = StudioGoals.daySerial(when);
+    if (today == null) return {current: 0, best: 0, week: [], two: [], weeks: [], trained: 0};
+    const {days} = StudioGoals.buckets(sessions);
+    const run = StudioGoals.streak(days, today, 1);
+    const counts = new Map();
+    (sessions || []).forEach(s => {
+      const d = StudioGoals.daySerial(s && s.id);
+      const n = StudioGoals.realShots(s).length;
+      if (d != null && n) counts.set(d, (counts.get(d) || 0) + n);
+    });
+    const p = StudioGoals.localParts(when);
+    const monday = today - (new Date(Date.UTC(p.y, p.m - 1, p.d)).getUTCDay() + 6) % 7;
+    const end = days.has(today) ? today : today - 1;
+    const cell = d => ({day: d, dow: (new Date(d * 86400000).getUTCDay() + 6) % 7, on: days.has(d), n: counts.get(d) || 0, run: d <= end && d > end - run.current, today: d === today, future: d > today});
+    const weeks = [3, 2, 1, 0].map(w => Array.from({length: 7}, (_, i) => cell(monday - w * 7 + i)));
+    const last = n => Array.from({length: n}, (_, i) => cell(today - n + 1 + i));
+    return {current: run.current, best: run.best, week: last(7), two: last(14), weeks, trained: weeks.flat().filter(c => c.on).length};
   },
   heatmap(sessions, now, weeks) {
     const nWeeks = weeks || 18;
@@ -421,20 +392,33 @@ const Studio = {
     return {weeks: nWeeks, start, today, cells};
   },
   profile() {
-    const blank = {name: '', club: '', photo: ''};
+    const blank = {name: '', club: '', photo: '', banner: 'campo'};
     try {
       const raw = JSON.parse(localStorage.getItem('awProfile') || 'null');
       if (!raw || typeof raw !== 'object') return blank;
+      const b = raw.banner;
       return {
         name: String(raw.name || '').slice(0, 32),
         club: String(raw.club || '').slice(0, 40),
-        photo: typeof raw.photo === 'string' && raw.photo.length < 300000 ? raw.photo : ''
+        photo: typeof raw.photo === 'string' && raw.photo.length < 300000 ? raw.photo : '',
+        banner: typeof b === 'string' && (this.BANNERS.some(x => x.id === b) || (b.length < 600000 && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(b))) ? b : 'campo'
       };
     } catch (e) { return blank; }
   },
+  profileArt() {
+    const p = this.profile();
+    const preset = this.PRESETS.find(x => x.id === p.banner);
+    const words = p.name.trim().split(/\s+/).filter(Boolean);
+    return {
+      photo: p.banner === 'none' ? '' : preset ? studioPresetUrl(preset) : p.banner,
+      focus: preset ? preset.focus : 0.5,
+      avatar: p.photo,
+      initials: words.slice(0, 2).map(w => w[0].toUpperCase()).join('')
+    };
+  },
   saveProfile(patch) {
     const next = {...this.profile(), ...patch};
-    try { localStorage.setItem('awProfile', JSON.stringify({name: next.name, club: next.club, photo: next.photo})); } catch (e) {}
+    try { localStorage.setItem('awProfile', JSON.stringify({name: next.name, club: next.club, photo: next.photo, banner: next.banner})); } catch (e) {}
     return next;
   },
   historyShots() {
@@ -775,6 +759,42 @@ function studioMount() {
     if (gyroBtn) gyroBtn.hidden = true;
     studioListenGyro(false);
   }
+  const bannerEdit = $('profileBannerEdit'), bannerPick = $('bannerPick'), bannerFile = $('bannerFile');
+  if (bannerEdit && bannerPick) bannerEdit.onclick = () => {
+    bannerPick.hidden = !bannerPick.hidden;
+    bannerEdit.setAttribute('aria-expanded', bannerPick.hidden ? 'false' : 'true');
+    studioBannerPick();
+  };
+  if (bannerPick) bannerPick.onclick = e => {
+    const b = e.target.closest('[data-banner]');
+    if (!b) return;
+    if (b.dataset.banner === 'file') { if (bannerFile) bannerFile.click(); return; }
+    if (b.dataset.banner !== 'custom') Studio.saveProfile({banner: b.dataset.banner});
+    studioPaintBanner();
+    studioBannerPick();
+  };
+  if (bannerFile) bannerFile.onchange = () => {
+    const file = bannerFile.files && bannerFile.files[0];
+    bannerFile.value = '';
+    if (!file) return;
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = 1200;
+      c.height = 640;
+      const scale = Math.max(1200 / img.width, 640 / img.height);
+      const w = img.width * scale, h = img.height * scale;
+      c.getContext('2d').drawImage(img, (1200 - w) / 2, (640 - h) / 2, w, h);
+      let q = 0.82, url = c.toDataURL('image/jpeg', q);
+      while (url.length > 420000 && q > 0.45) { q -= 0.08; url = c.toDataURL('image/jpeg', q); }
+      URL.revokeObjectURL(img.src);
+      Studio.saveProfile({banner: url});
+      if (Studio.profile().banner !== url && typeof notice === 'function') notice('No se pudo guardar el banner');
+      studioPaintBanner();
+      studioBannerPick();
+    };
+    img.src = URL.createObjectURL(file);
+  };
   const photoBtn = $('profilePhotoBtn'), photoFile = $('profileFile');
   if (photoBtn && photoFile) photoBtn.onclick = () => photoFile.click();
   if (photoFile) photoFile.onchange = () => {
@@ -845,68 +865,74 @@ function studioFit(c, cssH) {
   return {x, w, h: cssH};
 }
 
-function studioRadarDraw(ctx, cx, cy, R, stats, theme, labels) {
-  const axes = stats.axes;
-  const n = axes.length;
-  const ang = i => -Math.PI / 2 + i * Math.PI * 2 / n;
+function studioRadarDraw(ctx, cx, cy, R, now, before, theme) {
+  const n = now.length, ang = i => -Math.PI / 2 + i * Math.PI * 2 / n;
+  const pt = (i, v) => [cx + Math.cos(ang(i)) * R * v / 100, cy + Math.sin(ang(i)) * R * v / 100];
+  const path = axes => axes.forEach((a, i) => { const [x, y] = pt(i, a.value); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
   ctx.save();
-  for (let ring = 1; ring <= 4; ring++) {
+  [25, 50, 75, 100].forEach(ring => {
     ctx.beginPath();
-    for (let i = 0; i < n; i++) {
-      const a = ang(i), rr = R * ring / 4;
-      const px = cx + Math.cos(a) * rr, py = cy + Math.sin(a) * rr;
-      i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
-    }
+    for (let i = 0; i < n; i++) { const [x, y] = pt(i, ring); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
     ctx.closePath();
-    ctx.strokeStyle = 'rgba(255,255,255,.14)';
+    ctx.strokeStyle = ring === 100 ? 'rgba(255,255,255,.16)' : 'rgba(255,255,255,.07)';
     ctx.lineWidth = 1;
     ctx.stroke();
-  }
-  const known = ax => ax && ax.value != null && !ax.thin;
-  axes.forEach((ax, i) => {
-    const a = ang(i);
+  });
+  now.forEach((a, i) => {
+    const [x, y] = pt(i, 100);
     ctx.beginPath();
     ctx.moveTo(cx, cy);
-    ctx.lineTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R);
-    ctx.setLineDash(known(ax) ? [] : [3, 4]);
-    ctx.strokeStyle = known(ax) ? 'rgba(255,255,255,.1)' : 'rgba(255,255,255,.38)';
+    ctx.lineTo(x, y);
+    ctx.setLineDash(a.thin ? [3, 4] : []);
+    ctx.strokeStyle = a.thin ? 'rgba(255,255,255,.3)' : 'rgba(255,255,255,.07)';
     ctx.stroke();
   });
   ctx.setLineDash([]);
-  const solid = axes.map((ax, i) => ({ax, i})).filter(row => known(row.ax));
-  if (solid.length >= 3) {
+  if (before && before.every(a => a.value != null)) {
     ctx.beginPath();
-    solid.forEach((row, n) => {
-      const a = ang(row.i);
-      const v = Math.max(0, Math.min(100, row.ax.value)) / 100;
-      const px = cx + Math.cos(a) * R * v, py = cy + Math.sin(a) * R * v;
-      n ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
-    });
+    path(before);
     ctx.closePath();
-    ctx.fillStyle = theme.soft;
+    ctx.setLineDash([4, 4]);
+    ctx.strokeStyle = 'rgba(255,255,255,.45)';
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  if (now.every(a => a.value != null)) {
+    ctx.beginPath();
+    path(now);
+    ctx.closePath();
+    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
+    g.addColorStop(0, studioRgba(theme.acc, 0.08));
+    g.addColorStop(1, studioRgba(theme.acc, 0.3));
+    ctx.fillStyle = g;
     ctx.fill();
+    ctx.shadowColor = studioRgba(theme.acc, 0.6);
+    ctx.shadowBlur = 10;
     ctx.strokeStyle = theme.acc;
     ctx.lineWidth = 2.2;
     ctx.stroke();
-    solid.forEach(row => {
-      const a = ang(row.i);
-      const v = Math.max(0, Math.min(100, row.ax.value)) / 100;
+    ctx.shadowBlur = 0;
+    now.forEach((a, i) => {
+      const [x, y] = pt(i, a.value);
       ctx.beginPath();
-      ctx.arc(cx + Math.cos(a) * R * v, cy + Math.sin(a) * R * v, 3.2, 0, 7);
-      ctx.fillStyle = theme.acc2;
+      ctx.arc(x, y, 3.4, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff';
       ctx.fill();
     });
   }
-  if (labels) {
-    ctx.font = '600 11px ' + studioSans;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    axes.forEach((ax, i) => {
-      const a = ang(i);
-      ctx.fillStyle = known(ax) ? '#fff' : 'rgba(255,255,255,.38)';
-      ctx.fillText(ax.label, cx + Math.cos(a) * (R + 28), cy + Math.sin(a) * (R + 28));
-    });
-  }
+  now.forEach((a, i) => {
+    const c = Math.cos(ang(i)), s = Math.sin(ang(i));
+    const side = Math.abs(c) < 0.3 ? 0 : c > 0 ? 1 : -1;
+    const lx = cx + c * (R + 30) - side * 12, ly = cy + s * (R + 22);
+    ctx.textAlign = side === 0 ? 'center' : side > 0 ? 'left' : 'right';
+    ctx.font = '500 9.5px ' + studioSans;
+    ctx.fillStyle = a.thin ? 'rgba(255,255,255,.32)' : 'rgba(255,255,255,.58)';
+    ctx.fillText(a.label.toUpperCase().split('').join(String.fromCharCode(8202)), lx, ly - 6);
+    ctx.font = '600 19px ' + studioNum;
+    ctx.fillStyle = a.thin ? 'rgba(255,255,255,.32)' : '#fff';
+    ctx.fillText(a.text, lx, ly + 13);
+  });
   ctx.restore();
 }
 
@@ -923,6 +949,8 @@ function studioPaint() {
 function studioSync() {
   const sw = document.getElementById('themeSwatches');
   if (sw) sw.querySelectorAll('[data-theme]').forEach(b => b.classList.toggle('on', b.dataset.theme === Studio.theme().id));
+  const themeName = document.getElementById('themeName');
+  if (themeName) themeName.textContent = Studio.theme().name;
   studioModes();
   const share = document.getElementById('openShare');
   if (share) share.hidden = !(typeof data !== 'undefined' && data && data.shots && data.shots.length);
@@ -972,6 +1000,8 @@ function studioModes() {
 }
 
 function studioSyncShare() {
+  const photos = document.getElementById('sharePhotos');
+  if (photos) photos.hidden = Studio.card.layout === 'profile';
   const box = document.getElementById('shareThumbs');
   if (box) box.querySelectorAll('[data-layout]').forEach(b => {
     const on = b.dataset.layout === Studio.card.layout;
@@ -1093,6 +1123,8 @@ function studioWidgetList() {
       return `<li class="wRow${i === Studio.card.sel ? ' sel' : ''}" data-index="${i}"><button type="button" class="wDel" data-del aria-label="Quitar ${def.name}">${studioSvgMinus}</button><span class="wName">${def.name}</span>${variant}<button type="button" class="wChip" data-size aria-label="Tamaño">${size}</button><span class="wGrip" data-grip aria-label="Arrastrar para ordenar">${studioSvgGrip}</span></li>`;
     }).join('');
   }
+  const fxRow = document.getElementById('widgetFx');
+  if (fxRow) fxRow.innerHTML = Studio.FX.map(f => `<button type="button" data-fx="${f.id}" class="${cfg.fx && cfg.fx[f.id] ? 'on' : ''}" aria-pressed="${cfg.fx && cfg.fx[f.id] ? 'true' : 'false'}">${f.name}</button>`).join('');
   const add = document.getElementById('widgetAdd');
   if (add) {
     const missing = Studio.WIDGETS.filter(d => !cfg.widgets.some(w => w.id === d.id));
@@ -1123,6 +1155,11 @@ function studioMountWidgets($) {
   if (photo) photo.onclick = e => {
     const b = e.target.closest('[data-photo]');
     if (b && studioChangeCard(cfg => { cfg.photo = b.dataset.photo; })) studioWidgetList();
+  };
+  const fxRow = $('widgetFx');
+  if (fxRow) fxRow.onclick = e => {
+    const b = e.target.closest('[data-fx]');
+    if (b && studioChangeCard(cfg => { cfg.fx[b.dataset.fx] = !cfg.fx[b.dataset.fx]; })) studioWidgetList();
   };
   const add = $('widgetAdd');
   if (add) add.onclick = e => {
@@ -1268,7 +1305,7 @@ function studioPaintProfile() {
   const ph = document.getElementById('profilePhotoPh');
   if (img) { img.hidden = !p.photo; if (p.photo) img.src = p.photo; }
   if (ph) ph.hidden = !!p.photo;
-  const gear = document.getElementById('profileGear');
+  studioPaintBanner();
   let bows = [], arrows = [];
   try {
     const g = JSON.parse(localStorage.getItem('awGear') || 'null') || {};
@@ -1276,20 +1313,21 @@ function studioPaintProfile() {
     arrows = Array.isArray(g.arrows) ? g.arrows : [];
   } catch (e) {}
   const s = typeof displayedSession === 'function' ? displayedSession() : null;
+  const sessions = studioSessions();
+  const first = sessions[0];
+  const gear = document.getElementById('profileGear');
   const bow = [...new Set([s && (s.bow || s.profile), ...bows].filter(Boolean))].slice(0, 3).join(' · ') || 'Sin arco';
   const arrow = [...new Set([s && s.arrows, ...arrows].filter(Boolean))].slice(0, 3).join(' · ') || 'Sin flechas';
-  if (gear) gear.innerHTML = `<b>${escapeText(bow)}</b><br>${escapeText(arrow)}`;
-  const sessions = studioSessions();
+  if (gear) gear.innerHTML = `<span>${escapeText(bow)}</span><span>${escapeText(arrow)}</span>`;
   const shots = Studio.historyShots();
-  const stats = Studio.radar(shots, Studio.sharedFormat(sessions));
-  const totals = stats.totals;
+  const totals = StudioScore.totals(Studio.scorePool(shots));
   const aims = shots.map(a => a.aim_score).filter(Number.isFinite);
   const aim = aims.length ? Math.round(aims.reduce((x, y) => x + y, 0) / aims.length) : null;
-  const box = document.getElementById('profileNums');
   const markFormat = Studio.sharedFormat(sessions);
   const markLabel = markFormat === 'lancaster' ? '11' : markFormat === 'wa' ? '9' : 'X';
   const markN = markFormat === 'lancaster' ? totals.eleven : markFormat === 'wa' ? totals.nine : totals.x;
-  if (box) box.innerHTML =
+  const nums = document.getElementById('profileNums');
+  if (nums) nums.innerHTML =
     `<div><span class="lbl">Flechas</span><b class="num">${shots.length || '–'}</b></div>` +
     `<div><span class="lbl">Sesiones</span><b class="num">${sessions.length || '–'}</b></div>` +
     `<div><span class="lbl">Media</span><b class="num">${totals.avg == null ? '–' : esNum(totals.avg, 1)}</b></div>` +
@@ -1297,53 +1335,90 @@ function studioPaintProfile() {
   const span = document.getElementById('profileSpan');
   if (span) span.textContent = aim == null ? '' : 'estabilidad ' + aim;
   const spark = studioFit(document.getElementById('profileSpark'), 84);
-  if (spark) {
-    const vals = sessions.map(row => {
-      const a = row.shots.map(x => x.aim_score).filter(Number.isFinite);
-      return a.length ? a.reduce((m, n) => m + n, 0) / a.length : null;
-    }).filter(v => v != null).slice(-12);
-    if (vals.length >= 2) {
-      const min = Math.min(...vals), max = Math.max(...vals), scale = Math.max(8, max - min);
-      spark.x.beginPath();
-      vals.forEach((v, i) => {
-        const px = 8 + i * ((spark.w - 16) / (vals.length - 1));
-        const py = spark.h - 12 - ((v - min) / scale) * (spark.h - 24);
-        i ? spark.x.lineTo(px, py) : spark.x.moveTo(px, py);
-      });
-      spark.x.strokeStyle = Studio.theme().acc;
-      spark.x.lineWidth = 2;
-      spark.x.stroke();
-    }
+  const vals = sessions.map(row => {
+    const a = row.shots.map(x => x.aim_score).filter(Number.isFinite);
+    return a.length ? a.reduce((m, n) => m + n, 0) / a.length : null;
+  }).filter(v => v != null).slice(-12);
+  if (spark && vals.length >= 2) {
+    const min = Math.min(...vals), max = Math.max(...vals), scale = Math.max(8, max - min);
+    spark.x.beginPath();
+    vals.forEach((v, i) => {
+      const px = 8 + i * ((spark.w - 16) / (vals.length - 1));
+      const py = spark.h - 12 - ((v - min) / scale) * (spark.h - 24);
+      i ? spark.x.lineTo(px, py) : spark.x.moveTo(px, py);
+    });
+    spark.x.strokeStyle = Studio.theme().acc;
+    spark.x.lineWidth = 2;
+    spark.x.stroke();
   }
-  const radar = studioFit(document.getElementById('profileRadar'), 280);
-  if (radar) studioRadarDraw(radar.x, radar.w / 2, radar.h / 2 - 4, Math.min(radar.w, radar.h) * 0.32, stats, Studio.theme(), true);
+  const box = document.getElementById('streakBox');
+  if (box && typeof store !== 'undefined') {
+    const t = Studio.trainingStreak(sessions, new Date());
+    const pill = c => `<i class="${[c.run ? 'run' : c.on ? 'on' : '', c.today ? 'today' : ''].join(' ').trim()}">${STUDIO_DAYS[c.dow]}</i>`;
+    box.innerHTML = `<div><b>${t.current}</b><span>${t.current === 1 ? 'día seguido' : 'días seguidos'}</span></div>` +
+      `<div class="weekPills" aria-label="Esta semana">${t.week.map(pill).join('')}</div>`;
+    box.hidden = false;
+    const line = document.getElementById('goalStreak');
+    if (line) line.hidden = true;
+  }
 }
 
-function studioProgressShots() {
+function studioBannerSrc(id) {
+  if (!id || id === 'none') return '';
+  if (id.startsWith('data:image/')) return id;
+  const preset = Studio.PRESETS.find(p => p.id === id);
+  return preset ? studioPresetUrl(preset) : '';
+}
+
+function studioPaintBanner() {
+  const box = document.getElementById('profileBanner');
+  const img = document.getElementById('profileBannerImg');
+  if (!box || !img) return;
+  const banner = Studio.profile().banner;
+  const src = studioBannerSrc(banner);
+  box.classList.toggle('none', banner === 'none');
+  if (Studio.bannerShown === src) return;
+  Studio.bannerShown = src;
+  img.style.backgroundImage = src ? 'url("' + src + '")' : '';
+  img.style.backgroundPositionY = Math.round(Studio.profileArt().focus * 100) + '%';
+}
+
+function studioBannerPick() {
+  const pick = document.getElementById('bannerPick');
+  if (!pick || pick.hidden) return;
+  const banner = Studio.profile().banner;
+  const custom = banner.startsWith('data:image/') ? banner : '';
+  const tile = (id, name, src, on, mark) => `<button type="button" data-banner="${id}" class="${on ? 'on' : ''}" aria-pressed="${on ? 'true' : 'false'}">` +
+    `<i>${src ? `<b style="background-image:url('${src}')"></b>` : mark || ''}</i><span>${name}</span></button>`;
+  pick.innerHTML = Studio.BANNERS.map(b => tile(b.id, b.name, studioBannerSrc(b.id), banner === b.id, b.id === 'none' ? '–' : '')).join('') +
+    (custom ? tile('custom', 'Tu foto', custom, true) : '') + tile('file', 'Galería', '', false, '+');
+}
+
+function studioProgressSessions() {
   const select = document.getElementById('progressProfile');
   const key = select && select.value;
-  const shots = [];
-  studioSessions().forEach(s => (s.shots || []).forEach(a => {
-    if (!a || a.candidate) return;
-    if (key && typeof Training !== 'undefined' && Training.key && Training.key({profile: a.profile || s.profile, metric: a.metric || s.metric}) !== key) return;
-    shots.push(a);
-  }));
-  return shots;
+  return studioSessions().map(s => ({id: s.id, shots: (s.shots || []).filter(a => a && !a.candidate &&
+    !(key && typeof Training !== 'undefined' && Training.key && Training.key({profile: a.profile || s.profile, metric: a.metric || s.metric}) !== key))}))
+    .filter(s => s.shots.length);
 }
 
 function studioPaintProgress() {
   const radar = studioFit(document.getElementById('progressRadar'), 280);
   if (!radar) return;
-  const shots = studioProgressShots();
-  const used = new Set(shots);
-  const sessions = studioSessions().filter(s => (s.shots || []).some(a => used.has(a)));
-  studioRadarDraw(radar.x, radar.w / 2, radar.h / 2 - 4, Math.min(radar.w, radar.h) * 0.32, Studio.radar(shots, Studio.sharedFormat(sessions)), Studio.theme(), true);
+  const sessions = studioProgressSessions();
+  const last = sessions.length ? sessions[sessions.length - 1].id : 0;
+  const cut = last - 7 * 86400000;
+  const now = Studio.performance(sessions.filter(s => s.id > cut));
+  const before = Studio.performance(sessions.filter(s => s.id <= cut));
+  studioRadarDraw(radar.x, radar.w / 2, radar.h / 2 + 2, Math.min(radar.w, radar.h) * 0.32, now, before, Studio.theme());
 }
 
 function studioPaintHeat() {
   const host = document.getElementById('heatmap');
   if (!host) return;
-  const model = Studio.heatmap(typeof store === 'undefined' ? [] : store.list(), new Date(), 18);
+  const wrap = host.parentElement;
+  const weeks = Math.max(12, Math.floor((((wrap && wrap.clientWidth) || 270) - 18) / 14));
+  const model = Studio.heatmap(typeof store === 'undefined' ? [] : store.list(), new Date(), weeks);
   const label = document.getElementById('heatLabel');
   if (label) label.textContent = model.weeks + ' semanas';
   let html = '';
@@ -1494,13 +1569,14 @@ function studioCardView(layout) {
     });
     duration = anySpan ? span : null;
     bars = sessions.slice(-12).map((s, i) => ({n: i + 1, rows: Studio.scorePool(s.shots)}));
-    return studioCardPack(headline, subtitle, when, shots, sets.length, duration, bars, grouped, studioPhotoSrc(), {
+    const view = studioCardPack(headline, subtitle, when, shots, sets.length, duration, bars, grouped, Studio.profileArt().photo, {
       kicker: 'TRAYECTORIA · ' + sessions.length + ' SESIONES',
-      title: profile.name || 'Mi trayectoria',
+      title: profile.club || 'Historial completo',
       modeLine: profile.club || 'Historial completo',
       serial: '',
       per: 'session'
     });
+    return studioProfileView(view, sessions, grouped);
   }
   const meta = {
     kicker: studioKicker(session),
@@ -1520,6 +1596,30 @@ function studioCardView(layout) {
   }
   const sets = studioSetsOf(shots);
   return studioCardPack(headline, subtitle, when, shots, sets.length, duration, bars, format, studioPhotoSrc(), meta);
+}
+function studioProfileView(view, sessions, format) {
+  const art = Studio.profileArt();
+  view.focus = art.focus;
+  view.avatar = art.avatar;
+  view.initials = art.initials;
+  const top = StudioScore.arrowMax(format);
+  const totals = StudioScore.totals(Studio.historyShots());
+  const avg1 = n => (Math.round(n * 10) / 10).toFixed(1).replace('.', ',');
+  const scored = sessions.map(s => ({s, t: StudioScore.totals((s.shots || []).filter(x => x && !x.candidate))})).filter(r => r.t.score != null);
+  const best = scored.reduce((b, r) => !b || r.t.score > b.t.score ? r : b, null);
+  view.isProfile = true;
+  view.scoreLabel = 'MEDIA';
+  view.scoreMain = totals.avg == null ? '–' : avg1(totals.avg);
+  view.scoreMax = totals.avg == null ? '' : String(top);
+  view.scoreNote = totals.avg == null ? 'sin puntuación' : '';
+  view.pct = totals.avg == null ? null : totals.avg / top;
+  view.best = best ? {label: 'MEJOR SESIÓN', sum: best.t.score, tag: studioCornerDate(best.s.id).split(' ').slice(0, 2).join(' '), values: []} : null;
+  view.series = {title: 'MEDIA POR SESIÓN', avg: true, items: scored.slice(-12).map(r => {
+    const d = new Date(r.s.id);
+    return {label: d.getDate() + '/' + (d.getMonth() + 1), sum: Math.round(r.t.avg * 10) / 10, max: top};
+  })};
+  view.stats = view.stats.map(c => c.id === 'avg' ? {id: 'sessions', label: 'Sesiones', value: String(sessions.length)} : c);
+  return view;
 }
 function studioKicker(session) {
   if (!session) return 'ENTRENAMIENTO';
@@ -1594,12 +1694,14 @@ function studioCardPack(headline, subtitle, when, shots, series, duration, bars,
     stats: [
       {id: 'arrows', label: 'Flechas', value: String(arrows)},
       {id: 'series', label: 'Series', value: String(series || 0)},
-      {id: 'avg', label: 'Media', value: studioAvgText(totals.avg)},
+      {id: 'avg', label: 'Media', value: totals.avg == null ? '–' : (Math.round(totals.avg * 10) / 10).toFixed(1).replace('.', ',')},
       {id: 'time', label: 'Duración', value: studioDurationText(duration)}
     ],
     photo: photo || '',
     focus: Studio.card.photo ? 0.5 : ((studioPreset() || {}).focus ?? 0.5),
-    streak: Studio.arrowStreak(shots)
+    mark: format === 'wa' ? '10' : format === 'lancaster' ? '11-10' : 'X-10',
+    streak: Studio.arrowStreak(shots),
+    train: Studio.trainingStreak(typeof studioSessions === 'function' ? studioSessions() : [], when)
   };
 }
 
@@ -1723,6 +1825,7 @@ function studioPresetUrl(preset) {
     const script = document.createElement('script');
     script.src = preset.src;
     script.onload = () => {
+      if (typeof view !== 'undefined' && view === 'Profile') { studioPaintBanner(); studioBannerPick(); }
       if (!Studio.shareOpen) return;
       studioDrawShare();
     };
@@ -1733,15 +1836,52 @@ function studioPresetUrl(preset) {
   return '';
 }
 function studioPhotoReady() {
-  const src = studioPhotoSrc();
-  const img = studioHeaderImage(src);
-  if (img || !src || !Studio.card.photoImg) return Promise.resolve();
-  const pending = Studio.card.photoImg;
-  return new Promise(resolve => {
-    pending.addEventListener('load', resolve, {once: true});
-    pending.addEventListener('error', resolve, {once: true});
+  const profile = Studio.card.layout === 'profile';
+  const src = profile ? Studio.profileArt().photo : studioPhotoSrc();
+  const pending = [];
+  if (src && !studioHeaderImage(src) && Studio.card.photoImg) pending.push(Studio.card.photoImg);
+  const avatar = profile ? Studio.profile().photo : '';
+  if (avatar && !studioAvatarImage(avatar) && Studio.card.avatarImg) pending.push(Studio.card.avatarImg);
+  return Promise.all(pending.map(img => new Promise(resolve => {
+    img.addEventListener('load', resolve, {once: true});
+    img.addEventListener('error', resolve, {once: true});
     setTimeout(resolve, 3000);
-  });
+  })));
+}
+function studioAvatarImage(src) {
+  if (!src || typeof Image === 'undefined') return null;
+  const c = Studio.card;
+  if (c.avatarSrc === src && c.avatarImg && c.avatarImg.complete && c.avatarImg.naturalWidth) return c.avatarImg;
+  if (c.avatarSrc !== src) {
+    c.avatarSrc = src;
+    const img = new Image();
+    img.onload = () => { if (Studio.shareOpen) studioDrawShare(false); };
+    img.src = src;
+    c.avatarImg = img;
+  }
+  return null;
+}
+function studioAvatar(ctx, cx, cy, r, view, ring, lw, bg, ink) {
+  if (!view.avatar && !view.initials) return;
+  const img = studioAvatarImage(view.avatar);
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = bg;
+  ctx.fill();
+  if (img) {
+    ctx.save();
+    ctx.clip();
+    const s = Math.max(2 * r / img.naturalWidth, 2 * r / img.naturalHeight);
+    ctx.drawImage(img, cx - img.naturalWidth * s / 2, cy - img.naturalHeight * s / 2, img.naturalWidth * s, img.naturalHeight * s);
+    ctx.restore();
+  } else if (view.initials) studioText(ctx, view.initials, cx, cy + r * 0.3, studioF(500, Math.round(r * 0.78)), ink, 0, 'center');
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.lineWidth = lw;
+  ctx.strokeStyle = ring;
+  ctx.stroke();
+  ctx.restore();
 }
 function studioPreset() {
   const list = Studio.PRESETS || [];
@@ -1909,7 +2049,7 @@ function studioEase(g, from, to, colorOf) {
 function studioPhotoCanvas(img, src, w, h, opt) {
   const o = opt || {};
   const tag = String(src).length > 160 ? String(src).length + ':' + String(src).slice(-48) : String(src);
-  const key = [tag, w, h, o.focus, o.bright, o.fade, o.tint].join('|');
+  const key = [tag, w, h, o.focus, o.bright, o.fade, o.tint, o.duo].join('|');
   const cache = Studio.card.photoCache || (Studio.card.photoCache = new Map());
   if (cache.has(key)) return cache.get(key);
   if (cache.size > 10) cache.clear();
@@ -1927,6 +2067,14 @@ function studioPhotoCanvas(img, src, w, h, opt) {
     x.globalCompositeOperation = 'soft-light';
     x.fillStyle = o.tint;
     x.fillRect(0, 0, w, h);
+    x.globalCompositeOperation = 'source-over';
+  }
+  if (o.duo) {
+    x.globalCompositeOperation = 'color';
+    x.globalAlpha = 0.17;
+    x.fillStyle = o.duo;
+    x.fillRect(0, 0, w, h);
+    x.globalAlpha = 1;
     x.globalCompositeOperation = 'source-over';
   }
   const vig = x.createRadialGradient(w / 2, h * 0.45, Math.min(w, h) * 0.3, w / 2, h * 0.5, Math.max(w, h) * 0.75);
@@ -2110,16 +2258,16 @@ function studioTokens(style, theme) {
   const acc = theme.acc, acc2 = theme.acc2 || studioMix(acc, '#ffffff', 0.45);
   if (style === 'editorial') {
     return {style, acc, acc2: studioMix(acc, '#f7f3ec', 0.45), ink: '#1c1b19', soft: '#7a746b', hair: 'rgba(28,27,25,.09)', block: '#efe9df', paper: '#f7f3ec', base: '#1c1b19',
-      bar: 'rgba(28,27,25,.13)', track: '', glow: false, panel: 'block', pad: 30, labelPx: 13.5, labelW: 600, labelTrack: 3,
+      bar: 'rgba(28,27,25,.13)', track: '', glow: false, panel: 'block', pad: 30, labelPx: 21, labelW: 600, labelTrack: 2.6,
       num: px => studioF(750, px), numTrack: -1, unit: px => studioF(600, px), statMax: 46, scoreW: 750, chipInk: '#f7f3ec'};
   }
   if (style === 'obsidian') {
     return {style, acc, acc2, ink: '#f1efea', soft: '#8e8a83', hair: 'rgba(255,255,255,.1)', base: '#ffffff',
-      bar: 'rgba(255,255,255,.16)', track: 'rgba(255,255,255,.04)', glow: true, panel: 'none', pad: 0, labelPx: 14, labelW: 500, labelTrack: 3.5,
+      bar: 'rgba(255,255,255,.16)', track: 'rgba(255,255,255,.04)', glow: true, panel: 'none', pad: 0, labelPx: 21, labelW: 500, labelTrack: 3,
       num: px => studioF(300, px), numTrack: 0, unit: px => studioF(400, px), statMax: 62, scoreW: 200, chipInk: '#0b0b0d'};
   }
   return {style: 'glass', acc, acc2, ink: '#ffffff', soft: '#9a9aa2', hair: 'rgba(255,255,255,.08)', fill: 'rgba(11,11,13,.8)', base: '#ffffff',
-    bar: 'rgba(255,255,255,.16)', track: 'rgba(255,255,255,.04)', glow: true, panel: 'glass', pad: 34, labelPx: 15, labelW: 500, labelTrack: 3.5,
+    bar: 'rgba(255,255,255,.16)', track: 'rgba(255,255,255,.04)', glow: true, panel: 'glass', pad: 34, labelPx: 22, labelW: 500, labelTrack: 3,
     num: px => studioF(600, px, studioNum), numTrack: 0, unit: px => studioF(500, px), statMax: 88, chipInk: '#0b0b0d'};
 }
 function studioWLabel(ctx, text, x, y, S, align, color) {
@@ -2138,7 +2286,7 @@ function studioStack(b, S, maxPx, foot) {
 function studioFitValue(ctx, value, x, y, maxW, px, S, color, align, font) {
   const [num, unit] = studioSplitValue(value);
   const big = font || S.num;
-  const unitPx = n => Math.max(14, Math.round(n * 0.32));
+  const unitPx = n => Math.max(22, Math.round(n * 0.34));
   const width = n => studioTextWidth(ctx, num, big(n), 0) + (unit ? studioTextWidth(ctx, unit, S.unit(unitPx(n)), 0) + (unit === '%' ? 2 : 8) : 0);
   let n = px;
   while (n > 18 && width(n) > maxW) n -= 2;
@@ -2166,12 +2314,12 @@ function studioDistLegend(ctx, x, y, w, dist, S, perRow, rowH, px) {
   dist.forEach((d, i) => {
     const lx = x + cellW * (i % perRow), ly = y + Math.floor(i / perRow) * rowH;
     ctx.beginPath();
-    ctx.arc(lx + 6, ly - px * 0.32, 5.5, 0, Math.PI * 2);
+    ctx.arc(lx + 7, ly - px * 0.32, 7, 0, Math.PI * 2);
     ctx.fillStyle = studioDistTone(d.v, S.acc, S.acc2, S.base);
     ctx.fill();
-    const kw = studioText(ctx, d.v, lx + 20, ly, studioF(500, Math.round(px * 0.72)), S.soft);
-    const cw = studioText(ctx, String(d.n), lx + 20 + kw + 8, ly, S.num(px), S.ink);
-    if (cellW > 150) studioText(ctx, Math.round(d.n / total * 100) + '%', lx + 20 + kw + cw + 14, ly, studioF(500, Math.round(px * 0.64)), S.soft);
+    const kw = studioText(ctx, d.v, lx + 23, ly, studioF(500, Math.round(px * 0.72)), S.soft);
+    const cw = studioText(ctx, String(d.n), lx + 23 + kw + 9, ly, S.num(px), S.ink);
+    if (cellW > 175) studioText(ctx, Math.round(d.n / total * 100) + '%', lx + 23 + kw + cw + 12, ly, studioF(500, Math.round(px * 0.62)), S.soft);
   });
 }
 function studioDonut(ctx, cx, cy, R, lw, dist, S) {
@@ -2205,8 +2353,7 @@ function studioDonut(ctx, cx, cy, R, lw, dist, S) {
 }
 function studioChip(ctx, cx, cy, r, v, S) {
   const hot = v === 'X' || v === '11', ten = v === '10';
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  studioRound(ctx, cx - r, cy - r, r * 2, r * 2, r * 0.5);
   if (hot) { ctx.fillStyle = S.acc; ctx.fill(); }
   else {
     ctx.fillStyle = studioRgba(S.base, 0.06);
@@ -2220,17 +2367,17 @@ function studioChip(ctx, cx, cy, r, v, S) {
 
 const studioWidgetPaint = {
   score(ctx, b, view, S) {
-    const unit = view.scoreMax ? 'PUNTOS' : 'FLECHAS';
+    const unit = view.scoreLabel || (view.scoreMax ? 'PUNTOS' : 'FLECHAS');
     if (S.style === 'glass') {
       if (b.size === 'small') {
         const lw = Math.max(12, Math.min(18, b.h * 0.066));
         const R = Math.min(b.w / 2 - lw, (b.h - lw - 12) / 2.02);
         const cx = b.x + b.w / 2, cy = b.y + lw / 2 + R + Math.max(0, (b.h - lw - 12 - R * 2.02) / 2);
         studioGauge(ctx, cx, cy, R, view.pct, S.acc, S.acc2, lw);
-        const px = Math.round(R * 1.02);
-        const fit = studioFitValue(ctx, view.scoreMain, cx, cy + px * 0.24, R * 1.5, px, S, S.acc, 'center');
-        studioText(ctx, unit, cx, cy + fit.px * 0.24 + Math.max(30, R * 0.34), studioF(500, 15), S.soft, 3.5, 'center');
-        if (view.scoreMax) studioText(ctx, '/ ' + view.scoreMax, cx, cy + R + 8, S.num(Math.round(R * 0.3)), 'rgba(255,255,255,.5)', 0, 'center');
+        const px = Math.round(R * 0.98);
+        studioFitValue(ctx, view.scoreMain, cx, cy + px * 0.3, R * 1.4, px, S, S.acc, 'center');
+        if (view.scoreMax) studioText(ctx, '/ ' + view.scoreMax, cx, cy + R * 0.86, S.num(Math.round(R * 0.36)), 'rgba(255,255,255,.66)', 0, 'center');
+        else studioText(ctx, unit, cx, cy + R * 0.8, studioF(500, 19), S.soft, 2.5, 'center');
         return;
       }
       const lw = Math.max(10, b.h * 0.08);
@@ -2239,7 +2386,7 @@ const studioWidgetPaint = {
       studioGauge(ctx, cx, cy, R, view.pct, S.acc, S.acc2, lw);
       studioText(ctx, view.pct != null ? Math.round(view.pct * 100) + '%' : '–', cx, cy + R * 0.2, S.num(Math.round(R * 0.62)), S.ink, 0, 'center');
       const tx = cx + R + lw + 44;
-      studioWLabel(ctx, view.scoreMax ? 'PUNTUACIÓN' : 'FLECHAS', tx, b.y + 2, S);
+      studioWLabel(ctx, view.scoreLabel || (view.scoreMax ? 'PUNTUACIÓN' : 'FLECHAS'), tx, b.y + 2, S);
       const fit = studioFitValue(ctx, view.scoreMain, tx - 2, b.y + b.h - 6, b.x + b.w - tx - 150, Math.round((b.h - 34) / 0.74), S, S.acc);
       if (view.scoreMax) studioText(ctx, '/ ' + view.scoreMax, tx + fit.w + 12, b.y + b.h - 6, S.num(Math.round(fit.px * 0.36)), 'rgba(255,255,255,.5)');
       return;
@@ -2311,7 +2458,7 @@ const studioWidgetPaint = {
     if (variant === 'bar') {
       const perRow = b.size === 'wide' || b.w > 600 ? Math.max(5, dist.length) : 3;
       const lines = Math.max(1, Math.ceil(dist.length / perRow));
-      const px = b.w > 600 ? 26 : 22, rowH = px + 18;
+      const px = b.w > 600 ? 34 : 30, rowH = px + 22;
       const legendY = b.y + b.h - 4 - (lines - 1) * rowH;
       const bh = S.style === 'editorial' ? 16 : S.style === 'obsidian' ? 10 : 12;
       const barY = top + (legendY - px - top - bh) / 2;
@@ -2326,13 +2473,13 @@ const studioWidgetPaint = {
       studioDonut(ctx, cx, cy, R - lw / 2, lw, dist, S);
       const npx = Math.round(R * 0.58);
       studioText(ctx, String(total), cx, cy + npx * 0.16, S.num(npx), S.ink, 0, 'center');
-      studioText(ctx, 'FLECHAS', cx, cy + npx * 0.16 + Math.max(18, R * 0.24), studioF(500, Math.max(11, Math.round(R * 0.13))), S.soft, 2.5, 'center');
+      studioText(ctx, 'FLECHAS', cx, cy + npx * 0.16 + Math.max(24, R * 0.26), studioF(500, Math.max(17, Math.round(R * 0.15))), S.soft, 2.5, 'center');
       const cols = b.size === 'wide' && dist.length > 3 ? 2 : 1;
       const perCol = Math.ceil(dist.length / cols);
       const lx = b.x + D + (b.size === 'wide' ? 40 : 28);
       const colW = (b.x + b.w - lx) / cols;
       const rowH = Math.min(44, (D - 4) / perCol);
-      const px = Math.round(Math.min(24, rowH * 0.56));
+      const px = Math.round(Math.min(32, rowH * 0.62));
       const y0 = cy - (perCol - 1) * rowH / 2 + px * 0.32;
       dist.forEach((d, i) => {
         const x = lx + Math.floor(i / perCol) * colW, y = y0 + (i % perCol) * rowH;
@@ -2348,7 +2495,7 @@ const studioWidgetPaint = {
     }
     const n = Math.max(1, dist.length);
     const peak = Math.max(1, ...dist.map(d => d.n));
-    const keyPx = 15, valPx = b.w > 600 ? 22 : 18;
+    const keyPx = 23, valPx = b.w > 600 ? 30 : 26;
     const plotTop = top + valPx + 8, plotBot = b.y + b.h - keyPx - 10;
     const cw = b.w / n, bw = Math.min(cw * 0.42, 48);
     ctx.fillStyle = studioRgba(S.base, S.style === 'editorial' ? 0.12 : 0.1);
@@ -2382,6 +2529,7 @@ const studioWidgetPaint = {
     });
   },
   series(ctx, b, view, S) {
+    if (view.series && view.series.avg) { studioAvgBars(ctx, b, view.series, S); return; }
     const title = (view.series && view.series.title) || 'POR SERIE';
     const top = studioWLabel(ctx, title, b.x, b.y, S);
     let x = b.x, w = b.w, y = top + 6;
@@ -2389,14 +2537,14 @@ const studioWidgetPaint = {
       const px = Math.round(Math.min(S.style === 'glass' ? 76 : 50, (b.h - (top - b.y)) * 0.42));
       const base = top + 18 + px * 0.74;
       studioText(ctx, String(view.best.sum), b.x - 2, base, S.num(px), S.style === 'editorial' ? S.ink : S.acc);
-      studioText(ctx, 'mejor · S' + view.best.index, b.x, base + 34, studioF(500, 17), S.soft);
+      studioText(ctx, 'mejor · S' + view.best.index, b.x, base + 40, studioF(500, 23), S.soft);
       x = b.x + 190;
       w = b.w - 190;
       y = b.y - 4;
     }
     const light = S.style === 'editorial';
     studioBars(ctx, x, y, w, b.y + b.h - y, view.series, {acc: S.acc, acc2: light ? '' : S.acc2, glow: S.glow, bar: S.bar, track: S.track,
-      value: S.soft, label: light ? S.soft : 'rgba(255,255,255,.4)', maxBar: b.size === 'wide' ? 34 : 28, valuePx: 16, labelPx: 13, valueFamily: S.style === 'glass' ? studioNum : studioGeist});
+      value: S.soft, label: light ? S.soft : 'rgba(255,255,255,.5)', maxBar: b.size === 'wide' ? 36 : 30, valuePx: 22, labelPx: 19, valueFamily: S.style === 'glass' ? studioNum : studioGeist});
   },
   group(ctx, b, view, S) {
     const spreads = view.spreads || [];
@@ -2419,18 +2567,27 @@ const studioWidgetPaint = {
       ctx.fillStyle = i === lo ? S.acc : S.bar;
       ctx.fill();
       ctx.restore();
-      studioText(ctx, s.label, x + bw / 2, b.y + b.h, studioF(500, 13), S.soft, 1, 'center');
+      studioText(ctx, s.label, x + bw / 2, b.y + b.h, studioF(500, 19), S.soft, 0, 'center');
     });
-    studioText(ctx, 'más cerrada · ' + spreads[lo].label, b.x + b.w, top - S.labelPx, studioF(500, 15), S.soft, 0, 'right');
+    studioText(ctx, 'más cerrada · ' + spreads[lo].label, b.x + b.w, top - S.labelPx, studioF(500, 21), S.soft, 0, 'right');
   },
   best(ctx, b, view, S) {
     const st = studioStack(b, S, S.statMax * (S.style === 'glass' ? 0.9 : 1.1));
-    studioWLabel(ctx, 'MEJOR SERIE', b.x, st.top, S);
+    studioWLabel(ctx, (view.best && view.best.label) || 'MEJOR SERIE', b.x, st.top, S);
     if (!view.best) { studioFitValue(ctx, '–', b.x - 2, st.base, b.w, st.px, S); return; }
     const fit = studioFitValue(ctx, String(view.best.sum), b.x - 2, st.base, b.w * 0.5, st.px, S, S.acc);
-    studioText(ctx, 'S' + view.best.index, b.x + fit.w + 10, st.base, studioF(500, Math.max(18, Math.round(fit.px * 0.3))), S.soft);
+    const capW = studioText(ctx, view.best.tag || 'S' + view.best.index, b.x + fit.w + 10, st.base, studioF(500, Math.max(25, Math.round(fit.px * 0.34))), S.soft);
     const vals = view.best.values || [];
-    if (b.size !== 'wide' || !vals.length) return;
+    if (!vals.length) return;
+    if (b.size !== 'wide') {
+      const room = b.w - fit.w - capW - 40;
+      const r = Math.min(24, b.h * 0.3, (room / vals.length - 8) / 2);
+      if (r < 14) return;
+      const step = r * 2 + 8;
+      const cy = st.base - fit.px * 0.34;
+      vals.forEach((v, i) => studioChip(ctx, b.x + b.w - r - (vals.length - 1 - i) * step, cy, r, v, S));
+      return;
+    }
     const x0 = b.x + fit.w + 120, w = b.x + b.w - x0;
     const r = Math.min(30, b.h * 0.3, (w / vals.length - 10) / 2);
     const step = r * 2 + Math.min(14, r * 0.5);
@@ -2442,54 +2599,181 @@ const studioWidgetPaint = {
     studioWLabel(ctx, 'PRECISIÓN', b.x, st.top, S);
     const value = view.pct != null ? Math.round(view.pct * 100) + '%' : '–';
     const fit = studioFitValue(ctx, value, b.x - 2, st.base, b.w, st.px, S);
-    if (b.size === 'wide' && view.scoreMax) studioText(ctx, view.scoreMain + ' de ' + view.scoreMax, b.x + b.w, st.base, studioF(500, Math.max(18, Math.round(fit.px * 0.3))), S.soft, 0, 'right');
+    if (b.size === 'wide' && view.scoreMax) studioText(ctx, view.scoreMain + ' de ' + view.scoreMax, b.x + b.w, st.base, studioF(500, Math.max(25, Math.round(fit.px * 0.32))), S.soft, 0, 'right');
     studioBar(ctx, b.x, st.bottom - 6, b.w, S.style === 'obsidian' ? 4 : 6, view.pct, S);
   },
   streak(ctx, b, view, S) {
-    const streak = view.streak || {current: 0, best: 0, values: []};
-    const best = streak.best || 0;
-    const current = streak.current || 0;
-    const values = streak.values || [];
+    const run = view.streak || {seq: [], best: 0, start: -1, current: 0};
     const wide = b.size === 'wide';
-    const noun = n => n === 1 ? 'flecha' : 'flechas';
-    const n = values.length;
-    const chipR = wide && n > 1 ? Math.min(16, (b.w / n - 8) / 2) : 0;
-    const showChips = chipR >= 9 && b.h >= 110;
-    const foot = showChips ? chipR * 2 + 10 : (b.h >= 100 ? 22 : 0);
-    const cap = S.style === 'editorial' ? (wide ? 52 : 48) : S.style === 'obsidian' ? (wide ? 78 : 64) : (wide ? 72 : 86);
-    if (!wide) {
-      const st = studioStack(b, S, cap, foot);
-      studioWLabel(ctx, 'RACHA MÁS LARGA', b.x, st.top, S);
-      const fit = studioFitValue(ctx, String(best), b.x - 2, st.base, b.w * 0.62, st.px, S, best ? S.acc : S.soft);
-      studioText(ctx, noun(best), b.x + fit.w + 8, st.base, studioF(500, Math.max(15, Math.round(fit.px * 0.3))), S.soft);
-      if (b.h < 100) return;
-      const nowLine = current ? 'actual ' + current + ' ' + noun(current) : 'cortada';
-      studioText(ctx, nowLine, b.x, st.base + Math.max(20, Math.round(fit.px * 0.32)), studioF(500, Math.max(14, Math.round(fit.px * 0.24))), S.soft);
+    const mark = view.mark || 'X-10';
+    const where = run.best ? (run.from === run.to ? 'serie ' + run.from : 'series ' + run.from + '–' + run.to) : '';
+    const cap = S.style === 'editorial' ? 76 : S.style === 'obsidian' ? 84 : 96;
+    const top = studioHead(ctx, b, S, 'MEJOR RACHA', '');
+    const stripH = Math.round(Math.min(wide ? 46 : 40, b.h * 0.26));
+    const stripY = b.y + b.h - stripH;
+    const px = Math.round(Math.min(cap, (stripY - top - 24) / 0.76));
+    const base = Math.min(stripY - 20, (top + stripY) / 2 + px * 0.37);
+    studioHero(ctx, b.x, base, run.best, mark + ' seguidas', b.w * (wide ? 0.4 : 0.42), px, S, run.best ? S.acc : S.soft);
+    if (wide && where) studioText(ctx, where, b.x + b.w, base, studioF(500, 23), S.soft, 0, 'right');
+    studioTicks(ctx, b.x, stripY, b.w, stripH, run, S);
+  },
+  train(ctx, b, view, S) {
+    const t = view.train || {current: 0, best: 0, week: [], two: [], weeks: [], trained: 0};
+    const wide = b.size === 'wide';
+    const cap = S.style === 'editorial' ? 76 : S.style === 'obsidian' ? 84 : 96;
+    const label = wide ? 'RACHA DE ENTRENAMIENTO' : 'ENTRENAMIENTO';
+    const unit = studioNoun(t.current, 'día seguido', 'días seguidos');
+    if (b.widget.variant === 'month') {
+      const s = wide ? Math.min(30, (b.h - S.labelPx - 34) / 4 - 6) : Math.min(26, (b.h - 6) / 4 - 6);
+      const gap = Math.max(5, s * 0.26);
+      const gx = b.x + b.w - (7 * s + 6 * gap);
+      const gy = wide ? b.y + S.labelPx + 22 : b.y + b.h - (4 * s + 3 * gap);
+      if (wide) STUDIO_DAYS.forEach((d, i) => studioText(ctx, d, gx + i * (s + gap) + s / 2, b.y + S.labelPx, studioF(600, 18), S.soft, 0, 'center'));
+      t.weeks.forEach((week, r) => week.forEach((c, i) => studioDayCell(ctx, gx + i * (s + gap), gy + r * (s + gap), s, c, S)));
+      const top = studioWLabel(ctx, label, b.x, b.y, S);
+      const capY = b.y + b.h, unitY = capY - 30, base = unitY - 36;
+      const px = Math.round(Math.min(cap, (base - top - 12) / 0.72));
+      studioFitValue(ctx, String(t.current), b.x - 2, base, (gx - b.x - 30) * 0.6, px, S, t.current ? S.acc : S.soft);
+      studioText(ctx, wide ? unit : studioNoun(t.current, 'día', 'días'), b.x, unitY, studioF(500, 22), S.soft);
+      studioText(ctx, 'mejor ' + t.best, b.x, capY, studioF(500, 20), studioRgba(S.base, 0.46));
       return;
     }
-    studioWLabel(ctx, 'RACHA MÁS LARGA', b.x, b.y, S);
-    studioText(ctx, 'AHORA', b.x + b.w, b.y + S.labelPx, studioF(S.labelW, S.labelPx * 0.9), S.soft, S.labelTrack, 'right');
-    const contentBot = b.y + b.h - foot - 2;
-    const legendY = b.y + S.labelPx + 18;
-    const legend = contentBot - legendY > 40;
-    if (legend) studioText(ctx, 'X · 10 · 11', b.x, legendY, studioF(500, 13), S.soft, 1.5);
-    const contentTop = legend ? legendY + 8 : b.y + S.labelPx + 10;
-    const px = Math.round(Math.max(22, Math.min(cap, (contentBot - contentTop) / 0.78)));
-    const base = Math.min(contentBot, contentTop + px * 0.78);
-    const fit = studioFitValue(ctx, String(best), b.x - 2, base, b.w * 0.42, px, S, best ? S.acc : S.soft);
-    studioText(ctx, noun(best), b.x + fit.w + 8, base, studioF(500, Math.max(15, Math.round(fit.px * 0.3))), S.soft);
-    const nowPx = Math.max(22, Math.round(fit.px * 0.46));
-    const uFont = studioF(500, Math.max(14, Math.round(nowPx * 0.55)));
-    const uw = studioTextWidth(ctx, noun(current), uFont, 0);
-    studioFitValue(ctx, String(current), b.x + b.w - uw - 8, base, b.w * 0.28, nowPx, S, current ? S.ink : S.soft, 'right');
-    studioText(ctx, noun(current), b.x + b.w - uw, base, uFont, S.soft);
-    if (!showChips) return;
-    const step = chipR * 2 + 8;
-    const x0 = b.x + (b.w - (n * step - 8)) / 2 + chipR;
-    const cy = b.y + b.h - chipR - 2;
-    values.forEach((v, i) => studioChip(ctx, x0 + i * step, cy, chipR, v, S));
+    const cells = wide ? t.two : t.week;
+    const n = cells.length || 7;
+    const r = Math.min(wide ? 24 : 22, (b.w - (n - 1) * 8) / n / 2, b.h * 0.14);
+    const rowY = b.y + b.h - r;
+    const top = studioHead(ctx, b, S, label, 'MEJOR ' + t.best);
+    const px = Math.round(Math.min(cap, (rowY - r - top - 26) / 0.76));
+    const base = Math.min(rowY - r - 22, (top + rowY - r) / 2 + px * 0.37);
+    studioHero(ctx, b.x, base, t.current, unit, b.w * 0.42, px, S, t.current ? S.acc : S.soft);
+    const step = n > 1 ? (b.w - 2 * r) / (n - 1) : 0;
+    cells.forEach((c, i) => {
+      if (wide && i && !c.dow) {
+        ctx.fillStyle = S.hair;
+        ctx.fillRect(b.x + r + step * (i - 0.5) - 1, rowY - r * 0.7, 2, r * 1.4);
+      }
+      studioDayPill(ctx, b.x + r + step * i, rowY, r, c, STUDIO_DAYS[c.dow], S);
+    });
   }
 };
+const STUDIO_DAYS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+function studioNoun(n, one, many) { return n === 1 ? one : many; }
+function studioHead(ctx, b, S, left, right) {
+  studioWLabel(ctx, left, b.x, b.y, S);
+  if (right) studioText(ctx, right, b.x + b.w, b.y + S.labelPx, studioF(S.labelW, Math.round(S.labelPx * 0.9)), S.soft, S.labelTrack, 'right');
+  return b.y + S.labelPx;
+}
+function studioHero(ctx, x, base, value, unit, maxW, px, S, color) {
+  const fit = studioFitValue(ctx, String(value), x - 2, base, maxW, px, S, color);
+  if (unit) studioText(ctx, unit, x + fit.w + 10, base, studioF(500, Math.max(22, Math.round(fit.px * 0.32))), S.soft);
+  return fit;
+}
+function studioTicks(ctx, x, y, w, h, run, S) {
+  const seq = run.seq || [], n = seq.length;
+  if (!n) return;
+  const gap = Math.max(3, Math.min(7, (w / n) * 0.3));
+  const tw = Math.min(24, (w - gap * (n - 1)) / n);
+  const x0 = x + (w - (n * tw + gap * (n - 1))) / 2;
+  const lift = g => g === 'x10' ? 1 : g === '98' ? 0.6 : g === 'low' ? 0.36 : 0.2;
+  seq.forEach((a, i) => {
+    const on = i >= run.start && i < run.start + run.best;
+    const th = Math.max(Math.min(tw, 14), h * lift(a.group));
+    const tx = x0 + i * (tw + gap), ty = y + h - th;
+    ctx.save();
+    if (on && S.glow) { ctx.shadowColor = studioRgba(S.acc, 0.6); ctx.shadowBlur = 18; }
+    studioRound(ctx, tx, ty, tw, th, Math.min(tw / 2, 7));
+    if (on) {
+      const g = ctx.createLinearGradient(0, ty, 0, ty + th);
+      g.addColorStop(0, S.acc2);
+      g.addColorStop(1, S.acc);
+      ctx.fillStyle = g;
+    } else ctx.fillStyle = studioRgba(S.base, a.group === 'x10' ? 0.38 : a.group === '98' ? 0.2 : 0.1);
+    ctx.fill();
+    ctx.restore();
+  });
+}
+function studioDayPill(ctx, cx, cy, r, c, letter, S) {
+  ctx.save();
+  studioRound(ctx, cx - r, cy - r, r * 2, r * 2, r * 0.5);
+  if (c.run) {
+    if (S.glow) { ctx.shadowColor = studioRgba(S.acc, 0.55); ctx.shadowBlur = 16; }
+    const g = ctx.createLinearGradient(cx, cy - r, cx, cy + r);
+    g.addColorStop(0, S.acc2);
+    g.addColorStop(1, S.acc);
+    ctx.fillStyle = g;
+    ctx.fill();
+  } else if (c.on) {
+    ctx.fillStyle = studioRgba(S.base, S.style === 'editorial' ? 0.14 : 0.16);
+    ctx.fill();
+  } else {
+    ctx.lineWidth = 2;
+    ctx.setLineDash(c.future ? [3, 5] : c.today ? [5, 4] : []);
+    ctx.strokeStyle = c.today ? studioRgba(S.acc, 0.8) : studioRgba(S.base, c.future ? 0.12 : 0.18);
+    ctx.stroke();
+  }
+  ctx.restore();
+  const ink = c.run ? S.chipInk : c.on ? S.ink : c.future ? studioRgba(S.base, 0.28) : S.soft;
+  studioText(ctx, letter, cx, cy + r * 0.34, studioF(c.run ? 700 : 600, Math.round(r * 0.84)), ink, 0, 'center');
+}
+function studioDayCell(ctx, x, y, s, c, S) {
+  ctx.save();
+  studioRound(ctx, x, y, s, s, Math.min(8, s * 0.3));
+  if (c.run) {
+    if (S.glow) { ctx.shadowColor = studioRgba(S.acc, 0.55); ctx.shadowBlur = 14; }
+    ctx.fillStyle = S.acc;
+    ctx.fill();
+  } else if (c.on) {
+    ctx.fillStyle = studioRgba(S.base, Math.min(0.42, 0.2 + c.n / 200));
+    ctx.fill();
+  } else if (c.future) {
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = studioRgba(S.base, 0.08);
+    ctx.stroke();
+  } else {
+    ctx.fillStyle = studioRgba(S.base, S.style === 'editorial' ? 0.07 : 0.06);
+    ctx.fill();
+  }
+  ctx.restore();
+  if (!c.today) return;
+  studioRound(ctx, x - 4, y - 4, s + 8, s + 8, Math.min(11, s * 0.4));
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = studioRgba(S.ink, 0.7);
+  ctx.stroke();
+}
+function studioAvgBars(ctx, b, series, S) {
+  const top = studioWLabel(ctx, series.title, b.x, b.y, S);
+  const items = series.items || [];
+  if (!items.length) { studioText(ctx, 'Sin puntuación', b.x, top + 44, studioF(500, 21), S.soft); return; }
+  const lo = Math.min(...items.map(i => i.sum)) - 0.3, hi = Math.max(...items.map(i => i.sum));
+  const n = items.length, bw = Math.min(b.size === 'wide' ? 34 : 26, b.w / (n * 1.8));
+  const step = n > 1 ? (b.w - bw) / (n - 1) : 0;
+  const plotTop = top + 40, plotBot = b.y + b.h - 30;
+  const best = items.reduce((k, it, i) => it.sum > items[k].sum ? i : k, 0);
+  items.forEach((it, i) => {
+    const x = b.x + step * i;
+    const hh = Math.max(bw * 0.6, (plotBot - plotTop) * (0.12 + 0.88 * (it.sum - lo) / Math.max(0.1, hi - lo)));
+    ctx.save();
+    if (i === best && S.glow) { ctx.shadowColor = studioRgba(S.acc, 0.45); ctx.shadowBlur = 16; }
+    studioRound(ctx, x, plotBot - hh, bw, hh, bw / 2);
+    ctx.fillStyle = i === best ? S.acc : S.bar;
+    ctx.fill();
+    ctx.restore();
+    if (i === best || i === n - 1) studioText(ctx, it.sum.toFixed(1).replace('.', ','), x + bw / 2, plotBot - hh - 10, studioF(600, 22, S.style === 'glass' ? studioNum : studioGeist), i === best ? S.acc : S.soft, 0, 'center');
+    if (i % 2 === (n - 1) % 2) studioText(ctx, it.label, x + bw / 2, b.y + b.h, studioF(500, 18), S.soft, 0, 'center');
+  });
+}
+function studioFooter(ctx, view, L, R, y, px, color) {
+  const p = Studio.profile();
+  const first = view.isProfile && typeof studioSessions === 'function' ? studioSessions()[0] : null;
+  const left = view.isProfile ? (first ? 'DESDE ' + studioCornerDate(first.id) : '') : [p.name, p.club].filter(Boolean).join(' · ').toUpperCase();
+  const right = (view.serial || '').toUpperCase();
+  const rw = right ? studioText(ctx, right, R, y, studioF(500, px), color, 3, 'right') : 0;
+  if (!left) return;
+  const font = studioF(500, px);
+  let text = left;
+  while (text.length > 4 && studioTextWidth(ctx, text, font, 3) > R - L - rw - 40) text = text.slice(0, -2).trimEnd() + '…';
+  studioText(ctx, text, L, y, font, color, 3);
+}
 function studioWidgets(ctx, style, view, theme) {
   const S = studioTokens(style, theme);
   const layout = Studio.cardRows(style, Studio.cardConfig(style));
@@ -2528,18 +2812,63 @@ function studioWidgets(ctx, style, view, theme) {
   return layout;
 }
 
+function studioGrain(ctx, x, y, w, h, alpha, mode) {
+  if (!Studio.card.grain) {
+    const t = document.createElement('canvas');
+    t.width = t.height = 256;
+    const g = t.getContext('2d');
+    const img = g.createImageData(256, 256);
+    const rnd = studioRandom(9157);
+    for (let i = 0; i < img.data.length; i += 4) {
+      const v = 48 + Math.floor(rnd() * 160);
+      img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
+      img.data[i + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+    Studio.card.grain = t;
+  }
+  ctx.save();
+  ctx.globalCompositeOperation = mode || 'overlay';
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = ctx.createPattern(Studio.card.grain, 'repeat');
+  ctx.fillRect(x, y, w, h);
+  ctx.restore();
+}
+function studioFoil(ctx, x0, y0, x1, y1, tilt, acc, alpha) {
+  const t = Math.max(-1, Math.min(1, ((tilt && tilt.y) || 0) / 12)) * 0.18;
+  const g = ctx.createLinearGradient(x0, y0, x1, y1);
+  [[0, acc, 0.9], [0.22 + t, '#ffe7c2', 0.55], [0.4 + t, '#9ff3ff', 0.42], [0.58 + t, '#e6b3ff', 0.42], [0.78 + t, '#fff2d6', 0.3], [1, acc, 0.5]]
+    .forEach(s => g.addColorStop(Math.max(0, Math.min(1, s[0])), studioRgba(s[1], s[2] * alpha)));
+  return g;
+}
+function studioMark(ctx, cx, cy, color, acc) {
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2.2;
+  [12, 5.6].forEach(k => { ctx.beginPath(); ctx.arc(cx, cy, k, 0, Math.PI * 2); ctx.stroke(); });
+  ctx.beginPath();
+  ctx.arc(cx, cy, 2.4, 0, Math.PI * 2);
+  ctx.shadowColor = studioRgba(acc, 0.9);
+  ctx.shadowBlur = 12;
+  ctx.fillStyle = acc;
+  ctx.fill();
+  ctx.restore();
+}
+
 function studioPaintGlass(ctx, view, theme, tilt, photo) {
   const W = 1080, H = 1350, acc = theme.acc;
   const cfg = Studio.cardConfig('glass');
   const top = Studio.CARD_AREAS.glass.top[cfg.photo] || Studio.CARD_AREAS.glass.top.tall;
   const shot = cfg.photo === 'none' ? null : photo;
+  const fx = cfg.fx || {};
+  const duo = fx.duo ? acc : '';
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, W, H);
   if (shot) {
     ctx.save();
     ctx.filter = 'blur(42px)';
     ctx.globalAlpha = 0.6;
-    ctx.drawImage(studioPhotoCanvas(shot, view.photo, 540, 675, {focus: view.focus, bright: 0.62}), -90, -90, W + 180, H + 180);
+    ctx.drawImage(studioPhotoCanvas(shot, view.photo, 540, 675, {focus: view.focus, bright: 0.62, duo}), -90, -90, W + 180, H + 180);
     ctx.restore();
   }
   [[W * 0.1, H * 0.94, 760, 0.3], [W * 0.96, H * 0.04, 600, 0.14]].forEach(b => {
@@ -2566,7 +2895,7 @@ function studioPaintGlass(ctx, view, theme, tilt, photo) {
   base.addColorStop(1, '#09090b');
   ctx.fillStyle = base;
   ctx.fillRect(cx, cy, cw, ch);
-  if (shot) ctx.drawImage(studioPhotoCanvas(shot, view.photo, cw, top - 28, {focus: view.focus, bright: 0.72, fade: 0.4}), cx, cy);
+  if (shot) ctx.drawImage(studioPhotoCanvas(shot, view.photo, cw, top - 28, {focus: view.focus, bright: 0.72, fade: 0.4, duo}), cx, cy);
   const warm = ctx.createRadialGradient(cx, cy + ch, 0, cx, cy + ch, 720);
   warm.addColorStop(0, studioRgba(acc, 0.13));
   warm.addColorStop(1, studioRgba(acc, 0));
@@ -2578,31 +2907,38 @@ function studioPaintGlass(ctx, view, theme, tilt, photo) {
   ctx.fillStyle = topShade;
   ctx.fillRect(cx, cy, cw, 200);
   const L = cx + 56, R = cx + cw - 56;
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(L + 6, cy + 82, 6.5, 0, Math.PI * 2);
-  ctx.fillStyle = acc;
-  ctx.shadowColor = studioRgba(acc, 0.8);
-  ctx.shadowBlur = 16;
-  ctx.fill();
-  ctx.restore();
-  studioText(ctx, 'ARCHERY WATCH', L + 26, cy + 89, studioF(600, 17), 'rgba(255,255,255,.92)', 4.5);
-  studioText(ctx, view.date, R, cy + 89, studioF(500, 17), 'rgba(255,255,255,.7)', 3.5, 'right');
-  studioText(ctx, view.kicker, L, top - 168, studioF(500, 18), studioMix(acc, '#ffffff', 0.25), 4.5);
-  const hpx = studioFitPx(ctx, view.headline, cw - 112, 78, 400, 48, -2.5);
+  if (fx.mark) studioMark(ctx, L + 12, cy + 82, 'rgba(255,255,255,.92)', acc);
+  else {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(L + 6, cy + 82, 6.5, 0, Math.PI * 2);
+    ctx.fillStyle = acc;
+    ctx.shadowColor = studioRgba(acc, 0.8);
+    ctx.shadowBlur = 16;
+    ctx.fill();
+    ctx.restore();
+  }
+  studioText(ctx, 'ARCHERY WATCH', L + (fx.mark ? 40 : 26), cy + 90, studioF(600, 21), 'rgba(255,255,255,.92)', 4);
+  studioText(ctx, view.date, R, cy + 90, studioF(500, 21), 'rgba(255,255,255,.72)', 3, 'right');
+  studioText(ctx, view.kicker, L, top - 170, studioF(500, 22), studioMix(acc, '#ffffff', 0.25), 4);
+  const hpx = studioFitPx(ctx, view.headline, cw - 112 - (view.isProfile ? 180 : 0), 78, 400, 48, -2.5);
   studioText(ctx, view.headline, L - 3, top - 86, studioF(400, hpx), '#ffffff', -2.5);
-  studioText(ctx, view.title, L, top - 38, studioF(400, 27), 'rgba(255,255,255,.62)');
+  studioText(ctx, view.title, L, top - 36, studioF(400, 31), 'rgba(255,255,255,.66)');
+  if (view.isProfile) studioAvatar(ctx, R - 75, top - 108, 75, view, 'rgba(255,255,255,.9)', 4, '#1a1a1e', '#ffffff');
   studioWidgets(ctx, 'glass', view, theme);
+  if (fx.grain) studioGrain(ctx, cx, cy, cw, ch, 0.07, 'overlay');
   studioCardSheen(ctx, cx, cy, cw, ch, r, tilt, 0.05, acc);
   ctx.restore();
-  const rim = ctx.createLinearGradient(cx, cy, cx + cw, cy + ch);
+  let rim = ctx.createLinearGradient(cx, cy, cx + cw, cy + ch);
   rim.addColorStop(0, studioRgba(acc, 0.6));
   rim.addColorStop(0.32, 'rgba(255,255,255,.1)');
   rim.addColorStop(1, 'rgba(255,255,255,.05)');
+  if (fx.foil) rim = studioFoil(ctx, cx, cy, cx + cw, cy + ch, tilt, acc, 1);
   studioRound(ctx, cx + 0.75, cy + 0.75, cw - 1.5, ch - 1.5, r);
   ctx.strokeStyle = rim;
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = fx.foil ? 2.2 : 1.5;
   ctx.stroke();
+  if (fx.foot) studioFooter(ctx, view, L, R, cy + ch + 41, 20, 'rgba(255,255,255,.5)');
 }
 
 function studioPaintEditorial(ctx, view, theme, tilt, photo) {
@@ -2611,12 +2947,14 @@ function studioPaintEditorial(ctx, view, theme, tilt, photo) {
   const cfg = Studio.cardConfig('editorial');
   const top = Studio.CARD_AREAS.editorial.top[cfg.photo] || Studio.CARD_AREAS.editorial.top.tall;
   const shot = cfg.photo === 'none' ? null : photo;
+  const fx = cfg.fx || {};
+  const duo = fx.duo ? acc : '';
   ctx.fillStyle = '#3a3936';
   ctx.fillRect(0, 0, W, H);
   if (shot) {
     ctx.save();
     ctx.filter = 'blur(34px)';
-    ctx.drawImage(studioPhotoCanvas(shot, view.photo, 540, 675, {focus: view.focus, bright: 0.74}), -60, -60, W + 120, H + 120);
+    ctx.drawImage(studioPhotoCanvas(shot, view.photo, 540, 675, {focus: view.focus, bright: 0.74, duo}), -60, -60, W + 120, H + 120);
     ctx.restore();
   }
   ctx.fillStyle = 'rgba(24,23,21,.24)';
@@ -2637,7 +2975,7 @@ function studioPaintEditorial(ctx, view, theme, tilt, photo) {
   const framed = cfg.photo !== 'none';
   if (framed) {
     const ph = pt - cy + 40;
-    if (shot) ctx.drawImage(studioPhotoCanvas(shot, view.photo, cw, ph, {focus: view.focus, bright: 0.74, tint: 'rgba(150,140,120,.4)'}), cx, cy);
+    if (shot) ctx.drawImage(studioPhotoCanvas(shot, view.photo, cw, ph, {focus: view.focus, bright: 0.74, tint: 'rgba(150,140,120,.4)', duo}), cx, cy);
     else {
       ctx.fillStyle = '#4a4844';
       ctx.fillRect(cx, cy, cw, ph);
@@ -2671,16 +3009,27 @@ function studioPaintEditorial(ctx, view, theme, tilt, photo) {
   ctx.fillStyle = acc;
   ctx.fill();
   ctx.restore();
-  studioText(ctx, 'ARCHERY WATCH', L + 50, cy + 82, studioF(600, 16), framed ? 'rgba(255,255,255,.95)' : ink, 5);
+  studioText(ctx, 'ARCHERY WATCH', L + 50, cy + 83, studioF(600, 20), framed ? 'rgba(255,255,255,.95)' : ink, 4.5);
   const tpx = studioFitPx(ctx, view.headline, 560, 58, 750, 36, -1);
   studioText(ctx, view.headline, L - 2, pt + 94, studioF(750, tpx), ink, -1);
-  studioText(ctx, view.title, L, pt + 140, studioF(400, 27), soft);
-  studioText(ctx, view.day, R, pt + 92, studioF(300, 64), acc, -1, 'right');
-  studioText(ctx, view.monthYear, R, pt + 124, studioF(600, 14), soft, 3.5, 'right');
+  studioText(ctx, view.title, L, pt + 140, studioF(400, 30), soft);
+  if (view.isProfile) studioAvatar(ctx, R - 62, pt + 86, 62, view, cream, 6, '#e7e0d4', ink);
+  else {
+    studioText(ctx, view.day, R, pt + 92, studioF(300, 64), acc, -1, 'right');
+    studioText(ctx, view.monthYear, R, pt + 128, studioF(600, 19), soft, 3, 'right');
+  }
   ctx.fillStyle = hair;
   ctx.fillRect(L, pt + 180, R - L, 1.5);
   studioWidgets(ctx, 'editorial', view, theme);
+  if (fx.foot) studioFooter(ctx, view, L, R, 1293, 18, '#9a948a');
+  if (fx.grain) studioGrain(ctx, cx, cy, cw, ch, 0.06, 'multiply');
   ctx.restore();
+  if (fx.foil) {
+    studioRound(ctx, cx + 1, cy + 1, cw - 2, ch - 2, r);
+    ctx.strokeStyle = studioFoil(ctx, cx, cy, cx + cw, cy + ch, tilt, acc, 0.9);
+    ctx.lineWidth = 2.4;
+    ctx.stroke();
+  }
 }
 
 function studioRandom(seed) {
@@ -2802,11 +3151,12 @@ function studioPaintObsidian(ctx, view, theme, tilt, photo) {
   const ink = '#f1efea';
   const cfg = Studio.cardConfig('obsidian');
   const top = Studio.CARD_AREAS.obsidian.top[cfg.photo] || Studio.CARD_AREAS.obsidian.top.tall;
+  const fx = cfg.fx || {};
   const stone = studioStone(W, H, acc);
   ctx.drawImage(stone, 0, 0);
   const ph = cfg.photo === 'tall' ? 760 : cfg.photo === 'short' ? 560 : 0;
   if (photo && ph) {
-    const shot = studioPhotoCanvas(photo, view.photo, W, ph, {focus: view.focus, bright: 0.66, fade: 0.4});
+    const shot = studioPhotoCanvas(photo, view.photo, W, ph, {focus: view.focus, bright: 0.66, fade: 0.4, duo: fx.duo ? acc : ''});
     const lay = document.createElement('canvas');
     lay.width = W;
     lay.height = ph;
@@ -2826,14 +3176,24 @@ function studioPaintObsidian(ctx, view, theme, tilt, photo) {
   ctx.fillStyle = shade;
   ctx.fillRect(0, 0, W, 220);
   const L = 84, R = W - 84;
-  studioText(ctx, 'ARCHERY WATCH', L, 96, studioF(600, 17), 'rgba(255,255,255,.88)', 6);
-  studioText(ctx, view.date, R, 96, studioF(500, 17), 'rgba(255,255,255,.7)', 4, 'right');
-  studioText(ctx, view.kicker, L, top - 112, studioF(600, 17), studioMix(acc, '#ffffff', 0.2), 5);
-  const tpx = studioFitPx(ctx, view.title, R - L, 56, 300, 34, -0.5);
-  studioText(ctx, view.title, L - 2, top - 46, studioF(300, tpx), ink, -0.5);
+  if (fx.mark) studioMark(ctx, L + 12, 91, 'rgba(255,255,255,.88)', acc);
+  studioText(ctx, 'ARCHERY WATCH', L + (fx.mark ? 40 : 0), 98, studioF(600, 21), 'rgba(255,255,255,.88)', 5);
+  studioText(ctx, view.date, R, 98, studioF(500, 21), 'rgba(255,255,255,.72)', 3.5, 'right');
+  studioText(ctx, view.kicker, L, top - 114, studioF(600, 21), studioMix(acc, '#ffffff', 0.2), 4.5);
+  const title = view.isProfile ? view.headline : view.title;
+  const tpx = studioFitPx(ctx, title, R - L - (view.isProfile ? 166 : 0), 56, 300, 34, -0.5);
+  studioText(ctx, title, L - 2, top - 46, studioF(300, tpx), ink, -0.5);
+  if (view.isProfile) studioAvatar(ctx, R - 68, top - 84, 68, view, 'rgba(255,255,255,.85)', 2.5, '#141416', ink);
   studioWidgets(ctx, 'obsidian', view, theme);
-  studioText(ctx, view.serial || '', R, 1306, studioF(500, 12.5), 'rgba(255,255,255,.4)', 4, 'right');
+  if (fx.foot) studioFooter(ctx, view, L, R, 1312, 19, 'rgba(255,255,255,.46)');
+  if (fx.grain) studioGrain(ctx, 0, 0, W, H, 0.05, 'overlay');
   studioCardSheen(ctx, 0, 0, W, H, 0, tilt, 0.05, acc);
+  if (fx.foil) {
+    studioRound(ctx, 28, 28, W - 56, H - 56, 34);
+    ctx.strokeStyle = studioFoil(ctx, 0, 0, W, H, tilt, acc, 0.75);
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+  }
   const rim = ctx.createLinearGradient(0, 0, 0, 3);
   rim.addColorStop(0, 'rgba(255,255,255,.16)');
   rim.addColorStop(1, 'rgba(255,255,255,0)');

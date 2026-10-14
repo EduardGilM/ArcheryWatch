@@ -384,7 +384,8 @@ test('progress shows the current week bar and keeps the goal in awGoals', () => 
   p.run(`localStorage.setItem('awGoals', JSON.stringify({arrows:10, sessions:null, average:null, stability:null}));
     store.save([{id:Date.now(), shots:[0,1,2,3].map(t => ({t_ms:t, aim_score:80, candidate:false}))}]);
     show('Progress');`);
-  assert.match(p.elements.get('goalBars').innerHTML, /4\/10 · 40%/);
+  assert.match(p.elements.get('goalBars').innerHTML, /<b>4\/10<\/b>/);
+  assert.doesNotMatch(p.elements.get('goalBars').innerHTML, /40%</);
   assert.match(p.elements.get('goalBars').innerHTML, /width:40%/);
   assert.match(p.elements.get('goalStreak').textContent, /1 día seguido/);
   assert.match(p.elements.get('title').textContent, /Perfil/);

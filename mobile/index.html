@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="aw-version" content="4.42">
+<meta name="aw-version" content="4.43">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#000000">
 <link rel="manifest" href="manifest.json">
@@ -21,7 +21,6 @@
     --acc:#FF8A1F; --acc2:#FFC15E; --glow:rgba(255,138,31,.28); --acc-ink:#1b0f05; --acc-soft:rgba(255,138,31,.12); --acc-line:rgba(255,138,31,.45);
     --low:#F0506E; --danger:#F0506E;
     --font:'Geist',system-ui,-apple-system,sans-serif; --mono:'Geist Mono',ui-monospace,monospace; --num:'Barlow Condensed',sans-serif;
-    --grad:linear-gradient(90deg,var(--acc),var(--acc2));
     --panel:var(--surface); --panel2:var(--surface-2); --dim:var(--txt-2);
     --i-play:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256' fill='currentColor'%3E%3Cpath d='M232.4,114.49,88.32,26.35a16,16,0,0,0-16.2-.3A15.86,15.86,0,0,0,64,39.87V216.13A15.94,15.94,0,0,0,80,232a16.07,16.07,0,0,0,8.36-2.35L232.4,141.51a15.81,15.81,0,0,0,0-27ZM80,215.94V40l143.83,88Z'/%3E%3C/svg%3E");
     --i-stop:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256' fill='currentColor'%3E%3Cpath d='M200,40H56A16,16,0,0,0,40,56V200a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V56A16,16,0,0,0,200,40Zm0,160H56V56H200V200Z'/%3E%3C/svg%3E");
@@ -90,7 +89,7 @@
   .tlClock:empty { display:none; }
   .tl { position:relative; height:32px; margin:2px 8px 6px; }
   .tl .track { position:absolute; left:0; right:0; top:8px; height:3px; background:rgba(255,255,255,.1); border-radius:2px; }
-  .tl .fill { position:absolute; left:0; top:8px; height:3px; width:0; background:var(--grad); border-radius:2px; box-shadow:0 0 10px var(--glow); }
+  .tl .fill { position:absolute; left:0; top:8px; height:3px; width:0; background:var(--acc); border-radius:2px; box-shadow:0 0 10px var(--glow); }
   .tl .rel { position:absolute; top:3px; left:83.33%; width:1.5px; height:13px; background:#fff; }
   .tl span { position:absolute; top:18px; font:500 9.5px/1 var(--font); letter-spacing:.08em; text-transform:uppercase; color:var(--txt-3); transform:translateX(-50%); white-space:nowrap; }
   .tl .tlA { left:0; transform:none; }
@@ -113,8 +112,8 @@
   .scoreGroups div { font-size:12.5px; color:var(--txt-2); line-height:1.4; }
   .splitPair { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
   .splitPair .lbl { display:block; }
-  .splitPair .num { font-family:var(--num); font-weight:600; font-size:clamp(42px,14vw,64px); line-height:.85; display:block; margin-top:4px; }
-  .splitPair .sub { font-family:var(--num); font-weight:600; font-size:clamp(22px,6vw,28px); color:var(--txt-2); display:block; margin-top:6px; line-height:1; }
+  .splitPair .num { font-family:var(--num); font-weight:600; font-size:clamp(34px,10vw,46px); line-height:.85; display:block; margin-top:4px; }
+  .splitPair .sub { font-family:var(--num); font-weight:600; font-size:clamp(18px,5vw,22px); color:var(--txt-2); display:block; margin-top:6px; line-height:1; }
   #splitHighAim { color:var(--acc); }
   #splitPlot { width:100%; height:150px; display:block; margin-top:12px; }
   #splitNeed { margin:0; font-size:14px; color:var(--txt-2); }
@@ -187,18 +186,31 @@
   .cmpGear b { color:var(--txt); font-weight:600; }
   #cmpAim { width:min(82vw,330px); height:min(82vw,330px); }
   #cmpSets { width:100%; height:160px; }
-  #goalCard { background:linear-gradient(180deg, var(--acc-soft), var(--surface) 88px); }
   #goalForm { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px; }
   #goalForm label { display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:13px; font-weight:600; background:rgba(0,0,0,.28); border:1px solid var(--line); border-radius:14px; padding:8px 10px; }
   #goalForm .btnSecondary { grid-column:1 / -1; }
   #goalForm input { width:72px; min-height:40px; border-radius:10px; border:1px solid var(--line-2); background:var(--surface-2); text-align:center; font-family:var(--mono); font-size:16px; }
-  .goalRow { margin:8px 0 0; background:rgba(0,0,0,.28); border:1px solid var(--line); border-radius:14px; padding:12px 12px 10px; }
+  .goalRow { margin:0; padding:12px 0 0; }
   .goalRow > span { display:flex; justify-content:space-between; gap:8px; font-size:14px; align-items:baseline; }
   .goalRow > span b:first-child { font-weight:600; }
-  .goalRow > span b:last-child { font-family:var(--num); font-weight:600; font-size:22px; color:var(--txt); }
-  .goalBar { height:12px; border-radius:999px; background:var(--surface-3); margin-top:8px; overflow:hidden; }
+  .goalRow > span b:last-child { font-family:var(--num); font-weight:600; font-size:20px; color:var(--txt); }
+  .goalBar { height:8px; border-radius:999px; background:var(--surface-3); margin-top:7px; overflow:hidden; }
+  .goalEdit { margin-top:12px; border-top:1px solid var(--line); }
+  .goalEdit summary { list-style:none; cursor:pointer; display:flex; justify-content:center; align-items:center; min-height:44px; color:var(--acc); font-size:13px; font-weight:600; }
+  .goalEdit summary::-webkit-details-marker { display:none; }
+  .goalEdit[open] summary { color:var(--txt-2); }
+  .goalEdit #goalForm { margin-top:0; }
+  #goalHint { font-size:12px; color:var(--txt-3); margin-top:10px; text-align:center; }
+  .streakBox { display:grid; grid-template-columns:auto minmax(0,1fr); gap:16px; align-items:center; padding:2px 0 12px; border-bottom:1px solid var(--line); }
+  .streakBox b { display:block; font:600 56px/.8 var(--num); color:var(--acc); }
+  .streakBox span { display:block; margin-top:6px; font-size:13px; font-weight:500; }
+  .weekPills { display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:5px; }
+  .weekPills i { aspect-ratio:1; border-radius:9px; display:grid; place-items:center; font:600 11px/1 var(--font); font-style:normal; color:var(--txt-2); box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.14); }
+  .weekPills i.on { background:rgba(255,255,255,.14); box-shadow:none; color:var(--txt); }
+  .weekPills i.run { background:var(--acc); box-shadow:none; color:var(--acc-ink); }
+  .weekPills i.today:not(.run) { box-shadow:inset 0 0 0 1.5px var(--acc-line); }
   .goalBar i { display:block; height:100%; width:0; background:rgba(255,255,255,.85); border-radius:999px; }
-  .goalBar.met i { background:var(--grad); box-shadow:0 0 12px var(--glow); }
+  .goalBar.met i { background:var(--acc); box-shadow:0 0 12px var(--glow); }
   #tLegend .hr { margin-left:auto; color:var(--txt); font-family:var(--mono); font-size:12px; }
   #tLegend .hr svg { width:13px; height:13px; color:var(--danger); }
   #tip { display:flex; gap:10px; align-items:flex-start; background:var(--surface); border:1px solid var(--line); border-radius:12px;
@@ -303,24 +315,45 @@
     72% { transform:translateX(3px) rotate(.3deg); }
   }
   #setList details.wiggle > summary, .trendRow.wiggle { animation:awWiggle .42s ease; }
-  .profileTop { display:grid; grid-template-columns:84px minmax(0,1fr); gap:12px; align-items:center; }
-  .profilePhoto { width:84px; height:84px; border-radius:50%; border:1px solid var(--line-2); background:var(--surface-2); overflow:hidden; padding:0; color:var(--txt-2); font-size:28px; }
+  #profileCard { padding:0 0 16px; overflow:hidden; }
+  .pBanner { position:relative; height:118px; background:var(--surface-2); }
+  .pBanner i { position:absolute; inset:0; background:center/cover no-repeat; filter:grayscale(1) brightness(.72) contrast(1.05); }
+  .pBanner.none { height:52px; background:transparent; }
+  .pBanner.none i { display:none; }
+  .pBannerEdit { position:absolute; right:10px; top:10px; width:36px; height:36px; padding:0; border:1px solid rgba(255,255,255,.18); border-radius:50%; display:grid; place-items:center; background:rgba(0,0,0,.66); color:#fff; }
+  .pBannerEdit svg { width:17px; height:17px; }
+  .profileTop { position:relative; display:grid; grid-template-columns:auto minmax(0,1fr); gap:12px; align-items:start; padding:0 16px; margin-top:-36px; }
+  .pBanner.none + .profileTop { align-items:center; }
+  .profilePhoto { width:80px; height:80px; border-radius:50%; border:0; background:var(--surface-2); overflow:hidden; padding:0; color:var(--txt-2); font-size:28px; box-shadow:0 0 0 4px var(--surface); }
   .profilePhoto img { width:100%; height:100%; object-fit:cover; display:block; }
-  .profileFields { display:grid; gap:4px; min-width:0; }
-  .profileFields input { width:100%; background:transparent; border:none; border-bottom:1px solid var(--line); min-height:36px; font-size:20px; font-weight:600; }
-  #profileClub { font-size:14px; font-weight:500; color:var(--txt-2); }
-  #profileGear { margin-top:12px; font-size:13px; color:var(--txt-2); }
-  #profileGear b { color:var(--txt); font-weight:600; }
+  .profileFields { display:grid; min-width:0; padding-top:44px; }
+  .pBanner.none + .profileTop .profileFields { padding-top:0; }
+  .profileFields input { width:100%; min-height:28px; padding:0; background:transparent; border:0; border-bottom:1px solid transparent; }
+  .profileFields input:focus { border-bottom-color:var(--line-2); outline:none; }
+  #profileName { font-size:24px; font-weight:500; letter-spacing:-.02em; }
+  #profileClub { min-height:22px; font-size:13.5px; font-weight:500; color:var(--txt-2); }
+  #profileGear { display:flex; flex-wrap:wrap; gap:6px; margin:14px 16px 0; }
+  #profileGear span { display:inline-flex; align-items:center; gap:6px; padding:6px 11px; border-radius:999px; background:var(--surface-2); border:1px solid var(--line); font-size:12.5px; font-weight:500; }
+  .bannerPick { display:flex; gap:10px; overflow-x:auto; scrollbar-width:none; margin:10px 0 0; padding:4px 16px 2px; }
+  .bannerPick::-webkit-scrollbar { display:none; }
+  .bannerPick button { flex:0 0 auto; display:grid; justify-items:center; gap:6px; width:86px; padding:0; border:0; background:none; color:var(--txt-3); font-size:11px; font-weight:500; }
+  .bannerPick i { position:relative; overflow:hidden; width:86px; height:48px; border-radius:10px; display:grid; place-items:center; background:var(--surface-2); box-shadow:0 0 0 1px var(--line-2); color:var(--txt-2); font-style:normal; font-size:18px; }
+  .bannerPick i b { position:absolute; inset:0; background:center/cover no-repeat; filter:grayscale(1) brightness(.8); }
+  .bannerPick button.on { color:#fff; }
+  .bannerPick button.on i { box-shadow:0 0 0 2px var(--surface), 0 0 0 3.5px var(--acc); }
+  #radarCard .cardTitle small .dash { color:var(--txt-2); letter-spacing:.1em; }
   #vProgress { display:flex; flex-direction:column; gap:10px; }
-  #profileSpark, #profileRadar, #progressRadar { width:100%; display:block; }
+  #profileSpark, #progressRadar { width:100%; display:block; }
   #profileSpark { height:84px; }
-  #profileRadar, #progressRadar { height:280px; }
-  .swatches { display:flex; gap:8px 10px; flex-wrap:wrap; }
-  .swatches button { width:64px; height:auto; border:none; background:none; padding:0; display:flex; flex-direction:column; align-items:center; gap:6px; color:var(--txt-3); font-size:10px; font-weight:600; }
-  .swatches button i { width:36px; height:36px; border-radius:50%; background:var(--sw); box-shadow:0 0 0 2px transparent; }
-  .swatches button.on { color:var(--txt); }
-  .swatches button.on i { box-shadow:0 0 0 2px #fff; }
-  .heatWrap { display:flex; gap:6px; align-items:flex-start; overflow:auto; }
+  #progressRadar { height:280px; }
+  .swatches { display:grid; grid-template-columns:repeat(5, minmax(0,1fr)); gap:8px; }
+  .swatches button { aspect-ratio:.9; min-width:0; display:flex; flex-direction:column; align-items:flex-start; justify-content:space-between; padding:10px 7px 9px 9px; border-radius:14px; border:1px solid var(--line);
+    background:var(--surface-2); color:var(--txt-2); font-size:10px; font-weight:600; }
+  .swatches button i { width:22px; height:22px; border-radius:50%; background:var(--sw); }
+  .swatches button small { max-width:100%; font-size:inherit; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .swatches button.on { color:#fff; border-color:var(--sw); box-shadow:inset 0 0 0 1px var(--sw); }
+  #progressEmpty:empty { display:none; }
+  .heatWrap { display:flex; gap:6px; align-items:flex-start; overflow:hidden; }
   .heatDays { display:flex; flex-direction:column; gap:3px; font-size:9px; color:var(--txt-3); width:12px; }
   .heatDays span { height:11px; line-height:11px; }
   .heat { display:flex; gap:3px; }
@@ -400,6 +433,10 @@
   .wChip.variant { color:var(--acc); }
   .wGrip { width:30px; height:36px; flex-shrink:0; display:grid; place-items:center; color:var(--txt-3); touch-action:none; cursor:grab; }
   .wGrip svg { width:18px; height:18px; }
+  .widgetFx { display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; }
+  .widgetFx::-webkit-scrollbar { display:none; }
+  .widgetFx button { flex:0 0 auto; height:32px; padding:0 13px; border-radius:999px; border:1px solid rgba(255,255,255,.12); background:none; color:var(--txt-2); font-size:13px; font-weight:500; }
+  .widgetFx button.on { background:var(--acc-soft); border-color:var(--acc-line); color:var(--acc); }
   .widgetAdd { display:flex; gap:8px; overflow-x:auto; scrollbar-width:none; }
   .widgetAdd::-webkit-scrollbar { display:none; }
   .widgetAdd button { flex:0 0 auto; display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 13px; border:1px dashed rgba(255,255,255,.18); border-radius:999px; background:none; color:var(--txt-2); font-size:13px; font-weight:500; }
@@ -433,12 +470,12 @@
   #sessionScoreFace > div + div { border-left:1px solid var(--line); }
   .info summary::-webkit-details-marker { display:none; }
   .info p { font-size:12px; color:var(--txt-3); line-height:1.4; margin-top:4px; }
-  .sessbars { display:grid; grid-template-columns:repeat(auto-fit,minmax(36px,1fr)); gap:8px; align-items:end; height:120px; margin-top:12px; }
+  .sessbars { display:grid; grid-template-columns:repeat(auto-fit,minmax(36px,1fr)); gap:6px; align-items:end; min-height:132px; margin-top:12px; }
   .sessbars div { display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; min-width:0; }
   .sessbars b { font:600 18px/1 var(--num); margin-bottom:6px; }
   .sessbars i { width:100%; background:rgba(255,255,255,.1); border-radius:6px 6px 2px 2px; }
-  .sessbars i.last { background:linear-gradient(180deg,var(--acc2),var(--acc)); box-shadow:0 0 18px var(--glow); }
-  .sessbars small { font:500 10px/1 var(--font); letter-spacing:.06em; color:var(--txt-3); margin-top:6px; text-transform:uppercase; max-width:100%; overflow:hidden; text-overflow:ellipsis; }
+  .sessbars i.last { background:var(--acc); box-shadow:0 0 18px var(--glow); }
+  .sessbars small { font:500 9.5px/1.25 var(--font); letter-spacing:.02em; color:var(--txt-3); margin-top:6px; text-transform:uppercase; text-align:center; max-width:100%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
   @media (max-width:340px) {
     main { padding-left:12px; padding-right:12px; }
     header { padding-left:12px; padding-right:12px; }
@@ -569,6 +606,9 @@
 </main>
 <main id="vProfile" style="display:none">
   <section class="card" id="profileCard">
+    <div class="pBanner" id="profileBanner"><i id="profileBannerImg"></i>
+      <button type="button" class="pBannerEdit" id="profileBannerEdit" aria-label="Cambiar banner" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="2.5"/><path d="M4 16.5l4.5-4.5 3.5 3.5 2.5-2.5 5 5"/><circle cx="15.5" cy="9.5" r="1.4"/></svg></button>
+    </div>
     <div class="profileTop">
       <button type="button" class="profilePhoto" id="profilePhotoBtn" aria-label="Foto de perfil"><img id="profilePhoto" alt="" hidden><span id="profilePhotoPh">+</span></button>
       <input id="profileFile" type="file" accept="image/*" hidden>
@@ -578,19 +618,22 @@
       </div>
     </div>
     <div id="profileGear"></div>
+    <div class="bannerPick" id="bannerPick" role="group" aria-label="Banner" hidden></div>
+    <input id="bannerFile" type="file" accept="image/*" hidden>
   </section>
   <section class="card">
     <div class="cardTitle">Global<small id="profileSpan"></small></div>
     <div class="mrow quad" id="profileNums"></div>
     <canvas id="profileSpark" aria-label="Evolución"></canvas>
-    <canvas id="profileRadar" aria-label="Radar del perfil"></canvas>
     <button type="button" class="btnSecondary" id="shareProfile">Compartir perfil</button>
   </section>
   <div id="vProgress">
   <section class="card" id="goalCard">
-    <div class="cardTitle">Esta semana<small id="goalWeek"></small></div>
+    <div class="cardTitle">Esta semana</div>
+    <div class="streakBox" id="streakBox" hidden></div>
     <div id="goalBars"></div>
     <p id="goalStreak" class="scoreNote"></p>
+    <details class="goalEdit"><summary>Editar objetivos</summary>
     <form id="goalForm" onsubmit="return false">
       <label>Flechas <input id="goalArrows" inputmode="numeric" enterkeyhint="done" aria-label="Flechas por semana" placeholder="30"></label>
       <label>Sesiones <input id="goalSessions" inputmode="numeric" enterkeyhint="done" aria-label="Sesiones por semana" placeholder="3"></label>
@@ -598,11 +641,12 @@
       <label>Estabilidad <input id="goalStability" inputmode="numeric" enterkeyhint="done" aria-label="Estabilidad mínima" placeholder="75"></label>
       <button type="button" class="btnSecondary" onclick="saveGoals()">Guardar</button>
     </form>
-    <details class="info"><summary aria-label="Detalle">ⓘ</summary><p id="goalHint">Lunes a domingo. Vacío = no cuenta.</p></details>
+    <p id="goalHint">Lunes a domingo. Vacío = no cuenta.</p>
+    </details>
   </section>
   <section class="card" id="radarCard">
-    <div class="cardTitle">Forma</div>
-    <canvas id="progressRadar" aria-label="Radar de la forma"></canvas>
+    <div class="cardTitle">Rendimiento<small><span class="dash">- - -</span> antes</small></div>
+    <canvas id="progressRadar" aria-label="Rendimiento"></canvas>
   </section>
   <section class="card" id="heatCard">
     <div class="cardTitle">Días<small id="heatLabel"></small></div>
@@ -630,7 +674,7 @@
   <div class="empty" id="progressEmpty"></div>
   </div>
   <section class="card" id="themeCard">
-    <div class="cardTitle">Acento<small>Ámbar por defecto</small></div>
+    <div class="cardTitle">Tema<small id="themeName"></small></div>
     <div class="swatches" id="themeSwatches"></div>
   </section>
 </main>
@@ -669,6 +713,7 @@
         <button type="button" data-photo="short">Foto baja</button>
         <button type="button" data-photo="none">Sin foto</button>
       </div>
+      <div class="widgetFx" id="widgetFx" role="group" aria-label="Detalles"></div>
       <ul class="widgetList" id="widgetList" aria-label="Widgets de la tarjeta"></ul>
       <div class="widgetAdd" id="widgetAdd" aria-label="Añadir widget"></div>
     </div>
@@ -678,7 +723,7 @@
         <button type="button" data-finish="editorial">Editorial</button>
         <button type="button" data-finish="obsidian">Obsidiana</button>
       </div>
-      <div class="photoRow" role="group" aria-label="Foto">
+      <div class="photoRow" id="sharePhotos" role="group" aria-label="Foto">
         <button type="button" id="shareCam"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M4 8.5h3l1.6-2.5h6.8L17 8.5h3v10H4z"/><circle cx="12" cy="13.2" r="3.4"/></svg></i><small>Cámara</small></button>
         <button type="button" id="shareLib"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2.5"/><path d="M4.5 16.5l4.5-4.5 3.5 3.5 2.5-2.5 4.5 4.5"/><circle cx="15.5" cy="9.5" r="1.4"/></svg></i><small>Galería</small></button>
         <span class="photoSep" aria-hidden="true"></span>
@@ -1552,11 +1597,10 @@ function fillGoal(id, value) {
 function renderGoals() {
   const goals = Goals.load(localStorage);
   const report = Goals.progress(store.list(), goals, new Date());
-  const week = document.getElementById('goalWeek');
-  if (!week) return;
-  week.textContent = report.label;
-  document.getElementById('goalBars').innerHTML = report.bars.length ? report.bars.map(b =>
-    `<div class="goalRow"><span><b>${escapeText(b.label)}</b><b>${escapeText(b.text)}</b></span><div class="goalBar${b.met ? ' met' : ''}" role="progressbar" aria-valuenow="${b.width}" aria-valuemin="0" aria-valuemax="100" aria-label="${escapeText(b.label)}"><i style="width:${b.width}%"></i></div></div>`
+  const bars = document.getElementById('goalBars');
+  if (!bars) return;
+  bars.innerHTML = report.bars.length ? report.bars.map(b =>
+    `<div class="goalRow"><span><b>${escapeText(b.label)}</b><b>${escapeText(b.value)}</b></span><div class="goalBar${b.met ? ' met' : ''}" role="progressbar" aria-valuenow="${b.width}" aria-valuemin="0" aria-valuemax="100" aria-label="${escapeText(b.label)}"><i style="width:${b.width}%"></i></div></div>`
   ).join('') : '<p class="scoreNote">Sin objetivos</p>';
   document.getElementById('goalStreak').textContent = report.streakText;
   fillGoal('goalArrows', goals.arrows);
@@ -1587,9 +1631,10 @@ function renderProgress() {
         const v = base[i], last = i === shown.length - 1;
         const h = Math.round(8 + ((v - floor) / span) * 72);
         const pts = Score.totals(s.shots);
-        const cap = fmtDate(s.id).split(',')[0] + (s.tanda ? (pts.scored ? ' · ' + pts.score : ' · T') : '');
+        const cap = fmtDate(s.id).split(',')[0] + (s.tanda ? '<br>' + (pts.scored ? pts.score : 'T') : '');
         return `<div><b style="${last ? 'color:var(--acc)' : ''}">${v}</b><i class="${last ? 'last' : ''}" style="height:${h}px"></i><small>${cap}</small></div>`;
       }).join('');
+      bars.style.gridTemplateColumns = 'repeat(' + shown.length + ', minmax(0, 1fr))';
     } else if (bars) bars.innerHTML = '';
   } else if (bars) bars.innerHTML = '';
   renderSplit();
@@ -2016,9 +2061,9 @@ function gaugeSvg(v) {
   const val = Math.max(0, Math.min(100, Number.isFinite(v) ? v : 0));
   const ang = (135 + 270 * val / 100) * Math.PI / 180;
   const ex = size / 2 + r * Math.cos(ang), ey = size / 2 + r * Math.sin(ang);
-  return `<svg viewBox="0 0 ${size} ${size}" aria-hidden="true"><defs><linearGradient id="awGauge" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="var(--acc)"/><stop offset="1" stop-color="var(--acc2)"/></linearGradient></defs>
+  return `<svg viewBox="0 0 ${size} ${size}" aria-hidden="true">
     <g transform="rotate(135 ${size / 2} ${size / 2})"><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="7" stroke-linecap="round" stroke-dasharray="${circ * arc} ${circ}"/>
-    <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="url(#awGauge)" stroke-width="7" stroke-linecap="round" stroke-dasharray="${circ * arc * val / 100} ${circ}"/></g>
+    <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="var(--acc)" stroke-width="7" stroke-linecap="round" stroke-dasharray="${circ * arc * val / 100} ${circ}"/></g>
     <circle cx="${ex}" cy="${ey}" r="9" fill="var(--glow)"/><circle cx="${ex}" cy="${ey}" r="3" fill="#fff"/></svg>`;
 }
 function syncTimeline(ms) {

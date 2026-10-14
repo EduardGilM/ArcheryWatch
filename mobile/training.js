@@ -246,7 +246,8 @@ const PROFILE_LABELS={'Recurvo':'Arco recurvo','Compuesto':'Arco compuesto','Rec
 const originalProgress=renderProgress;
 renderProgress=function() {
   const L=store.list(), keys=[...new Set(L.flatMap(s=>s.shots.map(a=>Training.key({profile:a.profile||s.profile,metric:a.metric||s.metric}))))], select=$('progressProfile'), old=select.value;
-  select.innerHTML=keys.map(k=>`<option value="${escapeText(k)}">${escapeText(PROFILE_LABELS[k]||k)}</option>`).join('');if(keys.includes(old))select.value=old;
+  const bases=keys.map(k=>k.replace(/ · v\d+$/,'')), label=(k,i)=>PROFILE_LABELS[k]||(bases.indexOf(bases[i])!==bases.lastIndexOf(bases[i])?k:PROFILE_LABELS[bases[i]]||bases[i]);
+  select.innerHTML=keys.map((k,i)=>`<option value="${escapeText(k)}">${escapeText(label(k,i))}</option>`).join('');if(keys.includes(old))select.value=old;
   const filtered=L.map(s=>({...s,shots:s.shots.filter(a=>Training.key({profile:a.profile||s.profile,metric:a.metric||s.metric})===select.value)}));
   const week=filtered.filter(s=>s.id>=Date.now()-7*864e5).reduce((n,s)=>n+s.shots.filter(a=>!a.candidate).length,0), total=filtered.reduce((n,s)=>n+s.shots.filter(a=>!a.candidate).length,0);
   $('volume').textContent=`${week} flechas · 7 días · ${total} total`;
