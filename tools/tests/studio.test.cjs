@@ -215,6 +215,38 @@ test('two small widgets share a row and a small one left alone takes the whole r
   assert.deepEqual(rows[2].map(it => [it.widget.id, it.size]), [['best', 'wide']]);
 });
 
+test('the longest training streak reuses the goals day streak', () => {
+  const at = (y, m, d) => new Date(y, m - 1, d, 12).getTime();
+  const shot = {t_ms: 1, result: {value: '10'}};
+  const day = id => ({id, shots: [shot]});
+  const now = new Date(2026, 9, 14, 18);
+  const older = [10, 11, 12, 13, 14, 15].map(d => day(at(2026, 9, d)));
+  const open = [11, 12, 13, 14].map(d => day(at(2026, 10, d)));
+  const streak = Studio.trainingStreak([
+    ...older,
+    ...open,
+    {id: at(2026, 10, 14), shots: [{candidate: true, result: {value: 'X'}}]},
+    {id: at(2026, 10, 13), shots: []},
+    {id: at(2026, 10, 9), shots: [shot]}
+  ], now);
+  assert.equal(streak.best, 6);
+  assert.equal(streak.current, 4);
+  assert.equal(streak.recent.length, 14);
+  assert.deepEqual(streak.recent.slice(-5), [0, 1, 1, 1, 1]);
+  assert.equal(streak.recent.filter(Boolean).length, 5);
+  const stopped = Studio.trainingStreak(older, new Date(2026, 9, 20, 9));
+  assert.equal(stopped.current, 0);
+  assert.equal(stopped.best, 6);
+  const sameDay = Studio.trainingStreak([day(at(2026, 10, 14)), day(at(2026, 10, 14) + 1000)], now);
+  assert.equal(sameDay.current, 1);
+  assert.equal(sameDay.best, 1);
+  assert.equal(Studio.WIDGETS.find(w => w.id === 'streak').name, 'Racha más larga');
+  for (const style of Object.keys(Studio.CARD_DEFAULTS)) {
+    const cfg = {photo: 'short', widgets: [{id: 'streak', size: 'wide'}, {id: 'score', size: 'wide'}]};
+    assert.equal(Studio.cardRows(style, Studio.sanitizeCard(style, cfg)).fits, true, style);
+  }
+});
+
 test('a layout that does not fit is rejected and the saved one stays', () => {
   const mem = {};
   const previous = global.localStorage;

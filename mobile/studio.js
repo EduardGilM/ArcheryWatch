@@ -48,7 +48,8 @@ const Studio = {
     {id: 'series', name: 'Por serie', size: 'wide'},
     {id: 'group', name: 'Agrupación', size: 'small'},
     {id: 'best', name: 'Mejor serie', size: 'small'},
-    {id: 'precision', name: 'Precisión', size: 'small'}
+    {id: 'precision', name: 'Precisión', size: 'small'},
+    {id: 'streak', name: 'Racha más larga', size: 'small'}
   ],
   WIDGET_SIZES: [{id: 'small', name: 'Pequeño'}, {id: 'wide', name: 'Ancho'}],
   PHOTO_SIZES: [{id: 'tall', name: 'Alta'}, {id: 'short', name: 'Baja'}, {id: 'none', name: 'Sin foto'}],
@@ -59,9 +60,9 @@ const Studio = {
   },
   // Preferred height of each widget in 1080-wide card pixels: [small, wide]. Distribution depends on its chart.
   WIDGET_HEIGHTS: {
-    glass: {score: [270, 210], stats: [270, 150], bar: [200, 130], donut: [290, 230], columns: [250, 210], series: [250, 190], group: [140, 150], best: [140, 150], precision: [140, 130]},
-    editorial: {score: [200, 140], stats: [230, 120], bar: [200, 136], donut: [270, 210], columns: [230, 186], series: [230, 190], group: [140, 130], best: [150, 130], precision: [130, 120]},
-    obsidian: {score: [280, 240], stats: [230, 130], bar: [130, 120], donut: [210, 180], columns: [168, 156], series: [280, 200], group: [130, 130], best: [150, 130], precision: [120, 120]}
+    glass: {score: [270, 210], stats: [270, 150], bar: [200, 130], donut: [290, 230], columns: [250, 210], series: [250, 190], group: [140, 150], best: [140, 150], precision: [140, 130], streak: [210, 190]},
+    editorial: {score: [200, 140], stats: [230, 120], bar: [200, 136], donut: [270, 210], columns: [230, 186], series: [230, 190], group: [140, 130], best: [150, 130], precision: [130, 120], streak: [168, 156]},
+    obsidian: {score: [280, 240], stats: [230, 130], bar: [130, 120], donut: [210, 180], columns: [168, 156], series: [280, 200], group: [130, 130], best: [150, 130], precision: [120, 120], streak: [160, 148]}
   },
   // Widget area per style: horizontal span, gap between rows and columns, and top edge by photo size.
   CARD_AREAS: {
@@ -393,6 +394,16 @@ const Studio = {
         axis('endure', 'Aguante', endure, round(endure), endureN)
       ]
     };
+  },
+  // Longest run of consecutive training days, plus the run still open today. Same day-serial streak as the weekly goals.
+  trainingStreak(sessions, now) {
+    const when = now instanceof Date ? now : new Date(now || Date.now());
+    const {days} = StudioGoals.buckets(sessions);
+    const today = StudioGoals.daySerial(when);
+    const run = StudioGoals.streak(days, today, 1);
+    const recent = [];
+    if (today != null) for (let i = 13; i >= 0; i--) recent.push(days.has(today - i) ? 1 : 0);
+    return {current: run.current, best: run.best, recent};
   },
   heatmap(sessions, now, weeks) {
     const nWeeks = weeks || 18;
@@ -1624,7 +1635,8 @@ function studioCardPack(headline, subtitle, when, shots, series, duration, bars,
       {id: 'time', label: 'Duración', value: studioDurationText(duration)}
     ],
     photo: photo || '',
-    focus: Studio.card.photo ? 0.5 : ((studioPreset() || {}).focus ?? 0.5)
+    focus: Studio.card.photo ? 0.5 : ((studioPreset() || {}).focus ?? 0.5),
+    streak: Studio.trainingStreak(typeof studioSessions === 'function' ? studioSessions() : [])
   };
 }
 
@@ -2243,6 +2255,31 @@ function studioChip(ctx, cx, cy, r, v, S) {
   studioText(ctx, v, cx, cy + r * 0.36, studioF(650, Math.round(r * 0.95)), hot ? S.chipInk : ten ? S.ink : S.soft, 0, 'center');
 }
 
+function studioStreakPips(ctx, x, y, w, recent, current, S) {
+  const n = recent.length;
+  const gap = Math.max(4, Math.min(8, w / (n * 4)));
+  const d = Math.min(11, (w - gap * (n - 1)) / n);
+  let i = n - 1;
+  if (!recent[i]) i--;
+  const hot = new Array(n).fill(false);
+  for (let k = 0; k < current && i >= 0; k++, i--) hot[i] = !!recent[i];
+  recent.forEach((on, k) => {
+    const cx = x + k * (d + gap) + d / 2;
+    ctx.beginPath();
+    ctx.arc(cx, y, d / 2, 0, Math.PI * 2);
+    if (hot[k]) {
+      ctx.fillStyle = S.acc;
+      ctx.fill();
+    } else if (on) {
+      ctx.fillStyle = studioRgba(S.acc, 0.4);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = studioRgba(S.base, 0.14);
+      ctx.fill();
+    }
+  });
+}
+
 const studioWidgetPaint = {
   score(ctx, b, view, S) {
     const unit = view.scoreMax ? 'PUNTOS' : 'FLECHAS';
@@ -2469,6 +2506,35 @@ const studioWidgetPaint = {
     const fit = studioFitValue(ctx, value, b.x - 2, st.base, b.w, st.px, S);
     if (b.size === 'wide' && view.scoreMax) studioText(ctx, view.scoreMain + ' de ' + view.scoreMax, b.x + b.w, st.base, studioF(500, Math.max(18, Math.round(fit.px * 0.3))), S.soft, 0, 'right');
     studioBar(ctx, b.x, st.bottom - 6, b.w, S.style === 'obsidian' ? 4 : 6, view.pct, S);
+  },
+  streak(ctx, b, view, S) {
+    const streak = view.streak || {current: 0, best: 0, recent: []};
+    const best = streak.best || 0;
+    const current = streak.current || 0;
+    const wide = b.size === 'wide';
+    const recent = streak.recent || [];
+    const foot = wide && recent.length ? 26 : 22;
+    const cap = S.style === 'editorial' ? (wide ? 52 : 48) : S.style === 'obsidian' ? (wide ? 78 : 64) : (wide ? 78 : 86);
+    const st = studioStack(b, S, cap, b.h >= 100 ? foot : 0);
+    studioWLabel(ctx, 'RACHA MÁS LARGA', b.x, wide ? b.y : st.top, S);
+    const base = wide ? Math.min(st.base, b.y + b.h - foot - 2) : st.base;
+    const room = wide ? b.w * 0.46 : b.w * 0.7;
+    const fit = studioFitValue(ctx, String(best), b.x - 2, base, room, st.px, S, best ? S.acc : S.soft);
+    studioText(ctx, best === 1 ? 'día' : 'días', b.x + fit.w + 8, base, studioF(500, Math.max(15, Math.round(fit.px * 0.3))), S.soft);
+    if (b.h < 100) return;
+    if (wide) {
+      studioText(ctx, 'AHORA', b.x + b.w, b.y + S.labelPx, studioF(S.labelW, S.labelPx * 0.9), S.soft, S.labelTrack, 'right');
+      const nowPx = Math.max(22, Math.round(fit.px * 0.46));
+      const unit = current === 1 ? 'día' : 'días';
+      const uFont = studioF(500, Math.max(14, Math.round(nowPx * 0.55)));
+      const uw = studioTextWidth(ctx, unit, uFont, 0);
+      studioFitValue(ctx, String(current), b.x + b.w - uw - 8, base, b.w * 0.28, nowPx, S, current ? S.ink : S.soft, 'right');
+      studioText(ctx, unit, b.x + b.w - uw, base, uFont, S.soft);
+      if (recent.length) studioStreakPips(ctx, b.x, b.y + b.h - 12, b.w, recent, current, S);
+      return;
+    }
+    const nowLine = current ? 'actual ' + current + (current === 1 ? ' día' : ' días') : 'parada';
+    studioText(ctx, nowLine, b.x, base + Math.max(20, Math.round(fit.px * 0.32)), studioF(500, Math.max(14, Math.round(fit.px * 0.24))), S.soft);
   }
 };
 function studioWidgets(ctx, style, view, theme) {
