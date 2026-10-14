@@ -29,7 +29,7 @@
     --i-caret:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256' fill='currentColor'%3E%3Cpath d='M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z'/%3E%3C/svg%3E");
   }
   * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
-  html, body { height:100%; }
+  html, body { height:100%; overscroll-behavior-x:none; }
   body { background:var(--bg); color:var(--txt); font-family:var(--font); font-size:14px; line-height:1.45;
          height:100dvh; display:flex; flex-direction:column; overflow:hidden; user-select:none;
          -webkit-font-smoothing:antialiased; font-feature-settings:'tnum' 1; }
@@ -51,7 +51,6 @@
   .headRow { display:flex; align-items:center; gap:10px; min-height:30px; }
   header h1 { flex:0 1 auto; min-width:0; margin:0; font-size:43px; font-weight:400; letter-spacing:-.03em; line-height:30px; height:30px; display:flex; align-items:center; }
   header h1 span { display:block; line-height:30px; height:30px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .stepper { display:flex; align-items:center; gap:6px; margin-left:0; flex-shrink:0; }
   header .btn { width:30px; height:30px; border-radius:50%; background:transparent; border:1px solid var(--line-2);
                 color:var(--txt); display:grid; place-items:center; }
   header .btn .ico { width:14px; height:14px; }
@@ -509,10 +508,6 @@
   <div class="dateRow"><small id="subtitle"></small><button id="returnCurrent" onclick="backToCurrent()">Actual</button></div>
   <div class="headRow">
   <h1><span id="title">Sesión</span></h1>
-  <div class="stepper">
-    <button class="btn" id="prev" aria-label="Flecha anterior"><svg class="ico" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M165.66,202.34a8,8,0,0,1-11.32,11.32l-80-80a8,8,0,0,1,0-11.32l80-80a8,8,0,0,1,11.32,11.32L91.31,128Z"/></svg></button>
-    <button class="btn" id="next" aria-label="Flecha siguiente"><svg class="ico" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z"/></svg></button>
-  </div>
   <span id="link" data-state="off">Sin reloj</span>
   </div>
 </header>
@@ -1054,18 +1049,20 @@ async function boot() {
   const fresh = L.find(x => x.live && (x.metric===2 || Date.now() - x.lastWt < 600000) && (x.metric===2 || x.shots.length));
   if (fresh) { data = { shots: fresh.shots }; live = true; curSess = fresh; }
   if (!data) data = { shots: [] };  // en vacío: esperando flechas; las viejas, en HISTORIAL
-  document.getElementById('prev').onclick = () => step(-1);
-  document.getElementById('next').onclick = () => step(1);
   document.getElementById('nSession').onclick = () => historyMode ? backToCurrent() : show('Session');
   ['Shot', 'Set', 'History'].forEach(v => document.getElementById('n' + v).onclick = () => show(v));
   document.getElementById('play').onclick = play;
-  // swipe izquierda/derecha en la vista de tiro
-  let tx0 = null, ty0 = 0;
-  addEventListener('touchstart', e => { if (view === 'Shot') { tx0 = e.touches[0].clientX; ty0 = e.touches[0].clientY; } }, { passive: true });
+  // swipe izquierda/derecha en la vista de tiro: gesto claramente horizontal, rápido y fuera de controles/gráficas interactivas
+  let tx0 = null, ty0 = 0, tt0 = 0;
+  const noSwipe = el => el && el.closest && el.closest('input, select, textarea, #trace, #timeline, .scorepad, .scoreSlots, #shareSheet, nav, header');
+  addEventListener('touchstart', e => {
+    if (view !== 'Shot' || e.touches.length !== 1 || noSwipe(e.target)) { tx0 = null; return; }
+    tx0 = e.touches[0].clientX; ty0 = e.touches[0].clientY; tt0 = Date.now();
+  }, { passive: true });
   addEventListener('touchend', e => {
     if (view !== 'Shot' || tx0 == null) return;
-    const dx = e.changedTouches[0].clientX - tx0;
-    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(e.changedTouches[0].clientY - ty0)) step(dx < 0 ? 1 : -1);
+    const dx = e.changedTouches[0].clientX - tx0, dy = e.changedTouches[0].clientY - ty0;
+    if (Math.abs(dx) >= 60 && Math.abs(dx) > Math.abs(dy) * 1.6 && Date.now() - tt0 < 800) step(dx < 0 ? 1 : -1);
     tx0 = null;
   }, { passive: true });
   addEventListener('touchcancel', () => tx0 = null, { passive: true });
@@ -1089,7 +1086,6 @@ function show(v) {
       tab.setAttribute('aria-current', x === v ? 'page' : 'false');
     }
   });
-  document.querySelector('header .stepper').style.display = v === 'Shot' ? 'flex' : 'none';
   render();
 }
 
@@ -1098,7 +1094,6 @@ function render() {
   ['Shot', 'Set'].forEach(v => document.getElementById('v' + v).dataset.empty = !data?.shots.length);
   document.getElementById('deleteCurrent').hidden = !data?.shots.length;
   document.getElementById('returnCurrent').style.display = historyMode ? 'inline-flex' : 'none';
-  document.getElementById('prev').disabled = document.getElementById('next').disabled = !data?.shots.length;
   document.getElementById('setbar').innerHTML = '';
   const setHead = document.getElementById('setHead');
   if (setHead) setHead.hidden = true;
