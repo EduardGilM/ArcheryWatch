@@ -523,6 +523,8 @@
   .scorepad button { border:none; border-radius:14px; }
   .scorepad button.on { background:var(--acc-soft); }
   .scoreSlots button { border:none; border-radius:14px; }
+  #profileNums + .heatWrap { margin-top:6px; }
+  .heatWrap + .heatLegend { margin:10px 0 16px; }
 </style>
 </head>
 <body>
@@ -663,12 +665,14 @@
   <section class="card">
     <div class="cardTitle">Global<small id="profileSpan"></small></div>
     <div class="mrow quad" id="profileNums"></div>
-    <div class="streakBox" id="streakBox" hidden></div>
+    <div class="heatWrap"><div class="heatDays" aria-hidden="true"><span>L</span><span></span><span>X</span><span></span><span>V</span><span></span><span>D</span></div><div class="heat" id="heatmap"></div></div>
+    <div class="heatLegend"><span>Menos</span><i class="l0"></i><i class="l1"></i><i class="l2"></i><i class="l3"></i><i class="l4"></i><span>Más</span></div>
     <button type="button" class="btnSecondary" id="shareProfile">Compartir perfil</button>
   </section>
   <div id="vProgress">
   <section class="card" id="goalCard">
     <div class="cardTitle">Esta semana</div>
+    <div class="streakBox" id="streakBox" hidden></div>
     <div id="goalBars"></div>
     <p id="goalStreak" class="scoreNote"></p>
     <details class="goalEdit"><summary>Editar objetivos</summary>
@@ -685,11 +689,6 @@
   <section class="card" id="radarCard">
     <div class="cardTitle">Rendimiento<small><span class="dash">- - -</span> antes</small></div>
     <canvas id="progressRadar" aria-label="Rendimiento"></canvas>
-  </section>
-  <section class="card" id="heatCard">
-    <div class="cardTitle">Días<small id="heatLabel"></small></div>
-    <div class="heatWrap"><div class="heatDays" aria-hidden="true"><span>L</span><span></span><span>X</span><span></span><span>V</span><span></span><span>D</span></div><div class="heat" id="heatmap"></div></div>
-    <div class="heatLegend"><span>Menos</span><i class="l0"></i><i class="l1"></i><i class="l2"></i><i class="l3"></i><i class="l4"></i><span>Más</span></div>
   </section>
   <section class="card" id="splitCard">
     <div class="cardTitle">Estabilidad vs puntos</div>
