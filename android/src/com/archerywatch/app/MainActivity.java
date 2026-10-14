@@ -81,14 +81,31 @@ public class MainActivity extends Activity {
             started = true;
             startForegroundService(new Intent(this, LiveService.class));
         } else if (!started) {
-            requestPermissions(android.os.Build.VERSION.SDK_INT >= 33 ? new String[]{"android.permission.BLUETOOTH_CONNECT",
-                "android.permission.POST_NOTIFICATIONS"} : new String[]{"android.permission.BLUETOOTH_CONNECT"}, 1);
+            java.util.ArrayList<String> need = new java.util.ArrayList<>();
+            need.add("android.permission.BLUETOOTH_CONNECT");
+            if (android.os.Build.VERSION.SDK_INT >= 31) need.add("android.permission.BLUETOOTH_SCAN");
+            if (android.os.Build.VERSION.SDK_INT >= 33) need.add("android.permission.POST_NOTIFICATIONS");
+            requestPermissions(need.toArray(new String[0]), 1);
         }
     }
     @Override public void onRequestPermissionsResult(int code, String[] permissions, int[] results) {
         super.onRequestPermissionsResult(code, permissions, results);
         if (code == 1 && results.length > 0 && results[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
             started = true; startForegroundService(new Intent(this, LiveService.class));
+        } else if (code == 41) {
+            if (results.length > 0 && results[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) openCamera();
+            else {
+                cancelFile();
+                push("notice(" + org.json.JSONObject.quote("Sin permiso de cámara. Elige una foto de la galería.") + ")");
+            }
+        } else if (code == 2) {
+            // BLUETOOTH_SCAN (+ CONNECT): reintentar escaneo CMF si la UI lo pidió
+            if (results.length > 0 && results[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                if (!started) { started = true; startForegroundService(new Intent(this, LiveService.class)); }
+                LiveService.cmfScan();
+            } else {
+                push("notice(" + org.json.JSONObject.quote("Sin permiso Bluetooth para buscar el CMF.") + ")");
+            }
         }
     }
 
@@ -120,6 +137,27 @@ public class MainActivity extends Activity {
         push("notice(" + org.json.JSONObject.quote(message) + ")");
     }
     public class Bridge {
+        
+        @android.webkit.JavascriptInterface public String cmfScan() {
+            try {
+                if (android.os.Build.VERSION.SDK_INT >= 31
+                    && checkSelfPermission("android.permission.BLUETOOTH_SCAN") != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    requestPermissions(new String[]{"android.permission.BLUETOOTH_SCAN", "android.permission.BLUETOOTH_CONNECT"}, 2);
+                    return "permission";
+                }
+                LiveService.cmfScan();
+                return "";
+            } catch (Exception e) { return e.getMessage(); }
+        }
+        @android.webkit.JavascriptInterface public String cmfConnect(String address) {
+            try { LiveService.cmfConnect(address == null ? "" : address.trim()); return ""; }
+            catch (Exception e) { return e.getMessage(); }
+        }
+        @android.webkit.JavascriptInterface public void cmfDisconnect() { LiveService.cmfDisconnect(); }
+        @android.webkit.JavascriptInterface public void cmfThreshold(String value) {
+            try { LiveService.cmfThreshold(Float.parseFloat(value)); } catch (Exception ignored) {}
+        }
+
         @android.webkit.JavascriptInterface public String diagnostics() { return LiveService.diagnostics(); }
         @android.webkit.JavascriptInterface public String command(String json) {
             try { LiveService.command(json); return ""; } catch(Exception e) { return e.getMessage(); }
@@ -239,15 +277,7 @@ public class MainActivity extends Activity {
         if (fileCallback != null) fileCallback.onReceiveValue(out);
         fileCallback = null;
     }
-    @Override public void onRequestPermissionsResult(int code, String[] perms, int[] grants) {
-        super.onRequestPermissionsResult(code, perms, grants);
-        if (code != 41) return;
-        if (grants.length > 0 && grants[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) openCamera();
-        else {
-            cancelFile();
-            push("notice(" + org.json.JSONObject.quote("Sin permiso de cámara. Elige una foto de la galería.") + ")");
-        }
-    }
+
     @Override protected void onActivityResult(int request, int result, Intent intent) {
         super.onActivityResult(request,result,intent);
         if (request == 42 || request == 43) { finishFile(result, intent, request == 43); return; }

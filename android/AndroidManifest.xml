@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.archerywatch.app" android:versionCode="102" android:versionName="4.44">
+    package="com.archerywatch.app" android:versionCode="103" android:versionName="4.45">
   <uses-permission android:name="android.permission.INTERNET"/>
   <uses-permission android:name="android.permission.CAMERA"/>
   <uses-feature android:name="android.hardware.camera" android:required="false"/>
@@ -9,6 +9,8 @@
   <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
   <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
   <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
+  <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation"/>
+  <uses-feature android:name="android.hardware.bluetooth_le" android:required="false"/>
   <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="34"/>
   <queries>
     <package android:name="com.garmin.android.apps.connectmobile"/>

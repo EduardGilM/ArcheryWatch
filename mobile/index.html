@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="aw-version" content="4.44">
+<meta name="aw-version" content="4.45">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#000000">
 <link rel="manifest" href="manifest.json">
@@ -58,6 +58,14 @@
   #link[data-state="on"] { color:var(--txt-2); }
   #link[data-state="on"]::before { background:var(--acc); box-shadow:0 0 8px var(--glow); }
   #link[data-state="wait"] { color:var(--acc); }
+  .cmfPanel { display:none; margin:8px 12px 0; padding:10px 12px; border:1px solid var(--line); border-radius:12px; background:var(--surface); }
+  .cmfPanel.on { display:block; }
+  .cmfRow { display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; }
+  .cmfRow label { flex:1; min-width:120px; font-size:12px; color:var(--txt-2); display:flex; flex-direction:column; gap:4px; }
+  .cmfRow select, .cmfThr input { appearance:none; background:var(--surface-2); color:var(--txt); border:1px solid var(--line); border-radius:8px; padding:8px 10px; font:inherit; }
+  .cmfList { margin-top:8px; display:flex; flex-direction:column; gap:6px; }
+  .cmfList button { text-align:left; padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:var(--surface-2); color:var(--txt); font:inherit; }
+  .cmfThr { display:block; margin-top:8px; font-size:12px; color:var(--txt-2); }
   #live { display:none; align-self:flex-start; margin:0 16px 10px; padding:4px 10px 4px 8px; border-radius:999px;
           background:var(--acc-soft); color:var(--txt-2); font-size:12px; font-weight:500; }
   #live::before { content:""; display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--acc); box-shadow:0 0 8px var(--glow);
@@ -496,6 +504,22 @@
 </header>
 <span id="link" data-state="off">Sin reloj</span>
 <span id="live">En vivo</span>
+<div id="cmfPanel" class="cmfPanel">
+  <div class="cmfRow">
+    <label>Fuente
+      <select id="sensorSource" aria-label="Fuente de sensores">
+        <option value="garmin">Garmin</option>
+        <option value="cmf">CMF Watch</option>
+      </select>
+    </label>
+    <button type="button" class="btn" id="cmfScanBtn">Buscar</button>
+    <button type="button" class="btn" id="cmfDiscBtn" hidden>Desconectar</button>
+  </div>
+  <div id="cmfList" class="cmfList" hidden></div>
+  <label class="cmfThr">Umbral suelta (g)
+    <input id="cmfThr" inputmode="decimal" value="0.25" aria-label="Umbral de suelta en g">
+  </label>
+</div>
 <button id="returnCurrent" onclick="backToCurrent()">Actual</button>
 <main id="vShot">
   <div class="empty emptyState"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M232,120h-8.34A96.14,96.14,0,0,0,136,32.34V24a8,8,0,0,0-16,0v8.34A96.14,96.14,0,0,0,32.34,120H24a8,8,0,0,0,0,16h8.34A96.14,96.14,0,0,0,120,223.66V232a8,8,0,0,0,16,0v-8.34A96.14,96.14,0,0,0,223.66,136H232a8,8,0,0,0,0-16Zm-96,87.6V200a8,8,0,0,0-16,0v7.6A80.15,80.15,0,0,1,48.4,136H56a8,8,0,0,0,0-16H48.4A80.15,80.15,0,0,1,120,48.4V56a8,8,0,0,0,16,0V48.4A80.15,80.15,0,0,1,207.6,120H200a8,8,0,0,0,0,16h7.6A80.15,80.15,0,0,1,136,207.6ZM128,88a40,40,0,1,0,40,40A40,40,0,0,0,128,88Zm0,64a24,24,0,1,1,24-24A24,24,0,0,1,128,152Z"/></svg><b>Sin flechas</b></div>
@@ -825,12 +849,13 @@ function persist() {
 // puente desde el APK: el SDK ConnectIQ inyecta tiros del reloj en tiempo real
 function linkLabel(d) {
   if (!d || typeof d !== 'object') return {state: 'off', text: 'Sin reloj'};
-  const connected = d.connected === true || /listo/i.test(String(d.status || ''));
+  const cmf = d.cmf === true || d.source === 'cmf';
+  const connected = d.connected === true || /listo/i.test(String(d.status || '')) || /CMF en vivo|CMF listo/i.test(String(d.status || ''));
   const pending = Number(d.pending), commands = Number(d.commands);
   const waiting = (Number.isFinite(pending) ? pending : 0) + (Number.isFinite(commands) ? commands : 0);
   const at = Number(d.receivedAt);
   const clock = Number.isFinite(at) && at > 0 ? new Date(at).toLocaleTimeString('es', {hour: '2-digit', minute: '2-digit'}) : '';
-  const text = (connected ? 'Reloj' : 'Desconectado') + (clock ? ' · ' + clock : '') + (waiting ? ' · ' + waiting + ' pend.' : '');
+  const text = (connected ? (cmf ? 'CMF' : 'Reloj') : 'Desconectado') + (clock ? ' · ' + clock : '') + (waiting ? ' · ' + waiting + ' pend.' : '');
   return {state: !connected ? 'off' : (waiting >= 15 ? 'wait' : 'on'), text};
 }
 function refreshLink() {
@@ -959,7 +984,60 @@ const aimTime = s => {
   return n ? Math.max(0,-w.pre[i+1]) : 0;
 };
 
+
+// --- CMF Watch: fuente alternativa al Garmin ConnectIQ ---
+window.cmfDevice = (name, address) => {
+  const list = document.getElementById('cmfList');
+  if (!list) return;
+  list.hidden = false;
+  if ([...list.querySelectorAll('button')].some(b => b.dataset.addr === address)) return;
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.dataset.addr = address;
+  b.textContent = (name || 'CMF') + ' · ' + address;
+  b.onclick = () => {
+    const err = window.Native?.cmfConnect?.(address);
+    if (err) notice(err);
+    else {
+      document.getElementById('cmfDiscBtn').hidden = false;
+      notice('Conectando ' + address);
+    }
+  };
+  list.appendChild(b);
+};
+window.cmfSample = () => {}; // reservado (telemetría opcional)
+function syncCmfPanel() {
+  const src = document.getElementById('sensorSource')?.value || localStorage.getItem('aw-sensor') || 'garmin';
+  const panel = document.getElementById('cmfPanel');
+  const sel = document.getElementById('sensorSource');
+  if (sel && sel.value !== src) sel.value = src;
+  if (panel) panel.classList.toggle('on', src === 'cmf');
+  localStorage.setItem('aw-sensor', src);
+}
+document.getElementById('sensorSource')?.addEventListener('change', e => {
+  localStorage.setItem('aw-sensor', e.target.value);
+  syncCmfPanel();
+  if (e.target.value !== 'cmf') window.Native?.cmfDisconnect?.();
+});
+document.getElementById('cmfScanBtn')?.addEventListener('click', () => {
+  const list = document.getElementById('cmfList');
+  if (list) { list.innerHTML = ''; list.hidden = true; }
+  const thr = parseFloat(document.getElementById('cmfThr')?.value || '0.25');
+  if (Number.isFinite(thr)) window.Native?.cmfThreshold?.(String(thr));
+  const err = window.Native?.cmfScan?.();
+  if (err && err !== 'permission') notice(err);
+});
+document.getElementById('cmfDiscBtn')?.addEventListener('click', () => {
+  window.Native?.cmfDisconnect?.();
+  document.getElementById('cmfDiscBtn').hidden = true;
+});
+document.getElementById('cmfThr')?.addEventListener('change', e => {
+  window.Native?.cmfThreshold?.(String(e.target.value || '0.25'));
+});
+
 async function boot() {
+  syncCmfPanel();
+
   const L = store.list();
   const fresh = L.find(x => x.live && (x.metric===2 || Date.now() - x.lastWt < 600000) && (x.metric===2 || x.shots.length));
   if (fresh) { data = { shots: fresh.shots }; live = true; curSess = fresh; }

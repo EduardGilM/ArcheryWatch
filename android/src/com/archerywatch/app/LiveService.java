@@ -21,6 +21,7 @@ public class LiveService extends Service {
     static LiveService instance;
     static volatile String STATUS = "";
     static volatile MainActivity ui;
+    static CmfBleClient cmf;
     // UUID verificado en el propio reloj (id 0xA2C49E17B03A4F1E8D5C6B7A90E1F2D3)
     private static final String APP_UUID = "a2c49e17-b03a-4f1e-8d5c-6b7a90e1f2d3";
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -33,6 +34,20 @@ public class LiveService extends Service {
     @Override public void onCreate() {
         super.onCreate();
         instance = this;
+        if (cmf == null) {
+            cmf = new CmfBleClient(this);
+            cmf.setListener(new CmfBleClient.Listener() {
+                public void onStatus(String status) {}
+                public void onDevice(String name, String address) {
+                    if (ui != null) ui.push("cmfDevice(" + org.json.JSONObject.quote(name) + "," + org.json.JSONObject.quote(address) + ")");
+                }
+                public void onSample(long tMs, float gx, float gy, float gz, float ax, float ay, float az) {
+                    if (ui != null) ui.push(String.format(java.util.Locale.US,
+                        "cmfSample(%d,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f)", tMs, gx, gy, gz, ax, ay, az));
+                }
+                public void onShot(java.util.Map<String, Object> shot) {}
+            });
+        }
         android.content.SharedPreferences prefs = getSharedPreferences("inbox", MODE_PRIVATE);
         diagnostics = getSharedPreferences("connection", MODE_PRIVATE);
         client=diagnostics.getString("client",java.util.UUID.randomUUID().toString());
@@ -184,8 +199,12 @@ public class LiveService extends Service {
     static String diagnostics() {
         Map<String,Object> values=new java.util.HashMap<>();values.put("status",STATUS);
         values.put("pending",inbox==null?0:inbox.size());values.put("commands",outbox==null?0:outbox.size());
-        values.put("connected", STATUS != null && STATUS.contains("listo"));
-        values.put("version",102);
+        boolean cmfOn = cmf != null && cmf.isRunning();
+        values.put("connected", cmfOn || (STATUS != null && STATUS.contains("listo")));
+        values.put("source", cmfOn ? "cmf" : "garmin");
+        values.put("cmf", cmfOn);
+        values.put("cmfAddress", cmf != null && cmf.address() != null ? cmf.address() : "");
+        values.put("version",103);
         if(instance!=null){values.put("receivedAt",instance.diagnostics.getLong("receivedAt",0));values.put("kind",instance.diagnostics.getString("kind",""));}
         return MainActivity.toJson(values);
     }
@@ -206,10 +225,27 @@ public class LiveService extends Service {
         handler.postDelayed(reRegister, 15000);
     }
     @Override public void onDestroy() {
+        if (cmf != null) try { cmf.disconnect(); } catch (Exception ignored) {}
         instance = null;
         handler.removeCallbacksAndMessages(null);
         try { ConnectIQ.getInstance(this, ConnectIQ.IQConnectType.WIRELESS).shutdown(this); } catch (Exception ignored) { }
         super.onDestroy();
     }
+    
+    static void cmfScan() {
+        if (instance == null) throw new IllegalStateException("Abre la app e inténtalo de nuevo");
+        cmf.startScan();
+    }
+    static void cmfConnect(String address) {
+        if (instance == null) throw new IllegalStateException("Abre la app e inténtalo de nuevo");
+        cmf.connect(address);
+    }
+    static void cmfDisconnect() {
+        if (instance != null && cmf != null) cmf.disconnect();
+    }
+    static void cmfThreshold(float g) {
+        if (instance != null && cmf != null) cmf.setThreshold(g);
+    }
+
     @Override public IBinder onBind(Intent i) { return null; }
 }
