@@ -89,7 +89,7 @@ $('modeSheet').onclick=e=>{const b=e.target.closest('[data-v]');if(!b)return;con
 $('formatSheet').onclick=e=>{const b=e.target.closest('[data-fmt]');if(!b)return;const s=displayedSession();if(!s||historyMode||s.mode!=='Indoor')return;
   s.scoreFormat=b.dataset.fmt;saveSession(s);closeSheets(null);render();};
 function gearSheet(listId,sheetId,field,cmd){
-  $(sheetId).onclick=e=>{const remove=e.target.closest('.deleteGear');if(remove){if(!remove.classList.contains('confirm')){remove.classList.add('confirm');remove.dataset.html=remove.innerHTML;remove.textContent='Eliminar';setTimeout(()=>{if(remove.isConnected&&remove.classList.contains('confirm')){remove.classList.remove('confirm');remove.innerHTML=remove.dataset.html;}},3000);return;}if(remove.dataset.deleteBow!=null)deleteBow(remove.dataset.deleteBow);else deleteArrow(remove.dataset.deleteArrow);return;}const b=e.target.closest('[data-n]');if(!b)return;const s=displayedSession();if(!s||historyMode)return;
+  $(sheetId).onclick=e=>{const remove=e.target.closest('.deleteGear');if(remove){if(remove.dataset.deleteBow!=null)deleteBow(remove.dataset.deleteBow);else deleteArrow(remove.dataset.deleteArrow);return;}const b=e.target.closest('[data-n]');if(!b)return;const s=displayedSession();if(!s||historyMode)return;
     s[field]=b.dataset.n;saveSession(s);if(cmd)sendCmd(cmd,s[field]);closeSheets(null);render();};
 }
 function deleteBow(name){
