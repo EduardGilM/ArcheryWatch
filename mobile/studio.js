@@ -50,7 +50,11 @@ const Studio = {
     {id: 'best', name: 'Mejor serie', size: 'small'},
     {id: 'precision', name: 'Precisión', size: 'small'},
     {id: 'streak', name: 'Mejor racha', size: 'small'},
-    {id: 'train', name: 'Días entrenados', size: 'small'}
+    {id: 'train', name: 'Días entrenados', size: 'small'},
+    {id: 'recent', name: 'Media reciente', size: 'small', variants: [{id: 'a30', name: '30 flechas'}, {id: 'a60', name: '60 flechas'}, {id: 'a120', name: '120 flechas'}, {id: 'a300', name: '300 flechas'}, {id: 'a1000', name: '1000 flechas'}, {id: 'd7', name: '7 días'}, {id: 'd30', name: '30 días'}]},
+    {id: 'total', name: 'Flechas totales', size: 'small'},
+    {id: 'week', name: 'Esta semana', size: 'small'},
+    {id: 'goals', name: 'Objetivos', size: 'wide'}
   ],
   WIDGET_SIZES: [{id: 'small', name: 'Pequeño'}, {id: 'wide', name: 'Ancho'}],
   FX: [{id: 'foot', name: 'Pie de edición', on: true}, {id: 'grain', name: 'Grano', on: false}, {id: 'foil', name: 'Canto holográfico', on: false}, {id: 'mark', name: 'Diana', on: false}, {id: 'duo', name: 'Duotono', on: false}],
@@ -62,9 +66,9 @@ const Studio = {
   },
   // Preferred height of each widget in 1080-wide card pixels: [small, wide]. Distribution depends on its chart.
   WIDGET_HEIGHTS: {
-    glass: {score: [270, 210], stats: [270, 150], bar: [210, 150], donut: [290, 230], columns: [250, 210], series: [250, 190], group: [160, 160], best: [160, 160], precision: [160, 150], streak: [250, 224], train: [250, 224]},
-    editorial: {score: [200, 140], stats: [230, 120], bar: [210, 150], donut: [270, 210], columns: [230, 186], series: [230, 190], group: [160, 145], best: [165, 145], precision: [150, 135], streak: [212, 186], train: [212, 186]},
-    obsidian: {score: [280, 240], stats: [230, 130], bar: [150, 135], donut: [210, 180], columns: [168, 156], series: [280, 200], group: [150, 145], best: [165, 145], precision: [140, 135], streak: [204, 178], train: [204, 178]}
+    glass: {goals: [170, 180], recent: [160, 170], total: [150, 150], week: [160, 160], score: [270, 210], stats: [270, 150], bar: [210, 150], donut: [290, 230], columns: [250, 210], series: [250, 190], group: [160, 160], best: [160, 160], precision: [160, 150], streak: [250, 224], train: [250, 224]},
+    editorial: {goals: [170, 180], recent: [150, 160], total: [140, 140], week: [150, 150], score: [200, 140], stats: [230, 120], bar: [210, 150], donut: [270, 210], columns: [230, 186], series: [230, 190], group: [160, 145], best: [165, 145], precision: [150, 135], streak: [212, 186], train: [212, 186]},
+    obsidian: {goals: [170, 180], recent: [150, 160], total: [140, 140], week: [150, 150], score: [280, 240], stats: [230, 130], bar: [150, 135], donut: [210, 180], columns: [168, 156], series: [280, 200], group: [150, 145], best: [165, 145], precision: [140, 135], streak: [204, 178], train: [204, 178]}
   },
   // Widget area per style: horizontal span, gap between rows and columns, and top edge by photo size.
   CARD_AREAS: {
@@ -1663,6 +1667,7 @@ function studioCardPack(headline, subtitle, when, shots, series, duration, bars,
     best: best ? {index: best.index, sum: best.sum, values: best.rows.filter(s => StudioScore.points(s.result && s.result.value) != null).map(s => String(s.result.value)).slice(0, 12)} : null,
     series: studioSeriesItems(bars, format, info.per),
     spreads: (bars || []).map(b => ({label: (info.per === 'session' ? '' : 'S') + b.n, cm: studioSpread(Studio.scorePool(b.rows))})).filter(s => s.cm != null).map(s => ({label: s.label, cm: s.cm * 10})).slice(-12),
+    groupN: StudioScore.impacts(shots).length,
     dist: studioDistribution(shots),
     spreadText: spread != null ? studioAvgText(spread * 10) + ' cm' : '–',
     stats: [
@@ -2582,29 +2587,76 @@ const studioWidgetPaint = {
       value: S.soft, label: light ? S.soft : 'rgba(255,255,255,.5)', maxBar: b.size === 'wide' ? 36 : 30, valuePx: 22, labelPx: 19, valueFamily: S.style === 'glass' ? studioNum : studioGeist});
   },
   group(ctx, b, view, S) {
-    const spreads = view.spreads || [];
-    const wide = b.size === 'wide' && spreads.length >= 2;
+    // Solo número: valor de agrupación grande y cuántas flechas cuenta.
+    const n = view.groupN || 0;
     const st = studioStack(b, S, S.statMax * (S.style === 'glass' ? 0.9 : 1.1));
-    const top = studioWLabel(ctx, 'AGRUPACIÓN', b.x, wide ? b.y : st.top, S);
-    const fit = studioFitValue(ctx, view.spreadText, b.x - 2, wide ? b.y + b.h - 4 : st.base, wide ? b.w * 0.36 : b.w, st.px, S);
-    if (!wide) return;
-    const lo = spreads.reduce((k, s, i) => s.cm < spreads[k].cm ? i : k, 0);
-    const hi = Math.max(...spreads.map(s => s.cm));
-    const x0 = b.x + Math.max(fit.w + 60, b.w * 0.4), w = b.x + b.w - x0;
-    const n = spreads.length, bw = Math.min(26, w / (n * 1.8)), step = n > 1 ? (w - bw) / (n - 1) : 0;
-    const plotTop = top + 4, plotBot = b.y + b.h - 26;
-    spreads.forEach((s, i) => {
-      const x = x0 + step * i;
-      const hh = (plotBot - plotTop) * (0.38 + 0.62 * s.cm / hi);
-      ctx.save();
-      if (i === lo && S.glow) { ctx.shadowColor = studioRgba(S.acc, 0.45); ctx.shadowBlur = 16; }
-      studioRound(ctx, x, plotBot - hh, bw, hh, bw / 2);
-      ctx.fillStyle = i === lo ? S.acc : S.bar;
-      ctx.fill();
-      ctx.restore();
-      studioText(ctx, s.label, x + bw / 2, b.y + b.h, studioF(500, 19), S.soft, 0, 'center');
-    });
-    studioText(ctx, 'más cerrada · ' + spreads[lo].label, b.x + b.w, top - S.labelPx, studioF(500, 21), S.soft, 0, 'right');
+    studioWLabel(ctx, 'AGRUPACIÓN', b.x, st.top, S);
+    const fit = studioFitValue(ctx, view.spreadText, b.x - 2, st.base, b.w * (b.size === 'wide' ? 0.6 : 1), st.px, S);
+    void n; void fit;
+  },
+  recent(ctx, b, view, S) {
+    const v = studioRecent(view.heatSessions || [], b.widget.variant || 'a30', view.when);
+    const st = studioStack(b, S, S.statMax * (S.style === 'glass' ? 0.9 : 1.1));
+    const vr = b.widget.variant || 'a30', vn = Number(vr.slice(1)) || 30;
+    studioWLabel(ctx, 'MEDIA', b.x, st.top, S);
+    const win = vr[0] === 'd' ? vn + ' días' : vn.toLocaleString('es-ES') + ' flechas';
+    const fit = studioFitValue(ctx, v.avg == null ? '–' : studioAvgText(v.avg), b.x - 2, st.base, b.w * 0.6, st.px, S, v.avg == null ? S.soft : S.acc);
+    const px = Math.max(22, Math.round(fit.px * 0.36));
+    if (v.avg == null || v.prev == null) { studioText(ctx, win, b.x + fit.w + 16, st.base, studioF(500, px), S.soft, 0); return; }
+    const d = Math.round((v.avg - v.prev) * 10) / 10, up = d > 0, flat = d === 0;
+    const tx = b.x + fit.w + 16, ty = st.base - fit.px * 0.42;
+    ctx.fillStyle = flat ? S.soft : up ? S.acc : S.soft;
+    ctx.beginPath();
+    if (flat) { ctx.rect(tx, ty - 2, px * 0.7, 4); }
+    else { const h = px * 0.62, w = px * 0.72, a = up ? ty + h / 2 : ty - h / 2, c = up ? ty - h / 2 : ty + h / 2; ctx.moveTo(tx, a); ctx.lineTo(tx + w, a); ctx.lineTo(tx + w / 2, c); ctx.closePath(); }
+    ctx.fill();
+    const dw = studioText(ctx, (up ? '+' : '') + String(d).replace('.', ','), tx + px * 0.72 + 8, ty + px * 0.36, studioF(500, px), S.soft, 0);
+    studioText(ctx, '· ' + win, tx + px * 0.72 + 8 + (dw || 40) + 10, ty + px * 0.36, studioF(500, px), S.soft, 0);
+    if (b.size !== 'wide' || v.spark.length < 3) return;
+    const x0 = b.x + b.w * 0.55, w = b.w * 0.45, y0 = b.y + S.labelPx + 22, h = b.y + b.h - y0 - 6;
+    const lo = Math.min(...v.spark), hi = Math.max(...v.spark), rng = Math.max(0.2, hi - lo);
+    ctx.strokeStyle = S.acc; ctx.lineWidth = 3; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.beginPath();
+    v.spark.forEach((y, i) => { const X = x0 + w * i / (v.spark.length - 1), Y = y0 + h - (y - lo) / rng * h; i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); });
+    ctx.stroke();
+  },
+  total(ctx, b, view, S) {
+    const L = view.heatSessions || [];
+    const n = L.reduce((a, s) => a + (s.shots || []).filter(x => x && !x.candidate).length, 0);
+    const st = studioStack(b, S, S.statMax * (S.style === 'glass' ? 0.9 : 1.1));
+    studioWLabel(ctx, 'FLECHAS TOTALES', b.x, st.top, S);
+    const fit = studioFitValue(ctx, n.toLocaleString('es-ES'), b.x - 2, st.base, b.w, st.px, S);
+    const first = L.reduce((m, s) => Math.min(m, s.id || Infinity), Infinity);
+    if (b.size === 'wide' && Number.isFinite(first)) {
+      const M = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'], d = new Date(first);
+      studioText(ctx, 'desde ' + M[d.getMonth()] + ' ' + d.getFullYear(), b.x + b.w, st.base, studioF(500, Math.max(22, Math.round(fit.px * 0.34))), S.soft, 0, 'right');
+    }
+  },
+  week(ctx, b, view, S) {
+    const w = studioWeek(view.heatSessions || [], view.when);
+    const st = studioStack(b, S, S.statMax * (S.style === 'glass' ? 0.9 : 1.1));
+    studioWLabel(ctx, 'ESTA SEMANA', b.x, st.top, S);
+    const fit = studioFitValue(ctx, String(w.sets), b.x - 2, st.base, b.w * 0.45, st.px, S, w.sets ? S.acc : S.soft);
+    const px = Math.max(22, Math.round(fit.px * 0.36));
+    const uw = studioText(ctx, w.sets === 1 ? 'serie' : 'series', b.x + fit.w + 10, st.base, studioF(500, px), S.soft, 0);
+    const right = w.arrows + ' flechas';
+    if (b.size === 'wide' || b.w - fit.w - uw - 30 > px * 5) studioText(ctx, right, b.x + b.w, st.base, studioF(500, px), S.soft, 0, 'right');
+  },
+  goals(ctx, b, view, S) {
+    const small = px => studioF(500, Math.max(22, Math.round(px * 0.36)));
+    const g = studioGoalWeeks(view.heatSessions || [], view.when, 12);
+    // Semana: anillo grande con el avance de flechas y días cumplidos.
+    const top = studioWLabel(ctx, g && g.now.ok ? 'SEMANA CUMPLIDA' : 'ESTA SEMANA', b.x, b.y, S, null, g && g.now.ok ? S.acc : null);
+    if (!g) { studioText(ctx, 'Sin plan semanal', b.x, top + 50, studioF(500, 26), S.soft, 0); return; }
+    const w = g.now, R = Math.min((b.h - 8) / 2, b.w * 0.2), cx = b.x + b.w - R - 4, cy = b.y + b.h / 2, lw = Math.max(10, R * 0.2);
+    ctx.lineCap = 'round'; ctx.lineWidth = lw;
+    ctx.strokeStyle = studioRgba(S.base, 0.1); ctx.beginPath(); ctx.arc(cx, cy, R - lw / 2, 0, Math.PI * 2); ctx.stroke();
+    const f = Math.min(1, w.total / Math.max(1, w.goal));
+    if (f > 0) { ctx.strokeStyle = S.acc; ctx.beginPath(); ctx.arc(cx, cy, R - lw / 2, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * f); ctx.stroke(); }
+    ctx.lineCap = 'butt';
+    studioText(ctx, Math.min(w.total, w.goal) + '/' + w.goal, cx, cy + 10, studioF(600, Math.round(R * 0.36)), S.ink || S.base, 0, 'center');
+    const px = Math.round(Math.min(S.statMax * 1.6, (b.h - S.labelPx - 20) * 0.85)), base = top + 14 + px * 0.76;
+    const fit = studioFitValue(ctx, String(w.met), b.x - 2, base, b.w * 0.3, px, S, w.ok ? S.acc : null);
+    studioText(ctx, 'de ' + w.planned + ' días', b.x + fit.w + 12, base, small(px), S.soft, 0);
   },
   best(ctx, b, view, S) {
     const st = studioStack(b, S, S.statMax * (S.style === 'glass' ? 0.9 : 1.1));
@@ -2679,7 +2731,8 @@ const studioWidgetPaint = {
     const alpha = [0, 0.32, 0.55, 0.8, 1];
     m.cells.forEach(c => {
       if (c.future) return;
-      studioRound(ctx, gx + c.w * (s + g), gy + c.r * (s + g), s, s, Math.max(1.5, s * 0.24));
+      const cx = gx + c.w * (s + g), cy = gy + c.r * (s + g);
+      studioRound(ctx, cx, cy, s, s, Math.max(1.5, s * 0.24));
       ctx.fillStyle = c.level ? studioRgba(S.acc, alpha[c.level]) : studioRgba(S.base, 0.09);
       ctx.fill();
     });
@@ -2690,6 +2743,52 @@ const studioWidgetPaint = {
   }
 };
 const STUDIO_DAYS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+function studioArrowsSorted(sessions) {
+  const out = [];
+  (sessions || []).slice().sort((a, b) => a.id - b.id).forEach(s => (s.shots || []).forEach(x => {
+    if (!x || x.candidate) return;
+    const p = StudioScore.points(x.result && x.result.value);
+    if (p != null) out.push({p, day: s.id});
+  }));
+  return out;
+}
+function studioRecent(sessions, variant, when) {
+  const A = studioArrowsSorted(sessions), mean = a => a.length ? a.reduce((x, y) => x + y.p, 0) / a.length : null;
+  let cur, prev;
+  if (variant[0] === 'd') {
+    const days = Number(variant.slice(1)) || 7, now = new Date(when || Date.now()).getTime(), span = days * 864e5;
+    cur = A.filter(a => a.day > now - span); prev = A.filter(a => a.day <= now - span && a.day > now - 2 * span);
+  } else {
+    const n = Number(variant.slice(1)) || 30;
+    cur = A.slice(-n); prev = A.slice(-2 * n, -n);
+  }
+  const k = Math.max(10, Math.round(A.length / 24)), spark = [];
+  for (let i = k; i <= A.length; i += k) spark.push(mean(A.slice(i - k, i)));
+  return {avg: mean(cur), prev: prev.length >= 5 ? mean(prev) : null, spark: spark.slice(-24)};
+}
+function studioWeek(sessions, when) {
+  const d = new Date(when || Date.now()), m = new Date(d.getFullYear(), d.getMonth(), d.getDate()); m.setDate(m.getDate() - ((m.getDay() + 6) % 7));
+  let sets = 0, arrows = 0;
+  (sessions || []).forEach(s => { if (s.id < m.getTime()) return; const sh = (s.shots || []).filter(x => x && !x.candidate); arrows += sh.length; sets += new Set(sh.map(x => x.set_id)).size; });
+  return {sets, arrows};
+}
+function studioGoalWeeks(sessions, when, n) {
+  const plan = studioPlanMet(); if (!plan || !plan.days || !plan.days.length) return null;
+  const pad = x => String(x).padStart(2, '0'), key = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  const by = {}; (sessions || []).forEach(s => { const c = (s.shots || []).filter(x => x && !x.candidate).length; if (!c) return; const k = key(new Date(s.id)); by[k] = (by[k] || 0) + c; });
+  const now = new Date(when || Date.now()), mon = new Date(now.getFullYear(), now.getMonth(), now.getDate()); mon.setDate(mon.getDate() - ((mon.getDay() + 6) % 7));
+  const okWeek = start => { let total = 0, met = 0; for (let i = 0; i < 7; i++) { const d = new Date(start); d.setDate(d.getDate() + i); const c = by[key(d)] || 0; total += c; if (plan.days.includes(i) && c >= plan.arrows) met++; } return total >= plan.days.length * plan.arrows && met >= plan.days.length; };
+  const weeks = [];
+  for (let k = n - 1; k >= 0; k--) { const s = new Date(mon); s.setDate(s.getDate() - 7 * k); weeks.push({ok: okWeek(s), current: k === 0}); }
+  let streak = 0; const s = new Date(mon); if (!okWeek(s)) s.setDate(s.getDate() - 7);
+  for (let k = 0; k < 104 && okWeek(s); k++) { streak++; s.setDate(s.getDate() - 7); }
+  const cur = (() => { let total = 0, met = 0; for (let i = 0; i < 7; i++) { const d = new Date(mon); d.setDate(d.getDate() + i); const c = by[key(d)] || 0; total += c; if (plan.days.includes(i) && c >= plan.arrows) met++; } return {total, met, planned: plan.days.length, goal: plan.days.length * plan.arrows, ok: okWeek(mon)}; })();
+  return {weeks, streak, now: cur};
+}
+function studioPlanMet() {
+  let plan = null; try { plan = JSON.parse(localStorage.getItem('awPlan')); } catch (e) {}
+  return plan && plan.arrows ? plan : null;
+}
 function studioTicks(ctx, x, y, w, h, run, S) {
   const seq = run.seq || [], n = seq.length;
   if (!n) return;
