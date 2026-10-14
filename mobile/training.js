@@ -17,7 +17,7 @@ document.head.insertAdjacentHTML('beforeend',`<style>
 .sheet button span{color:var(--txt-3);font-size:12.5px}
 .sheet button.on{border-color:var(--acc-line);background:var(--acc-soft);color:var(--acc);font-weight:600}
 #bowList,#arrowList{display:flex;flex-direction:column;gap:6px}
-.gearRow{display:flex;gap:6px}.gearRow>[data-n]{flex:1;min-width:0}.sheet .deleteGear{flex:none;width:46px;justify-content:center;color:var(--danger)}.deleteGear svg{width:18px;height:18px}
+.gearRow{display:flex;gap:6px}.gearRow>[data-n]{flex:1;min-width:0}.sheet .deleteGear{flex:none;width:46px;justify-content:center;color:var(--danger)}.deleteGear svg{width:18px;height:18px}.sheet .deleteGear.confirm{width:auto;padding:0 14px;background:var(--danger);color:#fff;font-size:13px;font-weight:600}
 .addItem{display:flex;gap:6px}
 .addItem input{flex:1;min-width:0;background:var(--surface-2);color:var(--txt);border:1px solid var(--line-2);border-radius:12px;padding:10px 12px;min-height:44px}
 .addItem input::placeholder{color:var(--txt-3)}
@@ -52,7 +52,7 @@ $('sessionHero').insertAdjacentHTML('afterend',`<section class="training" id="tr
 <div class="addItem"><input id="arrowName" placeholder="Nombre de las flechas" maxlength="24"><button id="arrowAdd">Añadir</button></div></div>
 </div><button class="btnSecondary" id="calibrationMode" onclick="sendCmd('calibrate',0)">Iniciar calibración</button></section>`);
 $('vSet').querySelector('.deleteAction').insertAdjacentHTML('beforebegin',`<section class="training"><div id="setState"></div></section>`);
-$('vShot').querySelector('.deleteAction').insertAdjacentHTML('beforebegin',`<section class="training card"><div id="shotContext"></div><label>Comparar <select id="compareShot" onchange="render()"><option value="">Ninguna</option></select></label><div id="comparison"></div></section>`);
+$('vShot').querySelector('.deleteAction').insertAdjacentHTML('beforebegin',`<section class="training card"><div id="shotContext"></div></section>`);
 $('vProgress').insertAdjacentHTML('afterbegin',`<section class="training card"><label>Equipo <select id="progressProfile" onchange="renderProgress()"></select></label><div id="volume"></div></section>`);
 document.body.insertAdjacentHTML('beforeend','<div id="notice" role="status" hidden></div>');
 const gear={get:()=>{try{const g=JSON.parse(localStorage.getItem('awGear'));return {bows:Array.isArray(g?.bows)?g.bows:[],arrows:Array.isArray(g?.arrows)?g.arrows:[]};}catch(e){return {bows:[],arrows:[]};}},
@@ -89,7 +89,7 @@ $('modeSheet').onclick=e=>{const b=e.target.closest('[data-v]');if(!b)return;con
 $('formatSheet').onclick=e=>{const b=e.target.closest('[data-fmt]');if(!b)return;const s=displayedSession();if(!s||historyMode||s.mode!=='Indoor')return;
   s.scoreFormat=b.dataset.fmt;saveSession(s);closeSheets(null);render();};
 function gearSheet(listId,sheetId,field,cmd){
-  $(sheetId).onclick=e=>{const remove=e.target.closest('[data-delete-bow]');if(remove){deleteBow(remove.dataset.deleteBow);return;}const b=e.target.closest('[data-n]');if(!b)return;const s=displayedSession();if(!s||historyMode)return;
+  $(sheetId).onclick=e=>{const remove=e.target.closest('.deleteGear');if(remove){if(!remove.classList.contains('confirm')){remove.classList.add('confirm');remove.dataset.html=remove.innerHTML;remove.textContent='Eliminar';setTimeout(()=>{if(remove.isConnected&&remove.classList.contains('confirm')){remove.classList.remove('confirm');remove.innerHTML=remove.dataset.html;}},3000);return;}if(remove.dataset.deleteBow!=null)deleteBow(remove.dataset.deleteBow);else deleteArrow(remove.dataset.deleteArrow);return;}const b=e.target.closest('[data-n]');if(!b)return;const s=displayedSession();if(!s||historyMode)return;
     s[field]=b.dataset.n;saveSession(s);if(cmd)sendCmd(cmd,s[field]);closeSheets(null);render();};
 }
 function deleteBow(name){
@@ -100,6 +100,12 @@ function deleteBow(name){
   if(s?.live&&!historyMode&&(s.bow===name||s.profile===name)){s.bow=null;s.profile='Recurvo';saveSession(s);}
   if(calibrationState()?.profile===name)localStorage.removeItem('awCalibration');
   render();notice(error===undefined?'Preset eliminado del móvil':'Preset eliminado; borrado del reloj pendiente de sincronización');
+}
+function deleteArrow(name){
+  const g=gear.get();if(!g.arrows.includes(name))return;
+  g.arrows=g.arrows.filter(n=>n!==name);gear.save(g);
+  const s=displayedSession();if(s&&!historyMode&&s.arrows===name){s.arrows=null;saveSession(s);}
+  render();notice('Flechas eliminadas');
 }
 gearSheet('bowList','bowSheet','bow','profile');
 gearSheet('arrowList','arrowSheet','arrows',null);
@@ -216,14 +222,15 @@ render=function() {
   $('modeSheet').querySelectorAll('[data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===modeKey));
   const g=gear.get();
   $('bowList').innerHTML=g.bows.map(n=>`<div class="gearRow"><button data-n="${escapeText(n)}"${n===(s?.bow||s?.profile)?' class="on"':''}>${escapeText(n)}<span>‹</span></button><button class="deleteGear" data-delete-bow="${escapeText(n)}" aria-label="Eliminar preset ${escapeText(n)}">${TRASH}</button></div>`).join('');
-  $('arrowList').innerHTML=g.arrows.map(n=>`<button data-n="${escapeText(n)}"${n===s?.arrows?' class="on"':''}>${escapeText(n)}<span>‹</span></button>`).join('')||'';
+  $('arrowList').innerHTML=g.arrows.map(n=>`<div class="gearRow"><button data-n="${escapeText(n)}"${n===s?.arrows?' class="on"':''}>${escapeText(n)}<span>‹</span></button><button class="deleteGear" data-delete-arrow="${escapeText(n)}" aria-label="Eliminar flechas ${escapeText(n)}">${TRASH}</button></div>`).join('')||'';
   if(shot) {
     $('setState').textContent=(s?.ends||[]).some(e=>e.id===shot.set_id)?'Cerrado':'Abierto';
     const group=sets(data.shots).find(g=>g.includes(cur)), stats=Training.summary(group.map(i=>data.shots[i]));
     const eq=[...new Set([shot.profile,s?.profile,s?.bow,s?.arrows].filter(Boolean))].join(' · ');
     const rhythm=stats.rhythm==null?'':` · ${stats.rhythm.toFixed(1).replace('.', ',')} s`;
     $('shotContext').textContent=`${shot.candidate?'Candidato':shot.manual?'Manual':eq||'–'}${rhythm}`;
-    const select=$('compareShot'), selected=select.value;
+    const select=$('compareShot');
+    if(select){ const selected=select.value;
     select.innerHTML='<option value="">Ninguna</option>'+group.filter(i=>i!==cur).map(i=>`<option value="${i}">Flecha ${group.indexOf(i)+1}</option>`).join('');select.value=selected;
     $('comparison').textContent='';
     if(view==='Shot'&&anim==null&&select.value!=='') {
@@ -231,7 +238,7 @@ render=function() {
       x.strokeStyle=C.ref;x.lineWidth=1.5;x.setLineDash([4,4]);x.beginPath();pts.forEach((p,i)=>i?x.lineTo(...P(p)):x.moveTo(...P(p)));x.stroke();x.setLineDash([]);
       const delta=Number.isFinite(shot.aim_score)&&Number.isFinite(other.aim_score)?shot.aim_score-other.aim_score:null;
       $('comparison').textContent=delta==null?'':(delta>0?'+':'')+delta;
-    }
+    }}
   }
   ['sAvg','sSd'].forEach(id=>{if($(''+id).textContent==='NaN')$(id).textContent='–';});
 };
