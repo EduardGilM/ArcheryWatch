@@ -33,8 +33,6 @@ $('sessionHero').insertAdjacentHTML('afterend',`<section class="training" id="tr
 <button data-v="Indoor">Indoor<span>3 flechas</span></button>
 <button data-v="Outdoor">Outdoor<span>6 flechas</span></button>
 <button data-v="Libre">Libre<span>sin tope</span></button>
-<button data-v="TandaIndoor">Tanda indoor<span>10 sets</span></button>
-<button data-v="TandaOutdoor">Tanda aire libre<span>6 sets</span></button>
 </div></div>
 <div class="picker" id="formatPicker" hidden>
 <button class="pickRow" id="formatRow"><span>Formato</span><b id="formatVal">Vegas</b></button>
@@ -84,8 +82,7 @@ function renderCalibration(s) {
 }
 function saveSession(s){const L=store.list();const i=L.findIndex(x=>x.id===s.id);if(i>=0)L[i]=s;else L.push(s);store.save(L);if(curSess?.id===s.id)curSess=s;}
 $('modeSheet').onclick=e=>{const b=e.target.closest('[data-v]');if(!b)return;const s=displayedSession();if(!s||historyMode)return;
-  const key=b.dataset.v, tanda=key==='TandaIndoor'||key==='TandaOutdoor';
-  const mode=key==='TandaIndoor'?'Indoor':key==='TandaOutdoor'?'Outdoor':key;
+  const mode=['Indoor','Outdoor','Libre'].includes(b.dataset.v)?b.dataset.v:'Libre', tanda=false;
   s.mode=mode;s.tanda=tanda;s.roundDone=Training.roundComplete(s);s.target=mode==='Indoor'?3:mode==='Outdoor'?6:0;
   if(mode==='Indoor' && !['wa','vegas','lancaster'].includes(s.scoreFormat)) s.scoreFormat='vegas';
   saveSession(s);sendCmd('mode',mode);closeSheets(null);render();};
@@ -204,7 +201,7 @@ render=function() {
   $('calibrationMode').hidden=historyMode||!s?.live||!s.watchId||!window.Native?.command;
   $('calibrationMode').textContent=s?.calibrating?'Salir de calibración':'Iniciar calibración';
   ['modePicker','bowPicker','arrowPicker'].forEach(id=>$(id).hidden=historyMode);
-  $('modeVal').textContent=s?(Training.roundLabel(s)||'–'):'–';
+  $('modeVal').textContent=s?.mode||'–';
   const indoor=!!(s&&s.mode==='Indoor');
   $('formatPicker').hidden=!indoor||!!historyMode;
   if(indoor){
@@ -215,7 +212,7 @@ render=function() {
   }
   $('bowVal').textContent=s?.bow||s?.profile||'–';
   $('arrowVal').textContent=s?.arrows||'–';
-  const modeKey=s?.tanda&&s.mode==='Indoor'?'TandaIndoor':s?.tanda&&s.mode==='Outdoor'?'TandaOutdoor':(s?.mode||'');
+  const modeKey=s?.mode||'';
   $('modeSheet').querySelectorAll('[data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===modeKey));
   const g=gear.get();
   $('bowList').innerHTML=g.bows.map(n=>`<div class="gearRow"><button data-n="${escapeText(n)}"${n===(s?.bow||s?.profile)?' class="on"':''}>${escapeText(n)}<span>‹</span></button><button class="deleteGear" data-delete-bow="${escapeText(n)}" aria-label="Eliminar preset ${escapeText(n)}">${TRASH}</button></div>`).join('');
