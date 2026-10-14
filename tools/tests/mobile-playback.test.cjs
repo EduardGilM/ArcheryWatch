@@ -37,7 +37,7 @@ function page() {
   const html = fs.readFileSync(path.join(root, 'mobile/index.html'), 'utf8');
   const scripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map(m => m[1]).filter(s => s.trim());
   scripts.forEach(s => new vm.Script(s));
-  run(scripts[0]);
+  scripts.filter(s => s.trim() !== 'boot();').forEach(run);
   run(fs.readFileSync(path.join(root, 'mobile/training.js'), 'utf8'));
   run(`const fixture = {t_ms:1000,set_id:1,aim_score:80,peak_mg:1200,tilt_x:[0,100,200,300],tilt_y:[0,20,40,60],trace_t:[-1500,-1000,-500,-50]};
     curSess={id:1,watchId:'test',profile:'Recurvo',live:true,lastEvent:1,shots:[fixture]};store.save([curSess]);data={shots:curSess.shots};view='Shot';cur=0;render();`);
@@ -135,7 +135,7 @@ test('calibration forwards learned aiming variance and explains unscored candida
 test('bow preset delete button removes saved gear and queues the named watch deletion', () => {
   const p=page();p.run("let sent;window.Native={command:json=>{sent=JSON.parse(json);return ''}};gear.save({bows:['Equipo A','Equipo B'],arrows:['X10']});curSess.bow=curSess.profile='Equipo A';saveSession(curSess);store.save([...store.list(),{id:2,bow:'Equipo A',profile:'Equipo A',shots:[fixture]}]);render()");
   assert.match(p.elements.get('bowList').innerHTML,/aria-label="Eliminar preset Equipo A"/);
-  p.run("document.getElementById('bowSheet').onclick({target:{closest:selector=>selector==='[data-delete-bow]'?{dataset:{deleteBow:'Equipo A'}}:null}})");
+  p.run("document.getElementById('bowSheet').onclick({target:{closest:selector=>selector==='.deleteGear'?{dataset:{deleteBow:'Equipo A'}}:null}})");
   assert.equal(p.run('JSON.stringify(gear.get())'),'{"bows":["Equipo B"],"arrows":["X10"]}');assert.equal(p.run('sent.action'),'deleteProfile');assert.equal(p.run('sent.value'),'Equipo A');assert.equal(p.run('sent.sid'),'test');
   assert.equal(p.run('displayedSession().profile'),'Recurvo');assert.equal(p.run('store.list().find(s=>s.id===2).bow'),'Equipo A');assert.doesNotMatch(p.elements.get('calibrationProfile').innerHTML,/Equipo A/);
 });
@@ -424,12 +424,13 @@ test('scoring the set stores the value and a repeated watch event leaves it', ()
   assert.match(p.elements.get('setList').innerHTML, /<details/);
   assert.match(p.elements.get('setList').innerHTML, /class="setPts on"><b>19<\/b><small>pts<\/small>/);
   assert.doesNotMatch(p.elements.get('setList').innerHTML, /class="chip"/);
-  assert.match(p.elements.get('trend').innerHTML, /class="trendScore"[^>]*>X</);
-  assert.match(p.elements.get('trend').innerHTML, /class="trendScore"[^>]*>9</);
-  assert.match(p.elements.get('trend').innerHTML, /class="trendScore"[^>]*>M</);
+  assert.match(p.elements.get('trend').innerHTML, /<span class="trendLabel">1<b class="trendScore hi">X<\/b>/);
+  assert.match(p.elements.get('trend').innerHTML, /<span class="trendLabel">2<b class="trendScore">9<\/b>/);
+  assert.match(p.elements.get('trend').innerHTML, /<span class="trendLabel">3<b class="trendScore">M<\/b>/);
   assert.match(p.elements.get('trend').innerHTML, /class="trendValue"[^>]*>80</);
   p.run("scoreArrow(1000,null)");
   assert.equal(p.run("store.list()[0].shots.find(s=>s.t_ms===1000).result"), undefined);
+  assert.match(p.elements.get('trend').innerHTML, /<span class="trendLabel">1<b class="trendScore">·<\/b>/);
   p.run("historyMode=true;histId=curSess.id;curSess=null;scoreArrow(2000,'8')");
   assert.equal(p.run("historyMode && store.list()[0].shots.find(s=>s.t_ms===2000).result.value"), '8');
 });
@@ -447,19 +448,17 @@ test('the session view stays hidden under other tabs and visible when it is empt
   assert.equal(session.style.display, 'flex');
 });
 
-test('a tanda keeps set progress and an old session stays free', () => {
+test('the mode sheet sets indoor or libre without a tanda and an old session stays free', () => {
   const p = page();
   p.run(`window.Native={command:v=>{window.sent=v;return '';}};
-    document.getElementById('modeSheet').onclick({target:{closest:s=>s==='[data-v]'?{dataset:{v:'TandaIndoor'}}:null}});`);
-  assert.equal(p.run('curSess.tanda'), true);
+    document.getElementById('modeSheet').onclick({target:{closest:s=>s==='[data-v]'?{dataset:{v:'Indoor'}}:null}});`);
+  assert.equal(p.run('curSess.tanda'), false);
   assert.equal(p.run('curSess.mode'), 'Indoor');
   assert.equal(p.run('curSess.target'), 3);
   assert.match(p.run('sent'), /"action":"mode"/);
   assert.match(p.run('sent'), /"value":"Indoor"/);
-  assert.doesNotMatch(p.run('sent'), /Tanda/);
   p.run("curSess.currentSet=1;view='Session';render()");
-  assert.equal(p.elements.get('sSets').textContent, '1/10');
-  assert.doesNotMatch(p.elements.get('subtitle').textContent, /Tanda|1\/10/);
+  assert.doesNotMatch(p.elements.get('subtitle').textContent, /Tanda/);
   assert.match(p.elements.get('setList').innerHTML, /class="setPts"/);
   p.run("document.getElementById('modeSheet').onclick({target:{closest:s=>s==='[data-v]'?{dataset:{v:'Libre'}}:null}});");
   assert.equal(p.run('curSess.tanda'), false);
@@ -469,6 +468,39 @@ test('a tanda keeps set progress and an old session stays free', () => {
   p.run("const old={id:9,mode:'Indoor',shots:[{t_ms:1,set_id:1,aim_score:70}]};store.save([old]);data={shots:old.shots};historyMode=true;histId=9;curSess=null;show('History');");
   assert.match(p.elements.get('histList').innerHTML, /Indoor/);
   assert.doesNotMatch(p.elements.get('histList').innerHTML, /Tanda/);
+});
+
+test('a past indoor session shows its format and switching it moves the centre ring', () => {
+  const p = page();
+  p.run(`const old={id:9,mode:'Indoor',scoreFormat:'vegas',shots:[{t_ms:1,set_id:1,aim_score:70,result:{value:'X'}},{t_ms:2,set_id:1,aim_score:72,result:{value:'10'}}]};
+    store.save([old]);data={shots:old.shots};historyMode=true;histId=9;curSess=null;view='Session';render();`);
+  assert.equal(p.elements.get('trainingPanel').hidden, false);
+  assert.equal(p.elements.get('formatPicker').hidden, false);
+  assert.equal(p.elements.get('formatVal').textContent, 'Vegas');
+  p.run(`document.getElementById('formatSheet').onclick({target:{closest:s=>s==='[data-fmt]'?{dataset:{fmt:'lancaster'}}:null}})`);
+  assert.equal(p.run('store.list()[0].scoreFormat'), 'lancaster');
+  assert.equal(p.run('store.list()[0].shots.map(s=>s.result.value).join()'), '11,10');
+  assert.match(p.elements.get('setList').innerHTML, /<b class="trendScore hi">11<\/b>/);
+  assert.equal(p.elements.get('formatVal').textContent, 'Lancaster');
+  const pick = fmt => p.run(`document.getElementById('formatSheet').onclick({target:{closest:s=>s==='[data-fmt]'?{dataset:{fmt:'${fmt}'}}:null}})`);
+  pick('wa');
+  assert.equal(p.run('store.list()[0].shots.map(s=>s.result.value).join()'), '10,9');
+  assert.match(p.elements.get('setList').innerHTML, /<b>19\/20<\/b>/);
+  pick('vegas');
+  assert.equal(p.run('store.list()[0].shots.map(s=>s.result.value).join()'), 'X,10');
+});
+
+test('choosing indoor opens the format choice, also for a past session', () => {
+  const p = page();
+  p.run(`const old={id:9,shots:[{t_ms:1,set_id:1,aim_score:70}]};store.save([old]);data={shots:old.shots};historyMode=true;histId=9;curSess=null;view='Session';render();`);
+  assert.equal(p.elements.get('formatPicker').hidden, true);
+  assert.equal(p.elements.get('trainingPanel').hidden, false);
+  assert.equal(p.elements.get('bowPicker').hidden, true);
+  p.run(`document.getElementById('modeSheet').onclick({target:{closest:s=>s==='[data-v]'?{dataset:{v:'Indoor'}}:null}})`);
+  assert.equal(p.run('store.list()[0].mode'), 'Indoor');
+  assert.equal(p.elements.get('formatPicker').hidden, false);
+  assert.equal(p.elements.get('formatSheet').hidden, false);
+  assert.equal(p.elements.get('modeSheet').hidden, true);
 });
 
 test('the session has no category filters and a new arrow arrives without a category', () => {

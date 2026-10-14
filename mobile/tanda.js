@@ -16,10 +16,11 @@
 .tandaBtn i{width:8px;height:8px;border-radius:2px;background:currentColor}
 .tandaBtn:not(.on) i{border-radius:50%;background:var(--acc)}
 .tandaInfo{font-size:12px;color:var(--txt-2,#aaa)}
-.statFilter{display:flex;gap:6px;overflow-x:auto;margin:0 0 10px;scrollbar-width:none}
+.statFilter{display:flex;gap:2px;padding:3px;border-radius:999px;background:var(--surface);overflow-x:auto;scrollbar-width:none}
 .statFilter::-webkit-scrollbar{display:none}
-.statFilter button{flex-shrink:0;height:30px;padding:0 13px;border-radius:999px;border:1px solid var(--line-2);background:transparent;color:var(--txt-2,#aaa);font-size:12px;font-weight:500}
-.statFilter button.on{background:var(--acc);border-color:var(--acc);color:#111}`;
+.statFilter[hidden]{display:none}
+.statFilter button{flex:1 0 auto;height:32px;padding:0 14px;border:0;border-radius:999px;background:none;color:var(--txt-2,#aaa);font-size:13px;font-weight:500;white-space:nowrap}
+.statFilter button.on{background:var(--acc-soft);color:var(--acc);font-weight:600}`;
   document.head.appendChild(css);
   $('trainingStatus').insertAdjacentHTML('afterend','<div class="tandaBar" id="tandaBar"><button class="tandaBtn" id="tandaBtn"></button><span class="tandaInfo" id="tandaInfo"></span></div>');
   $('sessionHero').insertAdjacentHTML('beforebegin','<div class="statFilter" data-scope="session"></div>');
@@ -36,18 +37,21 @@
       notice(`Tanda ${s.activeTanda} terminada · ${tandaStats(s,s.activeTanda)}`); s.activeTanda=0; }
     else { const n=s.tandas.length+1; s.tandas.push({n,start:Date.now()}); s.activeTanda=n; notice(`Tanda ${n} empezada`); }
     persist(); render(); };
-  function tandaNums(scope){
+  function filterOpts(scope){
     const L=scope==='session'?[{shots:data?.shots||[]}]:store.list(), set=new Set();
-    L.forEach(s=>(s.shots||[]).forEach(x=>{ if(Number.isFinite(x.tanda)) set.add(x.tanda); }));
-    return [...set].sort((a,b)=>a-b);
+    let score=statFilter==='score';
+    L.forEach(s=>(s.shots||[]).forEach(x=>{ if(Number.isFinite(x.tanda)) set.add(x.tanda); if(x.phase==='score') score=true; }));
+    return [['all','Todas'],...(score?[['score','Puntuables']]:[]),...[...set].sort((a,b)=>a-b).map(n=>['t'+n,'Tanda '+n])];
   }
   function paintFilters(){
     document.querySelectorAll('.statFilter').forEach(el=>{
-      const opts=[['all','Todas'],['score','Solo puntuables'],...tandaNums(el.dataset.scope).map(n=>['t'+n,'Tanda '+n])];
+      const opts=filterOpts(el.dataset.scope);
+      el.hidden=opts.length<2&&statFilter==='all';
       el.innerHTML=opts.map(([v,l])=>`<button data-v="${v}" class="${v===statFilter?'on':''}">${l}</button>`).join('');
       el.querySelectorAll('button').forEach(b=>b.onclick=()=>{ statFilter=b.dataset.v; localStorage.setItem('awStatFilter',statFilter); render(); });
     });
-    const pc=$('pfChip'); if(pc){ const o=[['all','Todas'],['score','Solo puntuables'],...tandaNums('all').map(n=>['t'+n,'Tanda '+n])];
+    const pc=$('pfChip'); if(pc){ const o=filterOpts('all');
+      pc.hidden=o.length<2&&statFilter==='all';
       pc.setAttribute('aria-label','Filtrar estadísticas'); pc.innerHTML=o.map(([v,l])=>`<option value="${v}"${v===statFilter?' selected':''}>${l}</option>`).join('');
       pc.onchange=()=>{ statFilter=pc.value; localStorage.setItem('awStatFilter',statFilter); render(); }; }
     const s=sessRef(), bar=$('tandaBar'); bar.hidden=!s;

@@ -109,7 +109,7 @@ test('card details default to the edition line only and keep what the user turns
   assert.deepEqual(Studio.sanitizeCard('obsidian', null).fx, {foot: true, grain: false, foil: false, mark: false, duo: false});
   const both = Studio.sanitizeCard('glass', {widgets: [{id: 'train', size: 'wide', variant: 'month'}, {id: 'streak', size: 'small'}]});
   assert.deepEqual(both.widgets, [{id: 'train', size: 'wide', variant: 'month'}, {id: 'streak', size: 'small'}]);
-  assert.equal(Studio.sanitizeCard('glass', {widgets: [{id: 'train', variant: 'year'}]}).widgets[0].variant, 'week');
+  assert.equal(Studio.sanitizeCard('glass', {widgets: [{id: 'train', variant: 'decade'}]}).widgets[0].variant, 'year');
   for (const style of Object.keys(Studio.CARD_DEFAULTS)) {
     const cfg = {photo: 'short', widgets: [{id: 'streak', size: 'small'}, {id: 'train', size: 'small'}, {id: 'streak', size: 'wide'}, {id: 'train', size: 'wide', variant: 'month'}]};
     assert.equal(Studio.cardRows(style, Studio.sanitizeCard(style, cfg)).fits, true, style);
@@ -183,7 +183,7 @@ test('amber stays the default accent', () => {
 
 test('default card layouts fit, and so does every distribution chart', () => {
   for (const style of Object.keys(Studio.CARD_DEFAULTS)) {
-    for (const variant of ['bar', 'donut', 'columns']) {
+    for (const variant of ['bar', 'donut', 'columns', 'pie']) {
       const cfg = Studio.sanitizeCard(style, null);
       cfg.widgets.forEach(w => { if (w.id === 'dist') w.variant = variant; });
       assert.equal(Studio.cardRows(style, cfg).fits, true, style + ' ' + variant);
@@ -194,7 +194,7 @@ test('default card layouts fit, and so does every distribution chart', () => {
 test('sanitizeCard drops unknown and duplicate widgets and checks the chart', () => {
   const cfg = Studio.sanitizeCard('glass', {photo: 'nope', widgets: [
     {id: 'nope', size: 'wide'},
-    {id: 'dist', size: 'huge', variant: 'pie'},
+    {id: 'dist', size: 'huge', variant: 'radar'},
     {id: 'dist', size: 'small', variant: 'donut'},
     {id: 'score', size: 'wide'}
   ]});
@@ -204,6 +204,10 @@ test('sanitizeCard drops unknown and duplicate widgets and checks the chart', ()
   assert.equal(cfg.widgets[0].variant, 'bar');
   assert.equal(cfg.widgets[1].size, 'wide');
   assert.equal(cfg.widgets[1].variant, undefined);
+  assert.deepEqual(Studio.WIDGETS.find(w => w.id === 'dist').variants.map(v => v.name), ['Barra', 'Donut', 'Columnas', 'Queso']);
+  for (const size of ['small', 'wide']) {
+    assert.deepEqual(Studio.sanitizeCard('glass', {widgets: [{id: 'dist', size, variant: 'pie'}]}).widgets[0], {id: 'dist', size, variant: 'pie'});
+  }
 });
 
 test('two small widgets share a row and a small one left alone takes the whole row', () => {
@@ -240,7 +244,8 @@ test('the card streak is consecutive arrows in the high ring, X 10 and 11', () =
   assert.equal(tie.current, 2);
   assert.equal(Studio.arrowStreak([]).best, 0);
   assert.equal(Studio.WIDGETS.find(w => w.id === 'streak').name, 'Mejor racha');
-  assert.deepEqual(Studio.WIDGETS.find(w => w.id === 'train').variants.map(v => v.name), ['Semana', 'Mes']);
+  assert.equal(Studio.WIDGETS.find(w => w.id === 'train').name, 'Días entrenados');
+  assert.deepEqual(Studio.WIDGETS.find(w => w.id === 'train').variants.map(v => v.name), ['Año', 'Mes', 'Semana']);
   for (const style of Object.keys(Studio.CARD_DEFAULTS)) {
     const cfg = {photo: 'short', widgets: [{id: 'streak', size: 'small'}, {id: 'score', size: 'small'}, {id: 'streak', size: 'wide'}]};
     const clean = Studio.sanitizeCard(style, cfg);

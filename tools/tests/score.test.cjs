@@ -82,8 +82,10 @@ test('indoor formats drop X from World Archery, keep it on Vegas, and score 11 o
   assert.equal(Score.valueAt(0, 0, 'wa'), '10');
   assert.equal(Score.valueAt(0, 0, 'vegas'), 'X');
   assert.equal(Score.valueAt(0, 0, 'lancaster'), '11');
-  assert.equal(Score.valueAt(0, 0.15, 'wa'), '10');
+  assert.equal(Score.valueAt(0, 0.15, 'wa'), '9');
   assert.equal(Score.valueAt(0, 0.15, 'vegas'), '10');
+  assert.equal(Score.valueAt(0, 0.1, 'wa'), '10');
+  assert.equal(Score.valueAt(0, 0.45, 'wa'), '8');
   assert.equal(Score.valueAt(0, 0.3, 'wa'), '9');
   assert.equal(Score.valueAt(0, 0.5, 'lancaster'), '8');
   assert.equal(Score.valueAt(0, 0.7, 'vegas'), '7');
@@ -120,6 +122,31 @@ test('indoor formats drop X from World Archery, keep it on Vegas, and score 11 o
   assert.equal(Score.totalsLine(Score.totals([{result: {value: '10'}}, {result: {value: '10'}}, {result: {value: '9'}}]), 'wa'), '29/30 puntos · media 9,7 · 2 dieces');
   assert.equal(Score.totalsLine(Score.totals([arrow('X'), arrow('10')]), 'vegas'), '20/20 puntos · media 10 · 1 X · 1 diez');
   assert.doesNotMatch(Score.totalsLine(Score.totals([arrow('10')]), 'wa'), /X/);
+});
+
+test('World Archery scores the inner ring as 10 and the outer ten as 9, and switching back restores it', () => {
+  const values = list => list.map(s => s.result && s.result.value);
+  const points = list => Score.totals(list).score;
+  const shots = [arrow('X'), arrow('10'), arrow('9'), arrow('8'), arrow('M'), arrow(null), {candidate: true, result: {value: 'X'}}];
+  Score.convert(shots, 'vegas', 'lancaster');
+  assert.deepEqual(values(shots), ['11', '10', '9', '8', 'M', undefined, 'X']);
+  Score.convert(shots, 'lancaster', 'wa');
+  assert.deepEqual(values(shots), ['10', '9', '9', '8', 'M', undefined, 'X']);
+  assert.equal(points(shots), 36);
+  Score.convert(shots, 'wa', 'vegas');
+  assert.deepEqual(values(shots), ['X', '10', '9', '8', 'M', undefined, 'X']);
+  assert.equal(points(shots), 37);
+  assert.equal(shots[1].result.ring, undefined);
+  const placed = [arrow('10', {result: {value: '10', impact: {x: 0, y: 0.05}}}), arrow('9', {result: {value: '9', impact: {x: 0, y: 0.15}}}), arrow('9', {result: {value: '9', impact: {x: 0, y: 0.3}}})];
+  Score.convert(placed, 'wa', 'vegas');
+  assert.deepEqual(values(placed), ['X', '10', '9']);
+  assert.deepEqual(placed[1].result.impact, {x: 0, y: 0.15});
+  const stale = [arrow('10', {result: {value: '10', impact: {x: 0, y: 0.15}}}), arrow('10')];
+  Score.convert(stale, 'wa', 'wa');
+  assert.deepEqual(values(stale), ['9', '10']);
+  const edited = {result: {value: '9', ring: '10'}};
+  Score.set(edited, '8', 'wa');
+  assert.equal(edited.result.ring, undefined);
 });
 
 test('the compound face scores 10 to 6, the inner ten as X, and outside the six as a miss', () => {

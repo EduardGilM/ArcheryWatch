@@ -38,11 +38,7 @@ const Score = {
     if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
     const r = Math.hypot(x, y);
     if (r > 1) return 'M';
-    if (format === 'wa') {
-      if (r <= 0.2) return '10';
-      const ring = 11 - Math.ceil(r * 5);
-      return ring >= 6 && ring <= 9 ? String(ring) : 'M';
-    }
+    if (format === 'wa') return this.inFormat(this.valueAt(x, y, 'vegas'), 'wa');
     if (format === 'lancaster' && r <= 0.1) return '11';
     if (r <= 0.1) return 'X';
     const ring = 11 - Math.ceil(r * 5);
@@ -106,6 +102,28 @@ const Score = {
     if (value === 'M') return 'm';
     const n = Number(value);
     return Number.isInteger(n) && n >= 1 && n <= 7 ? 'low' : null;
+  },
+  ringOf(result, format) {
+    if (result.ring) return result.ring;
+    const v = result.value, p = result.impact;
+    if (v === '11') return 'X';
+    if (format !== 'wa' || (v !== '10' && v !== '9')) return v;
+    if (p && this.valueAt(p.x, p.y, 'vegas') === '10') return '10';
+    return v === '10' ? 'X' : '9';
+  },
+  inFormat(ring, format) {
+    if (format === 'wa') return ring === 'X' ? '10' : ring === '10' ? '9' : ring;
+    return format === 'lancaster' && ring === 'X' ? '11' : ring;
+  },
+  convert(shots, from, to) {
+    for (const s of shots || []) {
+      const r = s && !s.candidate && s.result;
+      if (!r || this.points(r.value) == null) continue;
+      const ring = this.ringOf(r, from);
+      r.value = this.inFormat(ring, to);
+      if (to === 'wa' && ring === '10') r.ring = '10';
+      else delete r.ring;
+    }
   },
   set(shot, value, format) {
     if (!shot || shot.candidate) return false;

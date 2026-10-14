@@ -81,13 +81,13 @@ function renderCalibration(s) {
   } else if (bows.includes(keep)) select.value = keep;
 }
 function saveSession(s){const L=store.list();const i=L.findIndex(x=>x.id===s.id);if(i>=0)L[i]=s;else L.push(s);store.save(L);if(curSess?.id===s.id)curSess=s;}
-$('modeSheet').onclick=e=>{const b=e.target.closest('[data-v]');if(!b)return;const s=displayedSession();if(!s||historyMode)return;
-  const mode=['Indoor','Outdoor','Libre'].includes(b.dataset.v)?b.dataset.v:'Libre', tanda=false;
+$('modeSheet').onclick=e=>{const b=e.target.closest('[data-v]');if(!b)return;const s=displayedSession();if(!s)return;
+  const mode=['Indoor','Outdoor','Libre'].includes(b.dataset.v)?b.dataset.v:'Libre', tanda=false, wasIndoor=s.mode==='Indoor';
   s.mode=mode;s.tanda=tanda;s.roundDone=Training.roundComplete(s);s.target=mode==='Indoor'?3:mode==='Outdoor'?6:0;
   if(mode==='Indoor' && !['wa','vegas','lancaster'].includes(s.scoreFormat)) s.scoreFormat='vegas';
-  saveSession(s);sendCmd('mode',mode);closeSheets(null);render();};
-$('formatSheet').onclick=e=>{const b=e.target.closest('[data-fmt]');if(!b)return;const s=displayedSession();if(!s||historyMode||s.mode!=='Indoor')return;
-  s.scoreFormat=b.dataset.fmt;saveSession(s);closeSheets(null);render();};
+  saveSession(s);sendCmd('mode',mode);closeSheets(mode==='Indoor'&&!wasIndoor?'formatSheet':null);render();};
+$('formatSheet').onclick=e=>{const b=e.target.closest('[data-fmt]');if(!b)return;const s=displayedSession();if(!s||s.mode!=='Indoor')return;
+  Score.convert(s.shots,Score.formatOf(s),b.dataset.fmt);s.scoreFormat=b.dataset.fmt;saveSession(s);data={shots:s.shots};closeSheets(null);render();};
 function gearSheet(listId,sheetId,field,cmd){
   $(sheetId).onclick=e=>{const remove=e.target.closest('.deleteGear');if(remove){if(remove.dataset.deleteBow!=null)deleteBow(remove.dataset.deleteBow);else deleteArrow(remove.dataset.deleteArrow);return;}const b=e.target.closest('[data-n]');if(!b)return;const s=displayedSession();if(!s||historyMode)return;
     s[field]=b.dataset.n;saveSession(s);if(cmd)sendCmd(cmd,s[field]);closeSheets(null);render();};
@@ -191,7 +191,7 @@ render=function() {
   const groups=s?sets(s.shots).filter(g=>!s.shots[g[0]].candidate):[], ordinal=groups.findIndex(g=>s.shots[g[0]].set_id===s.currentSet);
   const setNumber=ordinal>=0?ordinal+1:(s?.currentSet==null?Math.max(1,groups.length):groups.length+1);
   const goal=Training.roundGoal(s);
-  $('trainingPanel').hidden=!!historyMode;
+  $('trainingPanel').hidden=!!historyMode&&!s;
   if(s && goal){
     const n=s.roundDone?goal:Math.min(setNumber, goal);
     const arrows=s.shots.filter(x=>!x.candidate && x.set_id===(s.currentSet??1)).length;
@@ -204,12 +204,13 @@ render=function() {
     if(view==='Session' && data?.shots?.length) $('sSets').textContent=`${n}/${goal}`;
   } else $('trainingStatus').textContent=s?`${s.mode?s.mode+' · ':''}${s.paused?'Pausa':s.resting?'Descanso':'Set '+setNumber} · ${s.shots.filter(x=>x.set_id===(s.currentSet??1)).length}${s.target?'/'+s.target:''}`:'Equipo';
   if(!historyMode && s?.calibrating)$('trainingStatus').textContent=`Calibración · ${s.calibrationCount||0}`;
+  if(historyMode)$('trainingStatus').textContent='Sesión';
   $('calibrationMode').hidden=historyMode||!s?.live||!s.watchId||!window.Native?.command;
   $('calibrationMode').textContent=s?.calibrating?'Salir de calibración':'Iniciar calibración';
-  ['modePicker','bowPicker','arrowPicker'].forEach(id=>$(id).hidden=historyMode);
+  ['bowPicker','arrowPicker'].forEach(id=>$(id).hidden=historyMode);
   $('modeVal').textContent=s?.mode||'–';
   const indoor=!!(s&&s.mode==='Indoor');
-  $('formatPicker').hidden=!indoor||!!historyMode;
+  $('formatPicker').hidden=!indoor;
   if(indoor){
     if(!historyMode && !['wa','vegas','lancaster'].includes(s.scoreFormat)){s.scoreFormat='vegas';saveSession(s);}
     const fmt=Score.formatOf(s);

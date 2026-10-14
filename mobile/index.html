@@ -19,6 +19,7 @@
     --line:rgba(255,255,255,.07); --line-2:rgba(255,255,255,.12);
     --txt:#fff; --txt-2:#9a9aa2; --txt-3:#5c5c64;
     --acc:#FF8A1F; --acc2:#FFC15E; --glow:rgba(255,138,31,.28); --acc-ink:#1b0f05; --acc-soft:rgba(255,138,31,.12); --acc-line:rgba(255,138,31,.45);
+    --grad:linear-gradient(90deg,var(--acc),var(--acc2));
     --low:#F0506E; --danger:#F0506E;
     --font:'Geist',system-ui,-apple-system,sans-serif; --mono:'Geist Mono',ui-monospace,monospace; --num:'Barlow Condensed',sans-serif;
     --panel:var(--surface); --panel2:var(--surface-2); --dim:var(--txt-2);
@@ -101,7 +102,7 @@
   .tlClock:empty { display:none; }
   .tl { position:relative; height:32px; margin:2px 8px 6px; }
   .tl .track { position:absolute; left:0; right:0; top:8px; height:3px; background:rgba(255,255,255,.1); border-radius:2px; }
-  .tl .fill { position:absolute; left:0; top:8px; height:3px; width:0; background:var(--acc); border-radius:2px; box-shadow:0 0 10px var(--glow); }
+  .tl .fill { position:absolute; left:0; top:8px; height:3px; width:0; background:var(--grad); border-radius:2px; box-shadow:0 0 10px var(--glow); }
   .tl .rel { position:absolute; top:3px; left:83.33%; width:1.5px; height:13px; background:#fff; }
   .tl span { position:absolute; top:18px; font:500 9.5px/1 var(--font); letter-spacing:.08em; text-transform:uppercase; color:var(--txt-3); transform:translateX(-50%); white-space:nowrap; }
   .tl .tlA { left:0; transform:none; }
@@ -223,7 +224,7 @@
   .weekPills i.run { background:var(--acc); box-shadow:none; color:var(--acc-ink); }
   .weekPills i.today:not(.run) { box-shadow:inset 0 0 0 1.5px var(--acc-line); }
   .goalBar i { display:block; height:100%; width:0; background:rgba(255,255,255,.85); border-radius:999px; }
-  .goalBar.met i { background:var(--acc); box-shadow:0 0 12px var(--glow); }
+  .goalBar.met i { background:var(--grad); box-shadow:0 0 12px var(--glow); }
   #tLegend .hr { margin-left:auto; color:var(--txt); font-family:var(--mono); font-size:12px; }
   #tLegend .hr svg { width:13px; height:13px; color:var(--danger); }
   #tip { display:flex; gap:10px; align-items:flex-start; background:var(--surface); border:1px solid var(--line); border-radius:12px;
@@ -421,7 +422,7 @@
   .photoRow button.on i { box-shadow:0 0 0 2px #000, 0 0 0 3.5px var(--acc); }
   .photoRow button.on i img { filter:none; }
   .photoSep { flex:0 0 1px; height:26px; margin-top:12px; background:rgba(255,255,255,.1); }
-  .holoTilt { position:relative; transform-style:preserve-3d; transition:transform .08s linear, box-shadow .08s linear; border-radius:18px; }
+  .holoTilt { position:relative; transform-style:preserve-3d; border-radius:18px; }
   .holoSheen { position:absolute; inset:0; border-radius:18px; pointer-events:none; mix-blend-mode:soft-light;
     background:linear-gradient(115deg, transparent 42%, rgba(255,255,255,.45) 50%, transparent 58%);
     background-size:220% 220%; background-position:40% 40%; opacity:0; }
@@ -468,14 +469,14 @@
   .widgetAdd small { color:var(--txt-3); font-size:12.5px; padding:7px 2px; }
   .widgetLayer { position:absolute; inset:0; pointer-events:none; }
   #shareSheet.editing .widgetLayer { pointer-events:auto; touch-action:none; }
-  .wBox { position:absolute; border-radius:12px; box-shadow:0 0 0 1.5px rgba(255,255,255,.6), 0 0 0 3px rgba(0,0,0,.22); animation:wiggle .3s ease-in-out infinite alternate; }
+  .wBox { position:absolute; border-radius:12px; box-shadow:0 0 0 1.5px rgba(255,255,255,.6), 0 0 0 3px rgba(0,0,0,.22); animation:wiggle .3s ease-in-out infinite alternate; transition:left .18s ease, top .18s ease, width .18s ease, height .18s ease; }
   .wBox:nth-child(2n) { animation-delay:-.15s; animation-direction:alternate-reverse; }
   .wBox.sel { box-shadow:0 0 0 2px var(--acc), 0 0 0 4px rgba(0,0,0,.25); }
-  .wBox.drag { animation:none; transform:scale(1.03); box-shadow:0 0 0 2px var(--acc), 0 14px 30px rgba(0,0,0,.55); }
+  .wBox.drag { animation:none; transition:none; z-index:2; transform:scale(1.03); box-shadow:0 0 0 2px var(--acc), 0 14px 30px rgba(0,0,0,.55); }
   .wBox b { position:absolute; left:8px; top:8px; width:22px; height:22px; border-radius:50%; background:#3b3b40; color:#fff; display:grid; place-items:center; box-shadow:0 1px 5px rgba(0,0,0,.45); }
   .wBox b svg { width:10px; height:10px; }
   @keyframes wiggle { from { transform:rotate(-.55deg); } to { transform:rotate(.55deg); } }
-  @media (prefers-reduced-motion:reduce) { .wBox { animation:none; } }
+  @media (prefers-reduced-motion:reduce) { .wBox { animation:none; transition:none; } }
   body #notice { z-index:90; }
 
   /* Diálogo */
@@ -499,7 +500,7 @@
   .sessbars div { display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; min-width:0; }
   .sessbars b { font:600 18px/1 var(--num); margin-bottom:6px; }
   .sessbars i { width:100%; background:rgba(255,255,255,.1); border-radius:6px 6px 2px 2px; }
-  .sessbars i.last { background:var(--acc); box-shadow:0 0 18px var(--glow); }
+  .sessbars i.last { background:linear-gradient(180deg,var(--acc2),var(--acc)); box-shadow:0 0 18px var(--glow); }
   .sessbars small { font:500 9.5px/1.25 var(--font); letter-spacing:.02em; color:var(--txt-3); margin-top:6px; text-transform:uppercase; text-align:center; max-width:100%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
   @media (max-width:340px) {
     main { padding-left:12px; padding-right:12px; }
@@ -1008,6 +1009,7 @@ const sets = shots => {
 };
 const setLabel = (S,i) => S[i].every(j=>data.shots[j].candidate) ? 'Calibración' : 'Set '+S.slice(0,i+1).filter(g=>g.some(j=>!data.shots[j].candidate)).length;
 let themeAcc = '#FF8A1F';
+const accRgba = a => { const n = parseInt(themeAcc.slice(1), 16); return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`; };
 const grade = v => !Number.isFinite(v) ? ['#5c5c64','–'] : v >= 80 ? [themeAcc, 'A'] : v < 70 ? ['#F0506E', 'E'] : ['#E8E8EE', 'C'];
 const avg = a => { a=a.filter(Number.isFinite); return a.length ? a.reduce((x,y)=>x+y,0)/a.length : NaN; };
 const sd = a => { const m = avg(a); return Math.sqrt(avg(a.map(x => (x - m) ** 2))); };
@@ -2096,11 +2098,11 @@ function drawFace(c, shots, focus) {
   disk(R * 0.4, '#C2A36A');
   x.lineWidth = 1; x.strokeStyle = 'rgba(0,0,0,.62)';
   for (const k of [1, 0.8, 0.6, 0.4, 0.2, 0.1]) { x.beginPath(); x.arc(cx, cy, R * k, 0, Math.PI * 2); x.stroke(); }
-  const center = format === 'lancaster' ? '11' : format === 'wa' ? '' : 'X';
+  const center = format === 'lancaster' ? '11' : format === 'wa' ? '10' : 'X';
   x.font = '600 ' + Math.max(8, Math.round(fs * 0.75)) + 'px ' + MONO;
   if (center) { x.fillStyle = 'rgba(44,36,22,.7)'; x.fillText(center, cx, cy); }
   x.font = '600 ' + fs + 'px ' + MONO;
-  num('10', R * 0.15, 'rgba(44,36,22,.78)');
+  num(format === 'wa' ? '9' : '10', R * 0.15, 'rgba(44,36,22,.78)');
   num('9', R * 0.3, 'rgba(44,36,22,.78)');
   num('8', R * 0.5, 'rgba(42,18,18,.76)');
   num('7', R * 0.7, 'rgba(42,18,18,.76)');
@@ -2156,7 +2158,7 @@ function drawSplit(points) {
     const jx = ((n * 17) % 7 - 3) * 1.3;
     const high = p.value === 'X' || p.value === '10' || p.value === '11';
     x.beginPath(); x.arc(X(i) + jx, Y(p.aim), 3.2, 0, Math.PI * 2);
-    x.fillStyle = high ? '#FF8A1F' : 'rgba(255,255,255,.62)'; x.fill();
+    x.fillStyle = high ? themeAcc : 'rgba(255,255,255,.62)'; x.fill();
   });
 }
 function ringBase(x, sz, scale) {
@@ -2194,9 +2196,9 @@ function gaugeSvg(v) {
   const val = Math.max(0, Math.min(100, Number.isFinite(v) ? v : 0));
   const ang = (135 + 270 * val / 100) * Math.PI / 180;
   const ex = size / 2 + r * Math.cos(ang), ey = size / 2 + r * Math.sin(ang);
-  return `<svg viewBox="0 0 ${size} ${size}" aria-hidden="true">
+  return `<svg viewBox="0 0 ${size} ${size}" aria-hidden="true"><defs><linearGradient id="awGauge" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="var(--acc)"/><stop offset="1" stop-color="var(--acc2)"/></linearGradient></defs>
     <g transform="rotate(135 ${size / 2} ${size / 2})"><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="7" stroke-linecap="round" stroke-dasharray="${circ * arc} ${circ}"/>
-    <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="var(--acc)" stroke-width="7" stroke-linecap="round" stroke-dasharray="${circ * arc * val / 100} ${circ}"/></g>
+    <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="url(#awGauge)" stroke-width="7" stroke-linecap="round" stroke-dasharray="${circ * arc * val / 100} ${circ}"/></g>
     <circle cx="${ex}" cy="${ey}" r="9" fill="var(--glow)"/><circle cx="${ex}" cy="${ey}" r="3" fill="#fff"/></svg>`;
 }
 function syncTimeline(ms) {
@@ -2230,7 +2232,7 @@ function releasePath(pts,t) {
 function releaseMark(x,p) {
   x.save();
   const g = x.createRadialGradient(p[0], p[1], 0, p[0], p[1], 18);
-  g.addColorStop(0, 'rgba(255,138,31,.28)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+  g.addColorStop(0, accRgba(.28)); g.addColorStop(1, 'rgba(0,0,0,0)');
   x.fillStyle = g; x.beginPath(); x.arc(p[0], p[1], 18, 0, 7); x.fill();
   x.strokeStyle = C.mark; x.lineWidth = 1.6;
   x.beginPath(); x.arc(p[0], p[1], 7.5, 0, 7); x.stroke();
@@ -2324,7 +2326,7 @@ function play() {
   gl.width = gl.height = GR * 2 * dpr;
   const gx = gl.getContext('2d'); gx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const gg = gx.createRadialGradient(GR, GR, 0, GR, GR, GR);
-  gg.addColorStop(0, 'rgba(255,138,31,.75)'); gg.addColorStop(.45, 'rgba(255,138,31,.18)'); gg.addColorStop(1, 'rgba(0,0,0,0)');
+  gg.addColorStop(0, accRgba(.75)); gg.addColorStop(.45, accRgba(.18)); gg.addColorStop(1, 'rgba(0,0,0,0)');
   gx.fillStyle = gg; gx.fillRect(0, 0, GR * 2, GR * 2);
   const hold = aimTime(s) || 0;
   const col = t => aimColor(t,hold,releaseAt);
