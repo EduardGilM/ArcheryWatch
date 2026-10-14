@@ -680,22 +680,8 @@
     <button type="button" class="btnSecondary" id="shareProfile">Compartir perfil</button>
   </section>
   <div id="vProgress">
-  <section class="card" id="goalCard">
-    <div class="cardTitle">Esta semana</div>
-    <div class="streakBox" id="streakBox" hidden></div>
-    <div id="goalBars"></div>
-    <p id="goalStreak" class="scoreNote"></p>
-    <details class="goalEdit"><summary>Editar objetivos</summary>
-    <form id="goalForm" onsubmit="return false">
-      <label>Flechas <input id="goalArrows" inputmode="numeric" enterkeyhint="done" aria-label="Flechas por semana" placeholder="30"></label>
-      <label>Sesiones <input id="goalSessions" inputmode="numeric" enterkeyhint="done" aria-label="Sesiones por semana" placeholder="3"></label>
-      <label>Media <input id="goalAverage" inputmode="decimal" enterkeyhint="done" aria-label="Media por flecha" placeholder="8,5"></label>
-      <label>Estabilidad <input id="goalStability" inputmode="numeric" enterkeyhint="done" aria-label="Estabilidad mínima" placeholder="75"></label>
-      <button type="button" class="btnSecondary" onclick="saveGoals()">Guardar</button>
-    </form>
-    <p id="goalHint">Lunes a domingo. Vacío = no cuenta.</p>
-    </details>
-  </section>
+  <section class="card og" id="goalCard"></section>
+  <section class="card og" id="metaCard"></section>
   <section class="card" id="radarCard">
     <div class="cardTitle">Rendimiento<small><span class="dash">- - -</span> antes</small></div>
     <canvas id="progressRadar" aria-label="Rendimiento"></canvas>
@@ -2441,6 +2427,7 @@ addEventListener('resize', () => data && render());
 <script src="studio.js"></script>
 <script src="tanda.js"></script>
 <script src="picker.js"></script>
+<script src="objetivos.js"></script>
 <script>boot();</script>
 </body>
 </html>
