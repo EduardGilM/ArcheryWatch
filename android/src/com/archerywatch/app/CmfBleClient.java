@@ -53,9 +53,11 @@ public class CmfBleClient {
     private BluetoothGatt gatt;
     private BluetoothGattCharacteristic logRx, fateW;
     private final ByteArrayBuffer rxBuf = new ByteArrayBuffer();
-    private boolean running, switchOn, mtuReady, notifReady;
+    private static final float CAL_G = 0.08f;
+    private boolean running, switchOn, mtuReady, notifReady, autoConnect, calibrating;
     private String address;
-    private long sessionStart;
+    private long sessionStart, calStart;
+    private float normalG;
     private final Runnable poll = new Runnable() {
         @Override public void run() {
             if (!running || logRx == null || !mtuReady) return;
@@ -65,12 +67,64 @@ public class CmfBleClient {
     };
     private ScanCallback scanCb;
 
-    CmfBleClient(Context context) { this.app = context.getApplicationContext(); }
+    CmfBleClient(Context context) {
+        this.app = context.getApplicationContext();
+        normalG = app.getSharedPreferences("cmf", Context.MODE_PRIVATE).getFloat("threshold", detector.thresholdG);
+        detector.thresholdG = normalG;
+    }
 
     void setListener(Listener l) { listener = l; }
-    void setThreshold(float g) { detector.thresholdG = g; }
+    void setThreshold(float g) { normalG = g; if (!calibrating) detector.thresholdG = g; }
     boolean isRunning() { return running; }
+    boolean isCalibrating() { return calibrating; }
     String address() { return address; }
+
+    void setCalibration(boolean on) {
+        calibrating = on;
+        detector.thresholdG = on ? CAL_G : normalG;
+        if (on) calStart = System.currentTimeMillis();
+        status(on ? "Calibración CMF: dispara y elige la flecha buena en Tiro" : running ? "CMF en vivo (gyro+accel)" : "CMF desconectado");
+    }
+
+    void calibrate(float g) {
+        normalG = g;
+        app.getSharedPreferences("cmf", Context.MODE_PRIVATE).edit().putFloat("threshold", g).apply();
+        calibrating = false;
+        detector.thresholdG = g;
+        status(String.format(Locale.US, "CMF calibrado: umbral %.0f mG", g * 1000));
+    }
+
+    void start() {
+        String addr = findPaired();
+        if (addr != null) { connect(addr); return; }
+        startScan();
+        autoConnect = scanCb != null;
+    }
+
+    private String findPaired() {
+        try {
+            BluetoothManager bm = (BluetoothManager) app.getSystemService(Context.BLUETOOTH_SERVICE);
+            BluetoothAdapter ad = bm != null ? bm.getAdapter() : null;
+            if (ad == null || !ad.isEnabled()) return null;
+            String last = app.getSharedPreferences("cmf", Context.MODE_PRIVATE).getString("address", null);
+            ArrayList<BluetoothDevice> found = new ArrayList<>(bm.getConnectedDevices(BluetoothProfile.GATT));
+            found.addAll(ad.getBondedDevices());
+            String best = null;
+            int rank = 0;
+            for (BluetoothDevice d : found) {
+                String a = d.getAddress();
+                if (a == null) continue;
+                if (a.equalsIgnoreCase(last)) return a;
+                String n = d.getName() == null ? "" : d.getName().toLowerCase(Locale.ROOT);
+                int r = n.contains("cmf") ? 3 : n.contains("watch") ? 2 : n.contains("nothing") ? 1 : 0;
+                if (r > rank) { rank = r; best = a; }
+            }
+            return best != null ? best : last;
+        } catch (SecurityException e) {
+            status("Falta permiso Bluetooth");
+            return null;
+        }
+    }
 
     void startScan() {
         try {
@@ -90,12 +144,20 @@ public class CmfBleClient {
                     String low = name.toLowerCase(Locale.ROOT);
                     if (!(low.contains("cmf") || low.contains("watch") || low.contains("nothing"))) return;
                     if (listener != null) listener.onDevice(name, d.getAddress());
+                    if (autoConnect && (low.contains("cmf") || low.contains("watch"))) {
+                        String a = d.getAddress();
+                        handler.post(() -> connect(a));
+                    }
                 }
                 @Override public void onScanFailed(int errorCode) { status("Escaneo falló: " + errorCode); }
             };
             sc.startScan(scanCb);
             status("Buscando CMF…");
-            handler.postDelayed(this::stopScan, 12000);
+            handler.postDelayed(() -> {
+                boolean missed = autoConnect && scanCb != null;
+                stopScan();
+                if (missed) status("No encuentro el CMF emparejado");
+            }, 12000);
         } catch (SecurityException e) {
             status("Falta permiso Bluetooth");
         } catch (Exception e) {
@@ -110,6 +172,7 @@ public class CmfBleClient {
             if (ad != null && scanCb != null) ad.getBluetoothLeScanner().stopScan(scanCb);
         } catch (Exception ignored) {}
         scanCb = null;
+        autoConnect = false;
     }
 
     void connect(String addr) {
@@ -134,7 +197,11 @@ public class CmfBleClient {
         }
     }
 
-    void disconnect() { disconnect(true); }
+    void disconnect() {
+        calibrating = false;
+        detector.thresholdG = normalG;
+        disconnect(true);
+    }
 
     private void disconnect(boolean notify) {
         handler.removeCallbacks(poll);
@@ -200,6 +267,7 @@ public class CmfBleClient {
 
     private void onReady() {
         notifReady = true;
+        app.getSharedPreferences("cmf", Context.MODE_PRIVATE).edit().putString("address", address).apply();
         status("CMF listo");
         writeChunked(logRx, LOG_PREPARE, false);
         handler.postDelayed(() -> {
@@ -320,6 +388,10 @@ public class CmfBleClient {
         java.util.Map<String, Object> shot = detector.offer(t, gx, gy, gz, ax, ay, az);
         if (shot != null) {
             shot.put("sid", "cmf-" + sessionStart);
+            if (calibrating) {
+                shot.put("candidate", true);
+                shot.put("set", (double) (calStart - sessionStart));
+            }
             if (listener != null) listener.onShot(shot);
             LiveService.dispatch("liveShot(" + MainActivity.toJson(shot) + ")");
         }

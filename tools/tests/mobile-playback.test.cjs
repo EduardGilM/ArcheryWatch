@@ -672,3 +672,39 @@ test('exported shots without a position still open every scoring view', () => {
   assert.equal(p.elements.get('splitNeed').textContent, 'Faltan 20');
   assert.equal(String(p.elements.get('scoreTotal').textContent), '–');
 });
+
+test('the session button starts the CMF sensors and stopping keeps the session on screen', () => {
+  const p = page();
+  p.run(`window.calls=[];window.Native={cmfStart:()=>{calls.push('start');return '';},cmfDisconnect:()=>calls.push('stop'),diagnostics:()=>JSON.stringify({cmf:false,status:'Conectando AA:BB…'})};cmfTrainToggle();`);
+  assert.equal(p.run('calls.join()'), 'start');
+  assert.equal(p.elements.get('cmfTrainBtn').textContent, 'Empezar entrenamiento');
+  assert.equal(p.elements.get('cmfTrainInfo').textContent, 'Conectando AA:BB…');
+  p.run(`Native.diagnostics=()=>JSON.stringify({cmf:true,status:'CMF en vivo (gyro+accel)'});liveStatus('CMF en vivo (gyro+accel)');`);
+  assert.equal(p.elements.get('cmfTrainBtn').textContent, 'Terminar entrenamiento');
+  p.run(`curSess.watchId='cmf-1';persist();cmfTrainToggle();`);
+  assert.equal(p.run('calls.join()'), 'start,stop');
+  assert.equal(p.run('store.list().find(s=>s.watchId===\"cmf-1\").live'), false);
+  assert.equal(p.run('data.shots.length'), 1);
+  p.run(`Native.cmfStart=()=>'No encuentro el CMF';Native.diagnostics=()=>JSON.stringify({cmf:false,status:''});cmfTrainToggle();`);
+  assert.match(p.elements.get('notice').textContent, /No encuentro el CMF/);
+});
+
+test('CMF calibration takes candidates apart and Calibrar sets the threshold on the phone', async () => {
+  const p = page();
+  const shot = (t, extra) => JSON.stringify({sid: 'cmf-9', t, score: 80, peak: 2000, instab: 20, dt: 50, ...extra});
+  p.run(`liveStart('cmf-9');liveShot(${shot(1000, {candidate: true, set: 1000})});liveShot(${shot(3000, {candidate: true, set: 1000})});liveShot(${shot(6000)})`);
+  const shots = JSON.parse(p.run('JSON.stringify(curSess.shots.map(s=>[s.candidate||false,s.aim_score,s.set_id]))'));
+  assert.deepEqual(shots.slice(0, 2), [[true, null, 1000], [true, null, 1000]]);
+  assert.equal(shots[2][0], false);
+  assert.equal(shots[2][1], 80);
+  assert.notEqual(shots[2][2], 1000, 'a real arrow joined the calibration set');
+  p.run(`window.calls=[];window.Native={cmfCalibration:on=>{calls.push('cal:'+on);return '';},cmfCalibrate:g=>{calls.push('thr:'+g);return '';},command:()=>{calls.push('garmin');return '';},diagnostics:()=>JSON.stringify({cmf:true,cmfCal:false,status:'CMF en vivo'})};cmfCalToggle();`);
+  assert.equal(p.run('calls.join()'), 'cal:true');
+  p.run(`Native.diagnostics=()=>JSON.stringify({cmf:true,cmfCal:true,status:'Calibración CMF'});syncCmfTrain();`);
+  assert.equal(p.elements.get('cmfCalBtn').textContent, 'Salir de calibración');
+  p.run(`askConfirm=async()=>true;data={shots:curSess.shots};cur=0;document.getElementById('calibrationProfile').value='Recurvo';`);
+  await p.run('calibrateFromShot()');
+  assert.equal(p.run('calls.join()'), 'cal:true,thr:0.7');
+  assert.equal(p.run("JSON.parse(localStorage.getItem('awCalibration')).status"), 'applied');
+  assert.match(p.elements.get('notice').textContent, /700 mG/);
+});

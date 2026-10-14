@@ -203,8 +203,9 @@ public class LiveService extends Service {
         values.put("connected", cmfOn || (STATUS != null && STATUS.contains("listo")));
         values.put("source", cmfOn ? "cmf" : "garmin");
         values.put("cmf", cmfOn);
+        values.put("cmfCal", cmf != null && cmf.isCalibrating());
         values.put("cmfAddress", cmf != null && cmf.address() != null ? cmf.address() : "");
-        values.put("version",140);
+        values.put("version",141);
         if(instance!=null){values.put("receivedAt",instance.diagnostics.getLong("receivedAt",0));values.put("kind",instance.diagnostics.getString("kind",""));}
         return MainActivity.toJson(values);
     }
@@ -236,6 +237,10 @@ public class LiveService extends Service {
         if (instance == null) throw new IllegalStateException("Abre la app e inténtalo de nuevo");
         cmf.startScan();
     }
+    static void cmfStart() {
+        if (instance == null) throw new IllegalStateException("Abre la app e inténtalo de nuevo");
+        cmf.start();
+    }
     static void cmfConnect(String address) {
         if (instance == null) throw new IllegalStateException("Abre la app e inténtalo de nuevo");
         cmf.connect(address);
@@ -245,6 +250,15 @@ public class LiveService extends Service {
     }
     static void cmfThreshold(float g) {
         if (instance != null && cmf != null) cmf.setThreshold(g);
+    }
+    static void cmfCalibration(boolean on) {
+        if (instance == null) throw new IllegalStateException("Abre la app e inténtalo de nuevo");
+        if (on && !cmf.isRunning()) cmf.start();
+        cmf.setCalibration(on);
+    }
+    static void cmfCalibrate(float g) {
+        if (instance == null) throw new IllegalStateException("Abre la app e inténtalo de nuevo");
+        cmf.calibrate(g);
     }
 
     @Override public IBinder onBind(Intent i) { return null; }

@@ -205,7 +205,7 @@ render=function() {
   } else $('trainingStatus').textContent=s?`${s.mode?s.mode+' · ':''}${s.paused?'Pausa':s.resting?'Descanso':'Set '+setNumber} · ${s.shots.filter(x=>x.set_id===(s.currentSet??1)).length}${s.target?'/'+s.target:''}`:'Equipo';
   if(!historyMode && s?.calibrating)$('trainingStatus').textContent=`Calibración · ${s.calibrationCount||0}`;
   if(historyMode)$('trainingStatus').textContent='Sesión';
-  $('calibrationMode').hidden=historyMode||!s?.live||!s.watchId||!window.Native?.command;
+  $('calibrationMode').hidden=historyMode||!s?.live||!s.watchId||s.watchId.startsWith('cmf-')||!window.Native?.command;
   $('calibrationMode').textContent=s?.calibrating?'Salir de calibración':'Iniciar calibración';
   ['bowPicker','arrowPicker'].forEach(id=>$(id).hidden=historyMode);
   $('modeVal').textContent=s?.mode||'–';

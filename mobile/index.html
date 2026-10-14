@@ -71,6 +71,13 @@
   .cmfList { margin-top:8px; display:flex; flex-direction:column; gap:6px; }
   .cmfList button { text-align:left; padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:var(--surface-2); color:var(--txt); font:inherit; }
   .cmfThr { display:block; margin-top:8px; font-size:12px; color:var(--txt-2); }
+  .cmfTrain { display:grid; gap:6px; }
+  .cmfTrain button { width:100%; min-height:52px; border:none; border-radius:26px; background:var(--acc); color:var(--acc-ink); font-size:15px; font-weight:600; }
+  .cmfTrain button.on, .cmfTrain button.cal { background:#1c1c1e; color:var(--txt); }
+  .cmfTrain button.cal { min-height:44px; font-size:14px; font-weight:500; }
+  .cmfTrain button.cal.on { box-shadow:inset 0 0 0 1.5px var(--acc); color:var(--acc); }
+  .cmfTrain small { font-size:12px; color:var(--txt-3); text-align:center; }
+  .cmfTrain small:empty { display:none; }
   #live { display:none; align-self:flex-start; margin:0 16px 10px; padding:4px 10px 4px 8px; border-radius:999px;
           background:var(--acc-soft); color:var(--txt-2); font-size:12px; font-weight:500; }
   #live::before { content:""; display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--acc); box-shadow:0 0 8px var(--glow);
@@ -621,6 +628,7 @@
   <button class="deleteAction" onclick="removeSelection('shot')">Eliminar flecha</button>
 </main>
 <main id="vSession" style="display:none">
+  <section class="cmfTrain" id="cmfTrain"><button type="button" id="cmfTrainBtn" onclick="cmfTrainToggle()">Empezar entrenamiento</button><button type="button" class="cal" id="cmfCalBtn" onclick="cmfCalToggle()">Arrancar calibración</button><small id="cmfTrainInfo"></small></section>
   <section class="card heroS" id="sessionHero">
     <div class="gauge"><div id="stabGauge"></div><div class="c"><b class="num" id="sAvg">–</b><span class="lbl">Estabilidad<i id="sAvgDot" class="lowDot" hidden></i></span></div></div>
     <div class="kv">
@@ -930,6 +938,7 @@ window.liveStatus = s => {
     b.textContent = 'En vivo' + (data?.shots.length ? ' · ' + data.shots.length : '');
   }
   refreshLink();
+  syncCmfTrain();
 };
 // El buffer nativo se consume una vez: conservar las sesiones anteriores.
 window.liveStart = (sid = '') => {
@@ -980,7 +989,8 @@ window.liveShot = ev => {
     window: Array.isArray(ev.mp) && Array.isArray(ev.mq) ? {
       pre: ev.mp.map((_, i) => -(ev.mp.length - i) * (ev.dt || 50)), mag_pre: ev.mp,
       post: ev.mq.map((_, i) => (i + 1) * (ev.dt || 50)), mag_post: ev.mq
-    } : null, wt: Date.now(), ...(sess.activeTanda ? { tanda: sess.activeTanda } : {})
+    } : null, wt: Date.now(), ...(sess.activeTanda && !ev.candidate ? { tanda: sess.activeTanda } : {}),
+    ...(ev.candidate ? { candidate: true, aim_score: null, ...(Number.isFinite(ev.set) ? { set_id: ev.set } : {}) } : {})
   });
   sess.shots.sort((a, b) => a.t_ms - b.t_ms);
   identifySets(sess.shots);
@@ -997,7 +1007,8 @@ window.liveShot = ev => {
 
 function identifySets(shots) {
   let count=0, previous;
-  shots.forEach(s => { s.set_id ??= count && count<3 ? previous : s.t_ms; count=s.set_id===previous?count+1:1;previous=s.set_id; });
+  let candidate=false;
+  shots.forEach(s => { s.set_id ??= count && count<3 && !candidate ? previous : s.t_ms; count=s.set_id===previous?count+1:1;previous=s.set_id;candidate=!!s.candidate; });
   return shots;
 }
 const sets = shots => {
@@ -1060,6 +1071,43 @@ window.cmfDevice = (name, address) => {
   list.appendChild(b);
 };
 window.cmfSample = () => {}; // reservado (telemetría opcional)
+function cmfDiag() {
+  try { return JSON.parse(window.Native?.diagnostics?.() || 'null') || {}; } catch (e) { return {}; }
+}
+function syncCmfTrain() {
+  const btn = document.getElementById('cmfTrainBtn');
+  if (!btn) return;
+  const d = cmfDiag(), on = d.cmf === true;
+  btn.classList.toggle('on', on);
+  btn.textContent = on ? 'Terminar entrenamiento' : 'Empezar entrenamiento';
+  const status = String(d.status || '');
+  document.getElementById('cmfTrainInfo').textContent = /cmf|bluetooth|enlazado|conectando|busc|permiso|escaneo|servicios|logsrv|empareja|calibr/i.test(status) ? status : '';
+  const cal = document.getElementById('cmfCalBtn');
+  cal.classList.toggle('on', d.cmfCal === true);
+  cal.textContent = d.cmfCal === true ? 'Salir de calibración' : 'Arrancar calibración';
+}
+function cmfCalToggle() {
+  if (cmfDiag().cmfCal === true) window.Native?.cmfCalibration?.(false);
+  else if (!window.Native?.cmfCalibration) notice('Abre la app con el CMF emparejado');
+  else {
+    const err = window.Native.cmfCalibration(true);
+    if (err && err !== 'permission') notice(err);
+  }
+  syncCmfTrain();
+}
+function cmfTrainToggle() {
+  if (cmfDiag().cmf === true) {
+    window.Native?.cmfDisconnect?.();
+    if (curSess?.watchId?.startsWith('cmf-')) { curSess.live = false; persist(); }
+    live = false;
+    document.getElementById('live').style.display = 'none';
+  } else if (!window.Native?.cmfStart) notice('Abre la app con el CMF emparejado');
+  else {
+    const err = window.Native.cmfStart();
+    if (err && err !== 'permission') notice(err);
+  }
+  syncCmfTrain();
+}
 function syncCmfPanel() {
   const src = document.getElementById('sensorSource')?.value || localStorage.getItem('aw-sensor') || 'garmin';
   const panel = document.getElementById('cmfPanel');
@@ -1091,6 +1139,7 @@ document.getElementById('cmfThr')?.addEventListener('change', e => {
 
 async function boot() {
   syncCmfPanel();
+  syncCmfTrain();
 
   const L = store.list();
   const fresh = L.find(x => x.live && (x.metric===2 || Date.now() - x.lastWt < 600000) && (x.metric===2 || x.shots.length));
@@ -1669,6 +1718,13 @@ async function calibrateFromShot() {
     if (!await askConfirm(`¿Usar esta flecha como referencia para ${profile}? Umbral: ${threshold} mG (pico ${peak} mG).`)) return;
     const pending = {...value, threshold, status: 'pending'};
     localStorage.setItem('awCalibration', JSON.stringify(pending));
+    if (sid.startsWith('cmf-') && window.Native.cmfCalibrate) {
+      const failed = Native.cmfCalibrate(String(threshold / 1000));
+      localStorage.setItem('awCalibration', JSON.stringify({...pending, status: failed ? 'error' : 'applied', result: failed ? String(failed) : 'CMF'}));
+      notice(failed ? 'Calibración no aplicada: ' + failed : `Umbral de ${threshold} mG aplicado al CMF.`);
+      syncCmfTrain();
+      return;
+    }
     const error = Native.command(JSON.stringify({sid, action: 'calibrateShot', value: peak, profile, requestId: value.requestId, ...(value.pose?{pose:value.pose}:{})}));
     if (error) {
       localStorage.setItem('awCalibration', JSON.stringify({...pending, status: 'error', result: String(error)}));

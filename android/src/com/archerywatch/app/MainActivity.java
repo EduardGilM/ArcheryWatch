@@ -11,6 +11,7 @@ import java.util.Map;
 public class MainActivity extends Activity {
     private WebView wv;
     private boolean started;
+    private String cmfPending;
     private boolean pageReady;  // el drain antes de que cargue la página pierde los eventos
     private boolean draining;
     private android.webkit.ValueCallback<android.net.Uri[]> fileCallback;
@@ -100,9 +101,18 @@ public class MainActivity extends Activity {
             }
         } else if (code == 2) {
             // BLUETOOTH_SCAN (+ CONNECT): reintentar escaneo CMF si la UI lo pidió
-            if (results.length > 0 && results[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            boolean granted = results.length > 0;
+            for (int r : results) granted &= r == android.content.pm.PackageManager.PERMISSION_GRANTED;
+            String pending = cmfPending;
+            cmfPending = null;
+            if (granted) {
                 if (!started) { started = true; startForegroundService(new Intent(this, LiveService.class)); }
-                LiveService.cmfScan();
+                try {
+                    if ("calibration".equals(pending)) LiveService.cmfCalibration(true);
+                    else if ("start".equals(pending)) LiveService.cmfStart();
+                    else LiveService.cmfScan();
+                }
+                catch (Exception e) { push("notice(" + org.json.JSONObject.quote(e.getMessage()) + ")"); }
             } else {
                 push("notice(" + org.json.JSONObject.quote("Sin permiso Bluetooth para buscar el CMF.") + ")");
             }
@@ -146,6 +156,39 @@ public class MainActivity extends Activity {
                     return "permission";
                 }
                 LiveService.cmfScan();
+                return "";
+            } catch (Exception e) { return e.getMessage(); }
+        }
+        private boolean needsBluetooth(String pending) {
+            if (android.os.Build.VERSION.SDK_INT < 31
+                || (checkSelfPermission("android.permission.BLUETOOTH_SCAN") == android.content.pm.PackageManager.PERMISSION_GRANTED
+                && checkSelfPermission("android.permission.BLUETOOTH_CONNECT") == android.content.pm.PackageManager.PERMISSION_GRANTED)) {
+                if (!started) { started = true; startForegroundService(new Intent(MainActivity.this, LiveService.class)); }
+                return false;
+            }
+            cmfPending = pending;
+            requestPermissions(new String[]{"android.permission.BLUETOOTH_SCAN", "android.permission.BLUETOOTH_CONNECT"}, 2);
+            return true;
+        }
+        @android.webkit.JavascriptInterface public String cmfStart() {
+            try {
+                if (needsBluetooth("start")) return "permission";
+                LiveService.cmfStart();
+                return "";
+            } catch (Exception e) { return e.getMessage(); }
+        }
+        @android.webkit.JavascriptInterface public String cmfCalibration(boolean on) {
+            try {
+                if (on && needsBluetooth("calibration")) return "permission";
+                LiveService.cmfCalibration(on);
+                return "";
+            } catch (Exception e) { return e.getMessage(); }
+        }
+        @android.webkit.JavascriptInterface public String cmfCalibrate(String g) {
+            try {
+                float value = Float.parseFloat(g);
+                if (!(value > 0.02f && value < 20f)) return "Umbral fuera de rango";
+                LiveService.cmfCalibrate(value);
                 return "";
             } catch (Exception e) { return e.getMessage(); }
         }
