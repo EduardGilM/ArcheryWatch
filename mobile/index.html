@@ -43,12 +43,15 @@
     -webkit-mask:var(--icon) center/contain no-repeat; mask:var(--icon) center/contain no-repeat; }
 
   /* Cabecera */
-  header { display:flex; align-items:center; gap:10px; padding:8px 18px 6px; flex-shrink:0; }
-  header h1 { flex:0 1 auto; min-width:0; display:flex; flex-direction:column; font-size:43px; font-weight:400; letter-spacing:-.03em; line-height:1; }
-  header h1 span { display:block; line-height:44px; height:44px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  header h1 small { order:-1; display:block; font-size:11px; font-weight:500; letter-spacing:.14em; text-transform:uppercase; color:var(--txt-2); margin-top:0; margin-bottom:6px; }
-  header h1 small:empty { display:none; }
-  .stepper { display:flex; gap:6px; margin-left:auto; }
+  header { display:flex; flex-direction:column; align-items:stretch; gap:0; padding:8px 18px 6px; flex-shrink:0; }
+  .dateRow { display:flex; align-items:center; justify-content:space-between; gap:10px; margin:0 0 6px; }
+  .dateRow:has(> small:empty):has(> #returnCurrent[style*="none"]) { display:none; }
+  .dateRow small { display:block; font-size:11px; font-weight:500; letter-spacing:.14em; text-transform:uppercase; color:var(--txt-2); line-height:1.2; }
+  .dateRow small:empty { display:none; }
+  .headRow { display:flex; align-items:center; gap:10px; min-height:30px; }
+  header h1 { flex:0 1 auto; min-width:0; margin:0; font-size:43px; font-weight:400; letter-spacing:-.03em; line-height:30px; height:30px; display:flex; align-items:center; }
+  header h1 span { display:block; line-height:30px; height:30px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .stepper { display:flex; align-items:center; gap:6px; margin-left:auto; flex-shrink:0; }
   header .btn { width:30px; height:30px; border-radius:50%; background:transparent; border:1px solid var(--line-2);
                 color:var(--txt); display:grid; place-items:center; }
   header .btn .ico { width:14px; height:14px; }
@@ -60,6 +63,7 @@
   #link[data-state="on"]::before { background:var(--acc); opacity:1; filter:drop-shadow(0 0 4px var(--glow)); }
   #link[data-state="wait"] { color:var(--acc); }
   body.noHead > header h1 { display:none; }
+  body.noHead .headRow { justify-content:flex-start; }
   .cmfPanel { display:none; margin:8px 12px 0; padding:10px 12px; border:1px solid var(--line); border-radius:12px; background:var(--surface); }
   .cmfPanel.on { display:block; }
   .cmfRow { display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; }
@@ -74,10 +78,10 @@
                   margin-right:7px; vertical-align:1px; }
   @media (prefers-reduced-motion:no-preference) { #live::before { animation:pulse 2s ease-in-out infinite; } }
   @keyframes pulse { 50% { opacity:.35; } }
-  #returnCurrent { display:none; align-self:flex-start; margin:0 16px 10px; background:var(--surface-2); border:1px solid var(--line-2);
-                   border-radius:12px; color:var(--txt); font-size:13px; font-weight:500; padding:8px 12px; }
+  #returnCurrent { display:none; align-items:center; flex-shrink:0; height:30px; box-sizing:border-box; margin:0; background:transparent; border:1px solid var(--line-2);
+                   border-radius:999px; color:var(--txt); font-size:11px; font-weight:500; line-height:1; padding:0 11px 0 9px; white-space:nowrap; }
   #returnCurrent { --icon:var(--i-back); }
-  #returnCurrent::before { content:""; display:inline-block; width:14px; height:14px; margin-right:7px; vertical-align:-2px; background:var(--acc);
+  #returnCurrent::before { content:""; display:inline-block; width:13px; height:13px; margin-right:6px; vertical-align:-2px; background:var(--acc);
     -webkit-mask:var(--icon) center/contain no-repeat; mask:var(--icon) center/contain no-repeat; }
 
   /* Contenido */
@@ -137,11 +141,12 @@
   #play { --icon:var(--i-play); }
   #play.playing { --icon:var(--i-stop); background:var(--surface-2); color:var(--acc); border:1px solid var(--line-2); box-shadow:none; }
   #play::before { content:""; width:15px; height:15px; background:currentColor; -webkit-mask:var(--icon) center/contain no-repeat; mask:var(--icon) center/contain no-repeat; }
-  .btnSecondary, #calib { display:flex; align-items:center; justify-content:center; width:100%; min-height:44px; background:var(--acc-soft);
-    color:var(--acc); border:1px solid var(--acc-line); border-radius:12px; font-size:14px; font-weight:600; }
-  .deleteAction { background:none; color:var(--txt-3); border:1px solid var(--line); border-radius:12px; padding:12px; font-size:13px; font-weight:500; }
+  .btnSecondary, #calib { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; min-height:52px; background:#1c1c1e;
+    color:#fff; border:none; border-radius:26px; font-size:15px; font-weight:500; letter-spacing:-.005em; box-shadow:none; }
+  .btnSecondary:active, #calib:active { background:#2a2a2d; }
+  .deleteAction { background:none; color:var(--txt-3); border:1px solid var(--line); border-radius:26px; min-height:52px; padding:0 18px; font-size:14px; font-weight:500; }
   .deleteAction:active { color:var(--danger); border-color:rgba(239,90,90,.4); }
-  .deleteSession { flex-shrink:0; width:36px; height:36px; padding:0; display:grid; place-items:center; border-color:transparent; }
+  .deleteSession { flex-shrink:0; width:36px; height:36px; min-height:0; border-radius:50%; padding:0; display:grid; place-items:center; border-color:transparent; }
   .deleteSession svg { width:18px; height:18px; }
 
   /* Métricas */
@@ -275,10 +280,11 @@
   .mini { display:flex; gap:3px; align-items:flex-end; height:22px; min-width:0; }
   .mini i { width:7px; border-radius:2px; background:rgba(255,255,255,.28); }
   .setVal { font:600 28px/1 var(--num); text-align:right; }
-  .trendRow { width:100%; display:grid; grid-template-columns:minmax(52px,max-content) minmax(0,1fr) auto 44px; gap:8px; align-items:center; min-height:48px; padding:10px 14px; background:none; border:0; border-top:1px solid var(--line); text-align:left; }
+  .trendRow { width:100%; display:grid; grid-template-columns:minmax(52px,max-content) minmax(0,1fr) auto 44px; gap:8px; align-items:center; min-height:44px; padding:8px 14px; background:none; border:0; border-top:1px solid var(--line); text-align:left; }
   .trendRow:last-child { border-bottom:0; }
-  .trendLabel { font-size:13px; }
-  .trendLabel small { display:block; color:var(--txt-3); font-size:11px; }
+  .trendLabel { display:flex; align-items:center; gap:8px; font:500 12px/1 var(--font); color:var(--txt-3); font-variant-numeric:tabular-nums; }
+  .trendLabel .trendScore { width:24px; height:24px; box-sizing:border-box; border-radius:50%; border:1px solid var(--line-2); display:grid; place-items:center; font:600 13px/1 var(--num); color:var(--txt-2); }
+  .trendLabel .trendScore.hi { color:var(--acc); border-color:color-mix(in srgb, var(--acc) 45%, transparent); }
   .trendScore { font-family:var(--num); font-size:16px; font-weight:600; color:var(--acc); }
   .trendMeta { font:400 11.5px var(--font); color:var(--txt-3); text-align:right; white-space:nowrap; }
   .trendRow[aria-current="true"] .trendLabel { color:var(--txt); }
@@ -501,11 +507,14 @@
 </head>
 <body>
 <header>
-  <h1><span id="title">Sesión</span><small id="subtitle"></small></h1>
+  <div class="dateRow"><small id="subtitle"></small><button id="returnCurrent" onclick="backToCurrent()">Actual</button></div>
+  <div class="headRow">
+  <h1><span id="title">Sesión</span></h1>
   <span id="link" data-state="off">Sin reloj</span>
   <div class="stepper">
     <button class="btn" id="prev" aria-label="Flecha anterior"><svg class="ico" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M165.66,202.34a8,8,0,0,1-11.32,11.32l-80-80a8,8,0,0,1,0-11.32l80-80a8,8,0,0,1,11.32,11.32L91.31,128Z"/></svg></button>
     <button class="btn" id="next" aria-label="Flecha siguiente"><svg class="ico" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z"/></svg></button>
+  </div>
   </div>
 </header>
 <span id="live">En vivo</span>
@@ -525,7 +534,6 @@
     <input id="cmfThr" inputmode="decimal" value="0.25" aria-label="Umbral de suelta en g">
   </label>
 </div>
-<button id="returnCurrent" onclick="backToCurrent()">Actual</button>
 <main id="vShot">
   <div class="empty emptyState"><svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M232,120h-8.34A96.14,96.14,0,0,0,136,32.34V24a8,8,0,0,0-16,0v8.34A96.14,96.14,0,0,0,32.34,120H24a8,8,0,0,0,0,16h8.34A96.14,96.14,0,0,0,120,223.66V232a8,8,0,0,0,16,0v-8.34A96.14,96.14,0,0,0,223.66,136H232a8,8,0,0,0,0-16Zm-96,87.6V200a8,8,0,0,0-16,0v7.6A80.15,80.15,0,0,1,48.4,136H56a8,8,0,0,0,0-16H48.4A80.15,80.15,0,0,1,120,48.4V56a8,8,0,0,0,16,0V48.4A80.15,80.15,0,0,1,207.6,120H200a8,8,0,0,0,0,16h7.6A80.15,80.15,0,0,1,136,207.6ZM128,88a40,40,0,1,0,40,40A40,40,0,0,0,128,88Zm0,64a24,24,0,1,1,24-24A24,24,0,0,1,128,152Z"/></svg><b>Sin flechas</b></div>
   <div class="top3">
@@ -1090,7 +1098,7 @@ function render() {
   if (anim != null && (view !== 'Shot' || playbackKey !== shotViewKey())) stopPlayback();
   ['Shot', 'Set'].forEach(v => document.getElementById('v' + v).dataset.empty = !data?.shots.length);
   document.getElementById('deleteCurrent').hidden = !data?.shots.length;
-  document.getElementById('returnCurrent').style.display = historyMode ? 'block' : 'none';
+  document.getElementById('returnCurrent').style.display = historyMode ? 'inline-flex' : 'none';
   document.getElementById('prev').disabled = document.getElementById('next').disabled = !data?.shots.length;
   document.getElementById('setbar').innerHTML = '';
   const setHead = document.getElementById('setHead');
@@ -2422,12 +2430,12 @@ function drawTrend(S) {
   const rows=S.map((g,si)=>{const name=setLabel(S,si);return g.map((i,j)=>{
     const s=data.shots[i], v=values[i], valid=Number.isFinite(v), label=(s.candidate?'Candidato':'Flecha')+' '+(j+1);
     const marked=!s.candidate && s.result && Score.points(s.result.value) != null ? s.result.value : '';
-    const scoreBit=anyValue ? `<b class="trendScore">${marked || '·'}</b>` : '';
+    const scoreBit=anyValue ? `<b class="trendScore${/^(X|10|11)$/.test(marked) ? ' hi' : ''}">${marked || '·'}</b>` : '';
     const sec = s.draw_ms != null ? esNum((s.draw_ms + 1200) / 1000, 1) + ' s' : '';
     const rad = aimRadius(s); const radTxt = rad == null ? '' : esNum(rad, 1) + '°';
     const meta = [sec, radTxt].filter(Boolean).join(' · ');
     const phaseName = s.phase === 'warm' ? 'Calentamiento' : s.phase === 'score' ? 'Puntuable' : '';
-    const phaseBit = phaseName ? `<small>${phaseName}</small>` : '';
+    const phaseBit = '';
     const tAttr = Number.isFinite(Number(s.t_ms)) ? ` data-t="${Number(s.t_ms)}"` : '';
     const aria=`${name}, ${label}${marked ? ', valor ' + marked : ''}${phaseName ? ', ' + phaseName : ''}, ${valid ? Math.round(v) + (candidates ? ' mG' : ' de estabilidad') : 'sin estabilidad'}`;
     return `<button class="trendRow" data-shot="${i}"${tAttr} aria-current="${i===cur}" aria-label="${aria}" style="--c:${barOf(v)};--n:${numOf(v)}">`+
