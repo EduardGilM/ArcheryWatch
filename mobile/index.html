@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="aw-version" content="4.43">
+<meta name="aw-version" content="4.44">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#000000">
 <link rel="manifest" href="manifest.json">
@@ -334,10 +334,11 @@
   #profileClub { min-height:22px; font-size:13.5px; font-weight:500; color:var(--txt-2); }
   #profileGear { display:flex; flex-wrap:wrap; gap:6px; margin:14px 16px 0; }
   #profileGear span { display:inline-flex; align-items:center; gap:6px; padding:6px 11px; border-radius:999px; background:var(--surface-2); border:1px solid var(--line); font-size:12.5px; font-weight:500; }
-  .bannerPick { display:flex; gap:10px; overflow-x:auto; scrollbar-width:none; margin:10px 0 0; padding:4px 16px 2px; }
-  .bannerPick::-webkit-scrollbar { display:none; }
-  .bannerPick button { flex:0 0 auto; display:grid; justify-items:center; gap:6px; width:86px; padding:0; border:0; background:none; color:var(--txt-3); font-size:11px; font-weight:500; }
-  .bannerPick i { position:relative; overflow:hidden; width:86px; height:48px; border-radius:10px; display:grid; place-items:center; background:var(--surface-2); box-shadow:0 0 0 1px var(--line-2); color:var(--txt-2); font-style:normal; font-size:18px; }
+  .bannerPick { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:12px 8px; margin:14px 16px 0; }
+  .bannerPick button { display:grid; gap:6px; min-width:0; padding:0; border:0; background:none; color:var(--txt-3); font-size:11px; font-weight:500; }
+  .bannerPick span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .bannerPick i { position:relative; overflow:hidden; height:44px; border-radius:10px; display:grid; place-items:center; background:var(--surface-2); box-shadow:0 0 0 1px var(--line-2); color:var(--txt-2); font-style:normal; font-size:18px; }
+  .bannerPick i svg { width:20px; height:20px; }
   .bannerPick i b { position:absolute; inset:0; background:center/cover no-repeat; filter:grayscale(1) brightness(.8); }
   .bannerPick button.on { color:#fff; }
   .bannerPick button.on i { box-shadow:0 0 0 2px var(--surface), 0 0 0 3.5px var(--acc); }
@@ -346,12 +347,12 @@
   #profileSpark, #progressRadar { width:100%; display:block; }
   #profileSpark { height:84px; }
   #progressRadar { height:280px; }
-  .swatches { display:grid; grid-template-columns:repeat(5, minmax(0,1fr)); gap:8px; }
-  .swatches button { aspect-ratio:.9; min-width:0; display:flex; flex-direction:column; align-items:flex-start; justify-content:space-between; padding:10px 7px 9px 9px; border-radius:14px; border:1px solid var(--line);
-    background:var(--surface-2); color:var(--txt-2); font-size:10px; font-weight:600; }
-  .swatches button i { width:22px; height:22px; border-radius:50%; background:var(--sw); }
-  .swatches button small { max-width:100%; font-size:inherit; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .swatches button.on { color:#fff; border-color:var(--sw); box-shadow:inset 0 0 0 1px var(--sw); }
+  .swatches { display:grid; grid-template-columns:repeat(5, minmax(0,1fr)); gap:14px 12px; }
+  .swatches button { min-width:0; display:flex; flex-direction:column; align-items:stretch; gap:7px; padding:0; border:0; background:none; color:var(--txt-3); font-size:11px; font-weight:500; }
+  .swatches button i { display:block; aspect-ratio:1; border-radius:14px; background:var(--sw); }
+  .swatches button small { font-size:inherit; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .swatches button.on { color:#fff; }
+  .swatches button.on i { box-shadow:0 0 0 2px var(--surface), 0 0 0 4px #fff; }
   #progressEmpty:empty { display:none; }
   .heatWrap { display:flex; gap:6px; align-items:flex-start; overflow:hidden; }
   .heatDays { display:flex; flex-direction:column; gap:3px; font-size:9px; color:var(--txt-3); width:12px; }
@@ -620,6 +621,7 @@
     <div id="profileGear"></div>
     <div class="bannerPick" id="bannerPick" role="group" aria-label="Banner" hidden></div>
     <input id="bannerFile" type="file" accept="image/*" hidden>
+    <input id="bannerCamFile" type="file" accept="image/*" capture="environment" hidden>
   </section>
   <section class="card">
     <div class="cardTitle">Global<small id="profileSpan"></small></div>
@@ -738,7 +740,7 @@
 </div>
 <div id="cropSheet" hidden>
   <div class="cropPanel">
-    <p>Encuadra la foto</p>
+    <p id="cropTitle">Encuadra la foto</p>
     <canvas id="cropCanvas" width="900" height="634" aria-label="Recorte"></canvas>
     <input id="cropZoom" type="range" min="1" max="3" step="0.01" value="1" aria-label="Zoom">
     <button type="button" class="btnPrimary" id="cropUse">Usar foto</button>

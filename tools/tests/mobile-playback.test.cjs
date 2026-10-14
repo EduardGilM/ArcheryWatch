@@ -459,7 +459,7 @@ test('a tanda keeps set progress and an old session stays free', () => {
   assert.doesNotMatch(p.run('sent'), /Tanda/);
   p.run("curSess.currentSet=1;view='Session';render()");
   assert.equal(p.elements.get('sSets').textContent, '1/10');
-  assert.match(p.elements.get('subtitle').textContent, /Tanda indoor · 1\/10/);
+  assert.doesNotMatch(p.elements.get('subtitle').textContent, /Tanda|1\/10/);
   assert.match(p.elements.get('setList').innerHTML, /class="setPts"/);
   p.run("document.getElementById('modeSheet').onclick({target:{closest:s=>s==='[data-v]'?{dataset:{v:'Libre'}}:null}});");
   assert.equal(p.run('curSess.tanda'), false);

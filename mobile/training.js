@@ -198,11 +198,7 @@ render=function() {
     const head=s.paused?'Pausa · ':s.resting&&!s.roundDone?'Descanso · ':'';
     const tail=s.roundDone?ptsTxt:(arrows+(s.target?'/'+s.target:''));
     $('trainingStatus').textContent=`${head}${Training.roundLabel(s)} · ${n}/${goal}${tail?' · '+tail:''}`;
-    if(view==='Session' && data?.shots?.length){
-      $('sSets').textContent=`${n}/${goal}`;
-      const line=`${Training.roundLabel(s)} · ${n}/${goal}${ptsTxt?' · '+ptsTxt:''}`;
-      $('subtitle').textContent=historyMode?`${line} · ${fmtDate(histId)}`:line;
-    }
+    if(view==='Session' && data?.shots?.length) $('sSets').textContent=`${n}/${goal}`;
   } else $('trainingStatus').textContent=s?`${s.mode?s.mode+' · ':''}${s.paused?'Pausa':s.resting?'Descanso':'Set '+setNumber} · ${s.shots.filter(x=>x.set_id===(s.currentSet??1)).length}${s.target?'/'+s.target:''}`:'Equipo';
   if(!historyMode && s?.calibrating)$('trainingStatus').textContent=`Calibración · ${s.calibrationCount||0}`;
   $('calibrationMode').hidden=historyMode||!s?.live||!s.watchId||!window.Native?.command;

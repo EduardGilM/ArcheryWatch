@@ -759,7 +759,7 @@ function studioMount() {
     if (gyroBtn) gyroBtn.hidden = true;
     studioListenGyro(false);
   }
-  const bannerEdit = $('profileBannerEdit'), bannerPick = $('bannerPick'), bannerFile = $('bannerFile');
+  const bannerEdit = $('profileBannerEdit'), bannerPick = $('bannerPick'), bannerFile = $('bannerFile'), bannerCam = $('bannerCamFile');
   if (bannerEdit && bannerPick) bannerEdit.onclick = () => {
     bannerPick.hidden = !bannerPick.hidden;
     bannerEdit.setAttribute('aria-expanded', bannerPick.hidden ? 'false' : 'true');
@@ -768,33 +768,15 @@ function studioMount() {
   if (bannerPick) bannerPick.onclick = e => {
     const b = e.target.closest('[data-banner]');
     if (!b) return;
-    if (b.dataset.banner === 'file') { if (bannerFile) bannerFile.click(); return; }
-    if (b.dataset.banner !== 'custom') Studio.saveProfile({banner: b.dataset.banner});
+    const id = b.dataset.banner;
+    if (id === 'file' || id === 'camera') { const input = id === 'file' ? bannerFile : bannerCam; if (input) input.click(); return; }
+    if (id !== 'custom') Studio.saveProfile({banner: id});
     studioPaintBanner();
     studioBannerPick();
   };
-  if (bannerFile) bannerFile.onchange = () => {
-    const file = bannerFile.files && bannerFile.files[0];
-    bannerFile.value = '';
-    if (!file) return;
-    const img = new Image();
-    img.onload = () => {
-      const c = document.createElement('canvas');
-      c.width = 1200;
-      c.height = 640;
-      const scale = Math.max(1200 / img.width, 640 / img.height);
-      const w = img.width * scale, h = img.height * scale;
-      c.getContext('2d').drawImage(img, (1200 - w) / 2, (640 - h) / 2, w, h);
-      let q = 0.82, url = c.toDataURL('image/jpeg', q);
-      while (url.length > 420000 && q > 0.45) { q -= 0.08; url = c.toDataURL('image/jpeg', q); }
-      URL.revokeObjectURL(img.src);
-      Studio.saveProfile({banner: url});
-      if (Studio.profile().banner !== url && typeof notice === 'function') notice('No se pudo guardar el banner');
-      studioPaintBanner();
-      studioBannerPick();
-    };
-    img.src = URL.createObjectURL(file);
-  };
+  [bannerFile, bannerCam].forEach(input => {
+    if (input) input.onchange = () => { const file = input.files && input.files[0]; input.value = ''; if (file) studioOpenCrop(file, 'banner'); };
+  });
   const photoBtn = $('profilePhotoBtn'), photoFile = $('profileFile');
   if (photoBtn && photoFile) photoBtn.onclick = () => photoFile.click();
   if (photoFile) photoFile.onchange = () => {
@@ -1383,15 +1365,19 @@ function studioPaintBanner() {
   img.style.backgroundPositionY = Math.round(Studio.profileArt().focus * 100) + '%';
 }
 
+const STUDIO_ICON_CAMERA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M4 8.5h3l1.6-2.5h6.8L17 8.5h3v10H4z"/><circle cx="12" cy="13.2" r="3.4"/></svg>';
+const STUDIO_ICON_GALLERY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2.5"/><path d="M4.5 16.5l4.5-4.5 3.5 3.5 2.5-2.5 4.5 4.5"/><circle cx="15.5" cy="9.5" r="1.4"/></svg>';
 function studioBannerPick() {
   const pick = document.getElementById('bannerPick');
   if (!pick || pick.hidden) return;
   const banner = Studio.profile().banner;
   const custom = banner.startsWith('data:image/') ? banner : '';
-  const tile = (id, name, src, on, mark) => `<button type="button" data-banner="${id}" class="${on ? 'on' : ''}" aria-pressed="${on ? 'true' : 'false'}">` +
-    `<i>${src ? `<b style="background-image:url('${src}')"></b>` : mark || ''}</i><span>${name}</span></button>`;
-  pick.innerHTML = Studio.BANNERS.map(b => tile(b.id, b.name, studioBannerSrc(b.id), banner === b.id, b.id === 'none' ? '–' : '')).join('') +
-    (custom ? tile('custom', 'Tu foto', custom, true) : '') + tile('file', 'Galería', '', false, '+');
+  const tile = (id, name, inner, on) => `<button type="button" data-banner="${id}" class="${on ? 'on' : ''}" aria-pressed="${on ? 'true' : 'false'}"><i>${inner}</i><span>${name}</span></button>`;
+  const photo = src => src ? `<b style="background-image:url('${src}')"></b>` : '';
+  pick.innerHTML = tile('camera', 'Cámara', STUDIO_ICON_CAMERA, false) + tile('file', 'Galería', STUDIO_ICON_GALLERY, false) +
+    (custom ? tile('custom', 'Tu foto', photo(custom), true) : '') +
+    Studio.BANNERS.filter(b => b.id !== 'none').map(b => tile(b.id, b.name, photo(studioBannerSrc(b.id)), banner === b.id)).join('') +
+    tile('none', 'Sin banner', '–', banner === 'none');
 }
 
 function studioProgressSessions() {
@@ -1570,7 +1556,6 @@ function studioCardView(layout) {
     duration = anySpan ? span : null;
     bars = sessions.slice(-12).map((s, i) => ({n: i + 1, rows: Studio.scorePool(s.shots)}));
     const view = studioCardPack(headline, subtitle, when, shots, sets.length, duration, bars, grouped, Studio.profileArt().photo, {
-      kicker: 'TRAYECTORIA · ' + sessions.length + ' SESIONES',
       title: profile.club || 'Historial completo',
       modeLine: profile.club || 'Historial completo',
       serial: '',
@@ -1699,7 +1684,6 @@ function studioCardPack(headline, subtitle, when, shots, series, duration, bars,
     ],
     photo: photo || '',
     focus: Studio.card.photo ? 0.5 : ((studioPreset() || {}).focus ?? 0.5),
-    mark: format === 'wa' ? '10' : format === 'lancaster' ? '11-10' : 'X-10',
     streak: Studio.arrowStreak(shots),
     train: Studio.trainingStreak(typeof studioSessions === 'function' ? studioSessions() : [], when)
   };
@@ -1725,7 +1709,7 @@ function studioSetCardPhoto(url) {
   if (Studio.shareOpen) studioDrawShare();
   if (typeof studioSyncShare === 'function') studioSyncShare();
 }
-const studioCrop = {img: null, url: '', zoom: 1, x: 0, y: 0, drag: null, ready: false};
+const studioCrop = {img: null, url: '', zoom: 1, x: 0, y: 0, drag: null, ready: false, target: 'card'};
 function studioCropBox() {
   const canvas = document.getElementById('cropCanvas');
   return {canvas, w: canvas ? canvas.width : 900, h: canvas ? canvas.height : 620};
@@ -1764,10 +1748,16 @@ function studioCropZoom(z) {
   studioCrop.y = cy - iy * next;
   studioDrawCrop();
 }
-function studioOpenCrop(file) {
+function studioOpenCrop(file, target) {
   const img = new Image();
   const url = URL.createObjectURL(file);
   img.onload = () => {
+    studioCrop.target = target === 'banner' ? 'banner' : 'card';
+    const banner = studioCrop.target === 'banner';
+    const canvas = document.getElementById('cropCanvas');
+    if (canvas) canvas.height = banner ? 480 : 634;
+    const title = document.getElementById('cropTitle');
+    if (title) title.textContent = banner ? 'Encuadra el banner' : 'Encuadra la foto';
     studioCrop.img = img;
     studioCrop.url = url;
     studioCrop.zoom = 1;
@@ -1797,7 +1787,8 @@ function studioCommitCrop() {
   const img = studioCrop.img;
   if (!img) return;
   const {w, h} = studioCropBox();
-  const outW = 1080, outH = Math.round(1080 * h / w);
+  const banner = studioCrop.target === 'banner';
+  const outW = banner ? 1200 : 1080, outH = Math.round(outW * h / w);
   const k = outW / w;
   const c = document.createElement('canvas');
   c.width = outW;
@@ -1805,9 +1796,13 @@ function studioCommitCrop() {
   const s = studioCropScale() * k;
   c.getContext('2d').drawImage(img, studioCrop.x * k, studioCrop.y * k, img.naturalWidth * s, img.naturalHeight * s);
   let q = 0.84, url = c.toDataURL('image/jpeg', q);
-  while (url.length > 480000 && q > 0.5) { q -= 0.08; url = c.toDataURL('image/jpeg', q); }
+  while (url.length > (banner ? 420000 : 480000) && q > 0.5) { q -= 0.08; url = c.toDataURL('image/jpeg', q); }
   studioCloseCrop();
-  studioSetCardPhoto(url);
+  if (!banner) { studioSetCardPhoto(url); return; }
+  Studio.saveProfile({banner: url});
+  if (Studio.profile().banner !== url && typeof notice === 'function') notice('No se pudo guardar el banner');
+  studioPaintBanner();
+  studioBannerPick();
 }
 function studioPhotoSrc() {
   if (Studio.card.photo) return Studio.card.photo;
@@ -1861,27 +1856,52 @@ function studioAvatarImage(src) {
   }
   return null;
 }
-function studioAvatar(ctx, cx, cy, r, view, ring, lw, bg, ink) {
+function studioAvatarBox(ctx, x, y, size, view, ring, lw, bg, ink) {
   if (!view.avatar && !view.initials) return;
   const img = studioAvatarImage(view.avatar);
+  const rad = size * 0.24;
   ctx.save();
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  studioRound(ctx, x, y, size, size, rad);
   ctx.fillStyle = bg;
   ctx.fill();
   if (img) {
     ctx.save();
     ctx.clip();
-    const s = Math.max(2 * r / img.naturalWidth, 2 * r / img.naturalHeight);
-    ctx.drawImage(img, cx - img.naturalWidth * s / 2, cy - img.naturalHeight * s / 2, img.naturalWidth * s, img.naturalHeight * s);
+    const k = Math.max(size / img.naturalWidth, size / img.naturalHeight);
+    ctx.drawImage(img, x + (size - img.naturalWidth * k) / 2, y + (size - img.naturalHeight * k) / 2, img.naturalWidth * k, img.naturalHeight * k);
     ctx.restore();
-  } else if (view.initials) studioText(ctx, view.initials, cx, cy + r * 0.3, studioF(500, Math.round(r * 0.78)), ink, 0, 'center');
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.lineWidth = lw;
-  ctx.strokeStyle = ring;
-  ctx.stroke();
+  } else studioText(ctx, view.initials, x + size / 2, y + size * 0.64, studioF(500, Math.round(size * 0.38)), ink, 0, 'center');
+  if (ring && lw) {
+    studioRound(ctx, x - lw / 2, y - lw / 2, size + lw, size + lw, rad + lw / 2);
+    ctx.lineWidth = lw;
+    ctx.strokeStyle = ring;
+    ctx.stroke();
+  }
   ctx.restore();
+}
+function studioProfileHead(ctx, style, view, g) {
+  const name = view.headline, club = view.title;
+  if (style === 'editorial') {
+    studioAvatarBox(ctx, g.L, g.pt + 36, 116, view, '', 0, g.bg, g.ink);
+    const x = g.L + 144;
+    const px = studioFitPx(ctx, name, g.R - x, 58, 750, 36, -1);
+    studioText(ctx, name, x - 2, g.pt + 98, studioF(750, px), g.ink, -1);
+    studioText(ctx, club, x, g.pt + 142, studioF(400, 28), g.soft);
+    return;
+  }
+  const glass = style === 'glass';
+  const size = glass ? 136 : 128;
+  studioAvatarBox(ctx, g.L, g.top - (glass ? 172 : 168), size, view, 'rgba(255,255,255,.16)', 1.5, g.bg, g.ink);
+  const x = g.L + size + 30;
+  if (glass) {
+    const px = studioFitPx(ctx, name, g.R - x, 72, 400, 44, -2.5);
+    studioText(ctx, name, x - 3, g.top - 92, studioF(400, px), g.ink, -2.5);
+    studioText(ctx, club, x, g.top - 46, studioF(400, 30), g.soft);
+  } else {
+    studioText(ctx, club.toUpperCase(), x, g.top - 130, studioF(600, 21), g.kicker, 4.5);
+    const px = studioFitPx(ctx, name, g.R - x, 56, 300, 34, -0.5);
+    studioText(ctx, name, x - 2, g.top - 62, studioF(300, px), g.ink, -0.5);
+  }
 }
 function studioPreset() {
   const list = Studio.PRESETS || [];
@@ -2122,37 +2142,31 @@ function studioFace(ctx) {
   }).catch(() => {});
 }
 
-function studioGauge(ctx, cx, cy, R, pct, acc, acc2, lw) {
-  const a0 = Math.PI * 0.75, sweep = Math.PI * 1.5;
+function studioGauge(ctx, cx, cy, R, pct, acc, halo) {
+  const a0 = Math.PI * 0.75, sweep = Math.PI * 1.5, k = R / 67;
+  const p = Math.max(0, Math.min(1, pct || 0)), end = a0 + sweep * p;
   ctx.save();
   ctx.lineCap = 'round';
-  ctx.lineWidth = lw;
+  ctx.lineWidth = 7 * k;
   ctx.beginPath();
   ctx.arc(cx, cy, R, a0, a0 + sweep);
   ctx.strokeStyle = 'rgba(255,255,255,.08)';
   ctx.stroke();
-  const p = Math.max(0, Math.min(1, pct || 0));
   if (p > 0) {
-    const end = a0 + sweep * p;
-    const g = ctx.createLinearGradient(cx - R, cy + R, cx + R, cy - R);
-    g.addColorStop(0, acc);
-    g.addColorStop(1, acc2);
     ctx.beginPath();
     ctx.arc(cx, cy, R, a0, end);
-    ctx.strokeStyle = g;
-    ctx.shadowColor = studioRgba(acc, 0.5);
-    ctx.shadowBlur = 26;
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-    const kx = cx + Math.cos(end) * R, ky = cy + Math.sin(end) * R;
-    ctx.beginPath();
-    ctx.arc(kx, ky, lw * 0.64, 0, Math.PI * 2);
-    ctx.fillStyle = '#0b0b0d';
-    ctx.fill();
-    ctx.lineWidth = lw * 0.34;
-    ctx.strokeStyle = acc2;
+    ctx.strokeStyle = acc;
     ctx.stroke();
   }
+  const kx = cx + Math.cos(end) * R, ky = cy + Math.sin(end) * R;
+  ctx.beginPath();
+  ctx.arc(kx, ky, 9 * k, 0, Math.PI * 2);
+  ctx.fillStyle = halo;
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(kx, ky, 3 * k, 0, Math.PI * 2);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
   ctx.restore();
 }
 function studioPanel(ctx, x, y, w, h, r, fill, line) {
@@ -2266,7 +2280,7 @@ function studioTokens(style, theme) {
       bar: 'rgba(255,255,255,.16)', track: 'rgba(255,255,255,.04)', glow: true, panel: 'none', pad: 0, labelPx: 21, labelW: 500, labelTrack: 3,
       num: px => studioF(300, px), numTrack: 0, unit: px => studioF(400, px), statMax: 62, scoreW: 200, chipInk: '#0b0b0d'};
   }
-  return {style: 'glass', acc, acc2, ink: '#ffffff', soft: '#9a9aa2', hair: 'rgba(255,255,255,.08)', fill: 'rgba(11,11,13,.8)', base: '#ffffff',
+  return {style: 'glass', acc, acc2, halo: theme.glow || studioRgba(acc, 0.3), ink: '#ffffff', soft: '#9a9aa2', hair: 'rgba(255,255,255,.08)', fill: 'rgba(11,11,13,.8)', base: '#ffffff',
     bar: 'rgba(255,255,255,.16)', track: 'rgba(255,255,255,.04)', glow: true, panel: 'glass', pad: 34, labelPx: 22, labelW: 500, labelTrack: 3,
     num: px => studioF(600, px, studioNum), numTrack: 0, unit: px => studioF(500, px), statMax: 88, chipInk: '#0b0b0d'};
 }
@@ -2370,22 +2384,20 @@ const studioWidgetPaint = {
     const unit = view.scoreLabel || (view.scoreMax ? 'PUNTOS' : 'FLECHAS');
     if (S.style === 'glass') {
       if (b.size === 'small') {
-        const lw = Math.max(12, Math.min(18, b.h * 0.066));
-        const R = Math.min(b.w / 2 - lw, (b.h - lw - 12) / 2.02);
-        const cx = b.x + b.w / 2, cy = b.y + lw / 2 + R + Math.max(0, (b.h - lw - 12 - R * 2.02) / 2);
-        studioGauge(ctx, cx, cy, R, view.pct, S.acc, S.acc2, lw);
-        const px = Math.round(R * 0.98);
-        studioFitValue(ctx, view.scoreMain, cx, cy + px * 0.3, R * 1.4, px, S, S.acc, 'center');
-        if (view.scoreMax) studioText(ctx, '/ ' + view.scoreMax, cx, cy + R * 0.86, S.num(Math.round(R * 0.36)), 'rgba(255,255,255,.66)', 0, 'center');
-        else studioText(ctx, unit, cx, cy + R * 0.8, studioF(500, 19), S.soft, 2.5, 'center');
+        const R = Math.min(b.w / 2 / 1.14, (b.h - 8) / 1.9);
+        const cx = b.x + b.w / 2, cy = b.y + (b.h - 1.9 * R) / 2 + 1.06 * R;
+        studioGauge(ctx, cx, cy, R, view.pct, S.acc, S.halo);
+        const px = Math.round(R * 0.74), lpx = Math.max(20, Math.round(R * 0.16)), gap = R * 0.2;
+        const base = cy - (px * 0.7 + gap + lpx * 0.72) / 2 + px * 0.7;
+        studioFitValue(ctx, view.scoreMain, cx, base, R * 1.3, px, S, S.acc, 'center');
+        studioText(ctx, (view.scoreMax ? '/ ' + view.scoreMax : unit).toUpperCase(), cx, base + gap + lpx * 0.72, studioF(500, lpx), S.soft, lpx * 0.13, 'center');
         return;
       }
-      const lw = Math.max(10, b.h * 0.08);
-      const R = (b.h - lw) / 2 - 4;
-      const cx = b.x + R + lw / 2, cy = b.y + b.h / 2;
-      studioGauge(ctx, cx, cy, R, view.pct, S.acc, S.acc2, lw);
-      studioText(ctx, view.pct != null ? Math.round(view.pct * 100) + '%' : '–', cx, cy + R * 0.2, S.num(Math.round(R * 0.62)), S.ink, 0, 'center');
-      const tx = cx + R + lw + 44;
+      const R = (b.h - 6) / 1.9;
+      const cx = b.x + R * 1.14, cy = b.y + 3 + 1.06 * R;
+      studioGauge(ctx, cx, cy, R, view.pct, S.acc, S.halo);
+      studioText(ctx, view.pct != null ? Math.round(view.pct * 100) + '%' : '–', cx, cy + R * 0.24, S.num(Math.round(R * 0.66)), S.ink, 0, 'center');
+      const tx = cx + R * 1.14 + 44;
       studioWLabel(ctx, view.scoreLabel || (view.scoreMax ? 'PUNTUACIÓN' : 'FLECHAS'), tx, b.y + 2, S);
       const fit = studioFitValue(ctx, view.scoreMain, tx - 2, b.y + b.h - 6, b.x + b.w - tx - 150, Math.round((b.h - 34) / 0.74), S, S.acc);
       if (view.scoreMax) studioText(ctx, '/ ' + view.scoreMax, tx + fit.w + 12, b.y + b.h - 6, S.num(Math.round(fit.px * 0.36)), 'rgba(255,255,255,.5)');
@@ -2604,70 +2616,67 @@ const studioWidgetPaint = {
   },
   streak(ctx, b, view, S) {
     const run = view.streak || {seq: [], best: 0, start: -1, current: 0};
-    const wide = b.size === 'wide';
-    const mark = view.mark || 'X-10';
-    const where = run.best ? (run.from === run.to ? 'serie ' + run.from : 'series ' + run.from + '–' + run.to) : '';
     const cap = S.style === 'editorial' ? 76 : S.style === 'obsidian' ? 84 : 96;
-    const top = studioHead(ctx, b, S, 'MEJOR RACHA', '');
-    const stripH = Math.round(Math.min(wide ? 46 : 40, b.h * 0.26));
+    const top = studioWLabel(ctx, 'MEJOR RACHA', b.x, b.y, S);
+    const color = run.best ? S.acc : S.soft;
+    if (b.size === 'wide') {
+      const area = b.y + b.h - top - 14;
+      const px = Math.round(Math.min(cap, (area - 4) / 0.76));
+      const fit = studioFitValue(ctx, String(run.best), b.x - 2, b.y + b.h - (area - px * 0.72) / 2, b.w * 0.3, px, S, color);
+      const x0 = b.x + fit.w + 40;
+      studioTicks(ctx, x0, b.y + b.h - area, b.x + b.w - x0, area, run, S);
+      return;
+    }
+    const stripH = Math.round(b.h * 0.44);
     const stripY = b.y + b.h - stripH;
     const px = Math.round(Math.min(cap, (stripY - top - 24) / 0.76));
-    const base = Math.min(stripY - 20, (top + stripY) / 2 + px * 0.37);
-    studioHero(ctx, b.x, base, run.best, mark + ' seguidas', b.w * (wide ? 0.4 : 0.42), px, S, run.best ? S.acc : S.soft);
-    if (wide && where) studioText(ctx, where, b.x + b.w, base, studioF(500, 23), S.soft, 0, 'right');
+    studioFitValue(ctx, String(run.best), b.x - 2, Math.min(stripY - 18, (top + stripY) / 2 + px * 0.37), b.w * 0.5, px, S, color);
     studioTicks(ctx, b.x, stripY, b.w, stripH, run, S);
   },
   train(ctx, b, view, S) {
     const t = view.train || {current: 0, best: 0, week: [], two: [], weeks: [], trained: 0};
-    const wide = b.size === 'wide';
+    const wide = b.size === 'wide', month = b.widget.variant === 'month';
     const cap = S.style === 'editorial' ? 76 : S.style === 'obsidian' ? 84 : 96;
-    const label = wide ? 'RACHA DE ENTRENAMIENTO' : 'ENTRENAMIENTO';
-    const unit = studioNoun(t.current, 'día seguido', 'días seguidos');
-    if (b.widget.variant === 'month') {
-      const s = wide ? Math.min(30, (b.h - S.labelPx - 34) / 4 - 6) : Math.min(26, (b.h - 6) / 4 - 6);
-      const gap = Math.max(5, s * 0.26);
-      const gx = b.x + b.w - (7 * s + 6 * gap);
-      const gy = wide ? b.y + S.labelPx + 22 : b.y + b.h - (4 * s + 3 * gap);
-      if (wide) STUDIO_DAYS.forEach((d, i) => studioText(ctx, d, gx + i * (s + gap) + s / 2, b.y + S.labelPx, studioF(600, 18), S.soft, 0, 'center'));
-      t.weeks.forEach((week, r) => week.forEach((c, i) => studioDayCell(ctx, gx + i * (s + gap), gy + r * (s + gap), s, c, S)));
-      const top = studioWLabel(ctx, label, b.x, b.y, S);
-      const capY = b.y + b.h, unitY = capY - 30, base = unitY - 36;
-      const px = Math.round(Math.min(cap, (base - top - 12) / 0.72));
-      studioFitValue(ctx, String(t.current), b.x - 2, base, (gx - b.x - 30) * 0.6, px, S, t.current ? S.acc : S.soft);
-      studioText(ctx, wide ? unit : studioNoun(t.current, 'día', 'días'), b.x, unitY, studioF(500, 22), S.soft);
-      studioText(ctx, 'mejor ' + t.best, b.x, capY, studioF(500, 20), studioRgba(S.base, 0.46));
+    const top = studioWLabel(ctx, wide ? 'RACHA DE ENTRENAMIENTO' : 'ENTRENAMIENTO', b.x, b.y, S);
+    const color = t.current ? S.acc : S.soft;
+    const cells = wide ? t.two : t.week;
+    const n = cells.length || 7, gap = 7;
+    const days = (x0, y, w, side) => {
+      const step = n > 1 ? (w - side) / (n - 1) : 0;
+      cells.forEach((c, i) => {
+        if (wide && i && !c.dow) {
+          ctx.fillStyle = S.hair;
+          ctx.fillRect(x0 + side / 2 + step * (i - 0.5) - 1, y + side * 0.15, 2, side * 0.7);
+        }
+        studioDayPill(ctx, x0 + side / 2 + step * i, y + side / 2, side / 2, c, STUDIO_DAYS[c.dow], S);
+      });
+    };
+    if (!month && !wide) {
+      const side = Math.min((b.w - (n - 1) * gap) / n, b.h * 0.42, 48);
+      const rowY = b.y + b.h - side;
+      const px = Math.round(Math.min(cap, (rowY - top - 24) / 0.76));
+      studioFitValue(ctx, String(t.current), b.x - 2, Math.min(rowY - 18, (top + rowY) / 2 + px * 0.37), b.w * 0.5, px, S, color);
+      days(b.x, rowY, b.w, side);
       return;
     }
-    const cells = wide ? t.two : t.week;
-    const n = cells.length || 7;
-    const r = Math.min(wide ? 24 : 22, (b.w - (n - 1) * 8) / n / 2, b.h * 0.14);
-    const rowY = b.y + b.h - r;
-    const top = studioHead(ctx, b, S, label, 'MEJOR ' + t.best);
-    const px = Math.round(Math.min(cap, (rowY - r - top - 26) / 0.76));
-    const base = Math.min(rowY - r - 22, (top + rowY - r) / 2 + px * 0.37);
-    studioHero(ctx, b.x, base, t.current, unit, b.w * 0.42, px, S, t.current ? S.acc : S.soft);
-    const step = n > 1 ? (b.w - 2 * r) / (n - 1) : 0;
-    cells.forEach((c, i) => {
-      if (wide && i && !c.dow) {
-        ctx.fillStyle = S.hair;
-        ctx.fillRect(b.x + r + step * (i - 0.5) - 1, rowY - r * 0.7, 2, r * 1.4);
-      }
-      studioDayPill(ctx, b.x + r + step * i, rowY, r, c, STUDIO_DAYS[c.dow], S);
-    });
+    const area = b.y + b.h - top - 14;
+    const px = Math.round(Math.min(cap, (area - 4) / 0.76));
+    const fit = studioFitValue(ctx, String(t.current), b.x - 2, b.y + b.h - (area - px * 0.72) / 2, b.w * 0.3, px, S, color);
+    const x0 = b.x + fit.w + 32, w = b.x + b.w - x0;
+    if (!month) {
+      const side = Math.min((w - (n - 1) * gap) / n, area, 56);
+      days(x0, b.y + b.h - (area + side) / 2, w, side);
+      return;
+    }
+    const s = Math.min(wide ? 40 : 36, area / 4.66, w / 8.32);
+    const g = Math.max(5, s * 0.22);
+    const cw = wide ? Math.min(s * 1.8, (w - 6 * g) / 7) : s;
+    const gh = 4 * s + 3 * g;
+    const gx = b.x + b.w - (7 * cw + 6 * g), gy = b.y + b.h - (area + gh) / 2;
+    t.weeks.forEach((week, r) => week.forEach((c, i) => studioDayCell(ctx, gx + i * (cw + g), gy + r * (s + g), cw, s, c, S)));
   }
 };
 const STUDIO_DAYS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
-function studioNoun(n, one, many) { return n === 1 ? one : many; }
-function studioHead(ctx, b, S, left, right) {
-  studioWLabel(ctx, left, b.x, b.y, S);
-  if (right) studioText(ctx, right, b.x + b.w, b.y + S.labelPx, studioF(S.labelW, Math.round(S.labelPx * 0.9)), S.soft, S.labelTrack, 'right');
-  return b.y + S.labelPx;
-}
-function studioHero(ctx, x, base, value, unit, maxW, px, S, color) {
-  const fit = studioFitValue(ctx, String(value), x - 2, base, maxW, px, S, color);
-  if (unit) studioText(ctx, unit, x + fit.w + 10, base, studioF(500, Math.max(22, Math.round(fit.px * 0.32))), S.soft);
-  return fit;
-}
 function studioTicks(ctx, x, y, w, h, run, S) {
   const seq = run.seq || [], n = seq.length;
   if (!n) return;
@@ -2715,9 +2724,9 @@ function studioDayPill(ctx, cx, cy, r, c, letter, S) {
   const ink = c.run ? S.chipInk : c.on ? S.ink : c.future ? studioRgba(S.base, 0.28) : S.soft;
   studioText(ctx, letter, cx, cy + r * 0.34, studioF(c.run ? 700 : 600, Math.round(r * 0.84)), ink, 0, 'center');
 }
-function studioDayCell(ctx, x, y, s, c, S) {
+function studioDayCell(ctx, x, y, w, h, c, S) {
   ctx.save();
-  studioRound(ctx, x, y, s, s, Math.min(8, s * 0.3));
+  studioRound(ctx, x, y, w, h, Math.min(8, h * 0.3));
   if (c.run) {
     if (S.glow) { ctx.shadowColor = studioRgba(S.acc, 0.55); ctx.shadowBlur = 14; }
     ctx.fillStyle = S.acc;
@@ -2735,7 +2744,7 @@ function studioDayCell(ctx, x, y, s, c, S) {
   }
   ctx.restore();
   if (!c.today) return;
-  studioRound(ctx, x - 4, y - 4, s + 8, s + 8, Math.min(11, s * 0.4));
+  studioRound(ctx, x - 4, y - 4, w + 8, h + 8, Math.min(11, h * 0.4));
   ctx.lineWidth = 2;
   ctx.strokeStyle = studioRgba(S.ink, 0.7);
   ctx.stroke();
@@ -2920,11 +2929,13 @@ function studioPaintGlass(ctx, view, theme, tilt, photo) {
   }
   studioText(ctx, 'ARCHERY WATCH', L + (fx.mark ? 40 : 26), cy + 90, studioF(600, 21), 'rgba(255,255,255,.92)', 4);
   studioText(ctx, view.date, R, cy + 90, studioF(500, 21), 'rgba(255,255,255,.72)', 3, 'right');
-  studioText(ctx, view.kicker, L, top - 170, studioF(500, 22), studioMix(acc, '#ffffff', 0.25), 4);
-  const hpx = studioFitPx(ctx, view.headline, cw - 112 - (view.isProfile ? 180 : 0), 78, 400, 48, -2.5);
-  studioText(ctx, view.headline, L - 3, top - 86, studioF(400, hpx), '#ffffff', -2.5);
-  studioText(ctx, view.title, L, top - 36, studioF(400, 31), 'rgba(255,255,255,.66)');
-  if (view.isProfile) studioAvatar(ctx, R - 75, top - 108, 75, view, 'rgba(255,255,255,.9)', 4, '#1a1a1e', '#ffffff');
+  if (view.isProfile) studioProfileHead(ctx, 'glass', view, {L, R, top, ink: '#ffffff', soft: 'rgba(255,255,255,.66)', bg: '#1a1a1e'});
+  else {
+    studioText(ctx, view.kicker, L, top - 170, studioF(500, 22), studioMix(acc, '#ffffff', 0.25), 4);
+    const hpx = studioFitPx(ctx, view.headline, cw - 112, 78, 400, 48, -2.5);
+    studioText(ctx, view.headline, L - 3, top - 86, studioF(400, hpx), '#ffffff', -2.5);
+    studioText(ctx, view.title, L, top - 36, studioF(400, 31), 'rgba(255,255,255,.66)');
+  }
   studioWidgets(ctx, 'glass', view, theme);
   if (fx.grain) studioGrain(ctx, cx, cy, cw, ch, 0.07, 'overlay');
   studioCardSheen(ctx, cx, cy, cw, ch, r, tilt, 0.05, acc);
@@ -3010,11 +3021,11 @@ function studioPaintEditorial(ctx, view, theme, tilt, photo) {
   ctx.fill();
   ctx.restore();
   studioText(ctx, 'ARCHERY WATCH', L + 50, cy + 83, studioF(600, 20), framed ? 'rgba(255,255,255,.95)' : ink, 4.5);
-  const tpx = studioFitPx(ctx, view.headline, 560, 58, 750, 36, -1);
-  studioText(ctx, view.headline, L - 2, pt + 94, studioF(750, tpx), ink, -1);
-  studioText(ctx, view.title, L, pt + 140, studioF(400, 30), soft);
-  if (view.isProfile) studioAvatar(ctx, R - 62, pt + 86, 62, view, cream, 6, '#e7e0d4', ink);
+  if (view.isProfile) studioProfileHead(ctx, 'editorial', view, {L, R, pt, ink, soft, bg: '#e7e0d4'});
   else {
+    const tpx = studioFitPx(ctx, view.headline, 560, 58, 750, 36, -1);
+    studioText(ctx, view.headline, L - 2, pt + 94, studioF(750, tpx), ink, -1);
+    studioText(ctx, view.title, L, pt + 140, studioF(400, 30), soft);
     studioText(ctx, view.day, R, pt + 92, studioF(300, 64), acc, -1, 'right');
     studioText(ctx, view.monthYear, R, pt + 128, studioF(600, 19), soft, 3, 'right');
   }
@@ -3179,11 +3190,12 @@ function studioPaintObsidian(ctx, view, theme, tilt, photo) {
   if (fx.mark) studioMark(ctx, L + 12, 91, 'rgba(255,255,255,.88)', acc);
   studioText(ctx, 'ARCHERY WATCH', L + (fx.mark ? 40 : 0), 98, studioF(600, 21), 'rgba(255,255,255,.88)', 5);
   studioText(ctx, view.date, R, 98, studioF(500, 21), 'rgba(255,255,255,.72)', 3.5, 'right');
-  studioText(ctx, view.kicker, L, top - 114, studioF(600, 21), studioMix(acc, '#ffffff', 0.2), 4.5);
-  const title = view.isProfile ? view.headline : view.title;
-  const tpx = studioFitPx(ctx, title, R - L - (view.isProfile ? 166 : 0), 56, 300, 34, -0.5);
-  studioText(ctx, title, L - 2, top - 46, studioF(300, tpx), ink, -0.5);
-  if (view.isProfile) studioAvatar(ctx, R - 68, top - 84, 68, view, 'rgba(255,255,255,.85)', 2.5, '#141416', ink);
+  if (view.isProfile) studioProfileHead(ctx, 'obsidian', view, {L, R, top, ink, kicker: studioMix(acc, '#ffffff', 0.2), bg: '#141416'});
+  else {
+    studioText(ctx, view.kicker, L, top - 114, studioF(600, 21), studioMix(acc, '#ffffff', 0.2), 4.5);
+    const tpx = studioFitPx(ctx, view.title, R - L, 56, 300, 34, -0.5);
+    studioText(ctx, view.title, L - 2, top - 46, studioF(300, tpx), ink, -0.5);
+  }
   studioWidgets(ctx, 'obsidian', view, theme);
   if (fx.foot) studioFooter(ctx, view, L, R, 1312, 19, 'rgba(255,255,255,.46)');
   if (fx.grain) studioGrain(ctx, 0, 0, W, H, 0.05, 'overlay');
